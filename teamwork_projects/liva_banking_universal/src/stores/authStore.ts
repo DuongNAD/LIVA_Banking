@@ -29,6 +29,118 @@ export interface UserProfile {
   bankAccess: string[];
 }
 
+export interface OfficerAccount extends UserProfile {
+  username: string;
+  password: string;
+  altPasswords?: string[];
+  aliases?: string[];
+}
+
+export const OFFICER_DIRECTORY: OfficerAccount[] = [
+  {
+    id: 'usr_maker_01',
+    username: 'maker_nam',
+    email: 'maker@livabanking.vn',
+    password: 'LivaMaker@2026',
+    altPasswords: ['maker123'],
+    aliases: ['maker_nam', 'opr-77092', 'opr77092', 'maker@livabanking.vn', 'maker_nam@livabanking.vn', 'maker'],
+    fullName: 'Nguyễn Văn Kế Toán',
+    role: 'MAKER',
+    officerId: 'OPR-77092',
+    branchCode: 'HO-HN-001',
+    branchName: 'Hội Sở Chính Hà Nội',
+    terminalId: 'WS-OPER-04',
+    title: 'Cán Bộ Vận Hành & Đối Soát (Maker)',
+    avatar: 'MK',
+    bankAccess: ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
+  },
+  {
+    id: 'usr_maker_02',
+    username: 'maker_mai',
+    email: 'maker_mai@livabanking.vn',
+    password: 'LivaMaker@2026',
+    altPasswords: ['maker123'],
+    aliases: ['maker_mai', 'opr-77093', 'opr77093'],
+    fullName: 'Lê Phương Mai',
+    role: 'MAKER',
+    officerId: 'OPR-77093',
+    branchCode: 'HO-HN-001',
+    branchName: 'Hội Sở Chính Hà Nội',
+    terminalId: 'WS-OPER-04',
+    title: 'Kế toán viên Thanh toán (Maker)',
+    avatar: 'PM',
+    bankAccess: ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
+  },
+  {
+    id: 'usr_checker_01',
+    username: 'checker_tri',
+    email: 'checker@livabanking.vn',
+    password: 'LivaChecker@2026',
+    altPasswords: ['checker123'],
+    aliases: ['checker_tri', 'sup-88214', 'sup88214', 'checker@livabanking.vn', 'checker_tri@livabanking.vn', 'checker'],
+    fullName: 'Trần Thị Giám Đốc',
+    role: 'CHECKER',
+    officerId: 'SUP-88214',
+    branchCode: 'HO-HN-001',
+    branchName: 'Hội Sở Chính Hà Nội',
+    terminalId: 'WS-OPER-04',
+    title: 'Kiểm Soát Viên Phê Duyệt (Checker)',
+    avatar: 'CK',
+    bankAccess: ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
+  },
+  {
+    id: 'usr_checker_02',
+    username: 'checker_huong',
+    email: 'checker_huong@livabanking.vn',
+    password: 'LivaChecker@2026',
+    altPasswords: ['checker123'],
+    aliases: ['checker_huong', 'sup-88215', 'sup88215'],
+    fullName: 'Đỗ Lan Hương',
+    role: 'CHECKER',
+    officerId: 'SUP-88215',
+    branchCode: 'HO-HN-001',
+    branchName: 'Hội Sở Chính Hà Nội',
+    terminalId: 'WS-OPER-04',
+    title: 'Phó phòng Kế toán / Kiểm Soát Viên (Checker)',
+    avatar: 'LH',
+    bankAccess: ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
+  },
+  {
+    id: 'usr_aml_01',
+    username: 'auditor_lan',
+    email: 'aml@livabanking.vn',
+    password: 'LivaAudit@2026',
+    altPasswords: ['aml123', 'auditor123'],
+    aliases: ['auditor_lan', 'aml_lan', 'cmp-99015', 'cmp99015', 'aml@livabanking.vn', 'auditor@livabanking.vn', 'aml', 'auditor'],
+    fullName: 'Lê Hoàng Thanh Tra',
+    role: 'AML',
+    officerId: 'CMP-99015',
+    branchCode: 'HO-HN-001',
+    branchName: 'Hội Sở Chính Hà Nội',
+    terminalId: 'WS-OPER-04',
+    title: 'Cán Bộ Giám Sát Tuân Thủ & PCRT',
+    avatar: 'AM',
+    bankAccess: ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
+  },
+  {
+    id: 'usr_treasury_01',
+    username: 'cfo_hoang',
+    email: 'treasury@livabanking.vn',
+    password: 'LivaCfo@2026',
+    altPasswords: ['treasury123'],
+    aliases: ['cfo_hoang', 'trz-55038', 'trz55038', 'treasury@livabanking.vn', 'treasury'],
+    fullName: 'Đặng Đình Bảo',
+    role: 'TREASURY',
+    officerId: 'TRZ-55038',
+    branchCode: 'HO-HN-001',
+    branchName: 'Hội Sở Chính Hà Nội',
+    terminalId: 'WS-OPER-04',
+    title: 'Cán Bộ Quản Trị Thanh Khoản & Vốn',
+    avatar: 'TR',
+    bankAccess: ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
+  },
+];
+
 export const PRESET_PROFILES: Record<'MAKER' | 'CHECKER' | 'AML' | 'TREASURY', UserProfile & { password: string }> = {
   MAKER: {
     id: 'usr_maker_01',
@@ -41,7 +153,7 @@ export const PRESET_PROFILES: Record<'MAKER' | 'CHECKER' | 'AML' | 'TREASURY', U
     branchName: 'Hội Sở Chính Hà Nội',
     terminalId: 'WS-OPER-04',
     title: 'Cán Bộ Vận Hành & Đối Soát',
-    avatar: '👤',
+    avatar: 'MK',
     bankAccess: ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
   },
   CHECKER: {
@@ -55,7 +167,7 @@ export const PRESET_PROFILES: Record<'MAKER' | 'CHECKER' | 'AML' | 'TREASURY', U
     branchName: 'Hội Sở Chính Hà Nội',
     terminalId: 'WS-OPER-04',
     title: 'Kiểm Soát Viên Phê Duyệt',
-    avatar: '🛡️',
+    avatar: 'CK',
     bankAccess: ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
   },
   AML: {
@@ -69,7 +181,7 @@ export const PRESET_PROFILES: Record<'MAKER' | 'CHECKER' | 'AML' | 'TREASURY', U
     branchName: 'Hội Sở Chính Hà Nội',
     terminalId: 'WS-OPER-04',
     title: 'Cán Bộ Giám Sát Tuân Thủ & PCRT',
-    avatar: '⚖️',
+    avatar: 'AM',
     bankAccess: ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
   },
   TREASURY: {
@@ -83,7 +195,7 @@ export const PRESET_PROFILES: Record<'MAKER' | 'CHECKER' | 'AML' | 'TREASURY', U
     branchName: 'Hội Sở Chính Hà Nội',
     terminalId: 'WS-OPER-04',
     title: 'Cán Bộ Quản Trị Thanh Khoản & Vốn',
-    avatar: '🏦',
+    avatar: 'TR',
     bankAccess: ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
   },
 };
@@ -105,7 +217,7 @@ function generateMockJwtToken(user: UserProfile): string {
     branchCode: user.branchCode,
     terminalId: user.terminalId || 'WS-OPER-04',
     iat: now,
-    exp: now + 86400,
+    exp: now + 14400, // 4 hours (14,400 seconds)
   };
 
   const toB64Url = (obj: any): string => {
@@ -143,6 +255,12 @@ function parseUserFromToken(jwt: string | null): UserProfile | null {
     const payload = JSON.parse(jsonStr);
     if (!payload || !payload.role) return null;
 
+    // Check token expiration (4 hours limit)
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < now) {
+      return null; // Token expired
+    }
+
     const role = (payload.role as UserRole) || 'MAKER';
     const preset = PRESET_PROFILES[role === 'AUDITOR' ? 'AML' : (role as keyof typeof PRESET_PROFILES)];
     return {
@@ -155,7 +273,7 @@ function parseUserFromToken(jwt: string | null): UserProfile | null {
       branchName: payload.branchName || preset?.branchName || 'Hội Sở Chính Hà Nội',
       terminalId: payload.terminalId || preset?.terminalId || 'WS-OPER-04',
       title: preset?.title || 'Cán Bộ Tác Nghiệp',
-      avatar: preset?.avatar || '👤',
+      avatar: preset?.avatar || 'MK',
       bankAccess: preset?.bankAccess || ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
     };
   } catch {
@@ -214,7 +332,7 @@ export const useAuthStore = defineStore('auth', () => {
             branchName: u.branchName || 'Hội Sở Chính Hà Nội',
             terminalId: u.terminalId || 'WS-OPER-04',
             title: u.title || (u.role === 'MAKER' ? 'Cán Bộ Vận Hành & Đối Soát' : 'Cán Bộ Ngân Hàng'),
-            avatar: u.avatar || '👤',
+            avatar: u.avatar || 'MK',
             bankAccess: u.bankAccess || ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
           };
         } else {
@@ -231,11 +349,11 @@ export const useAuthStore = defineStore('auth', () => {
   /**
    * Login with email and password
    */
-  async function login(email: string, password: string): Promise<boolean> {
+  async function login(email: string, password: string, preferredRole?: UserRole): Promise<boolean> {
     authError.value = null;
     const res = await apiRequest('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, role: preferredRole }),
     });
 
     if (res.success && res.data?.token) {
@@ -248,56 +366,90 @@ export const useAuthStore = defineStore('auth', () => {
       isServerOnline.value = true;
       return true;
     } else {
-      // If server is offline or endpoint 404 (static web deployment), provide mock local token simulation with full profile
-      if (!res.isOnline || (res.error && (res.error.includes('404') || res.error.includes('Offline')))) {
-        const lower = email.toLowerCase().trim();
-        let matchedPreset: (UserProfile & { password: string }) | null = null;
-        if (lower.includes('checker') || lower.includes('sup-88214') || lower.includes('sup88214')) matchedPreset = PRESET_PROFILES.CHECKER;
-        else if (lower.includes('aml') || lower.includes('cmp-99015') || lower.includes('cmp99015') || lower.includes('auditor')) matchedPreset = PRESET_PROFILES.AML;
-        else if (lower.includes('treasury') || lower.includes('trz-55038') || lower.includes('trz55038')) matchedPreset = PRESET_PROFILES.TREASURY;
-        else if (lower.includes('maker') || lower.includes('opr-77092') || lower.includes('opr77092')) matchedPreset = PRESET_PROFILES.MAKER;
-        else matchedPreset = PRESET_PROFILES.MAKER; // Default fallback for internal staff login
-
-        const mockUser: UserProfile = matchedPreset
-          ? {
-              id: matchedPreset.id,
-              email: matchedPreset.email,
-              fullName: matchedPreset.fullName,
-              role: matchedPreset.role,
-              officerId: matchedPreset.officerId,
-              branchCode: matchedPreset.branchCode,
-              branchName: matchedPreset.branchName,
-              terminalId: matchedPreset.terminalId,
-              title: matchedPreset.title,
-              avatar: matchedPreset.avatar,
-              bankAccess: matchedPreset.bankAccess,
-            }
-          : {
-              id: `local_${Date.now()}`,
-              email,
-              fullName: 'Cán Bộ Ngân Hàng',
-              role: 'MAKER',
-              officerId: 'OPR-77092',
-              branchCode: 'HO-HN-001',
-              branchName: 'Hội Sở Chính Hà Nội',
-              terminalId: 'WS-OPER-04',
-              title: 'Cán Bộ Vận Hành',
-              avatar: '👤',
-              bankAccess: ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
-            };
-
-        const mockToken = generateMockJwtToken(mockUser);
-        token.value = mockToken;
-        currentUser.value = mockUser;
-        setStoredToken(mockToken);
+      const clearSession = () => {
+        token.value = null;
+        currentUser.value = null;
+        clearStoredToken();
         if (typeof window !== 'undefined') {
-          localStorage.setItem('liva_auth_token', mockToken);
+          localStorage.removeItem('liva_auth_token');
         }
-        isServerOnline.value = false;
-        return true;
+      };
+
+      // If server responded with a specific business error (e.g. 401 Wrong Password or 403 SoD Violation), respect it!
+      if (res.isOnline && res.error && !res.error.includes('404') && !res.error.includes('Offline')) {
+        clearSession();
+        authError.value = res.error;
+        return false;
       }
-      authError.value = res.error || 'Đăng nhập thất bại.';
-      return false;
+
+      // Fallback: Local authoritative authentication (offline / static web deployment)
+      const inputIdent = email.toLowerCase().trim();
+      const foundUser = OFFICER_DIRECTORY.find((u) =>
+        u.username.toLowerCase() === inputIdent ||
+        u.email.toLowerCase() === inputIdent ||
+        u.officerId.toLowerCase() === inputIdent ||
+        (u.aliases && u.aliases.some((a) => a.toLowerCase() === inputIdent))
+      );
+
+      if (!foundUser) {
+        clearSession();
+        authError.value = 'Mã cán bộ hoặc tên đăng nhập không tồn tại trong hệ thống ngân hàng.';
+        return false;
+      }
+
+      const validPasswords = [foundUser.password, ...(foundUser.altPasswords || [])];
+      if (!validPasswords.includes(password)) {
+        clearSession();
+        authError.value = 'Mật khẩu truy cập không chính xác. Vui lòng kiểm tra lại.';
+        return false;
+      }
+
+      // Enforce Segregation of Duties (SoD - Thông tư 09/2020/TT-NHNN)
+      if (preferredRole) {
+        const isAmlAuditorMatch =
+          (preferredRole === 'AML' && foundUser.role === 'AUDITOR') ||
+          (preferredRole === 'AUDITOR' && foundUser.role === 'AML');
+
+        if (foundUser.role !== preferredRole && !isAmlAuditorMatch) {
+          clearSession();
+          const roleLabels: Record<string, string> = {
+            MAKER: 'Kế toán (Maker)',
+            CHECKER: 'Kiểm soát (Checker)',
+            AML: 'Giám sát AML',
+            AUDITOR: 'Kiểm toán (Auditor)',
+            TREASURY: 'Quản trị Vốn (Treasury)',
+          };
+          const userRoleLabel = roleLabels[foundUser.role] || foundUser.role;
+          const requestedRoleLabel = roleLabels[preferredRole] || preferredRole;
+
+          authError.value = `Vi phạm Tách bạch trách nhiệm (SoD - Thông tư 09/2020/TT-NHNN): Cán bộ ${foundUser.fullName} được định danh vai trò [${userRoleLabel}], không có thẩm quyền truy cập phân hệ [${requestedRoleLabel}].`;
+          return false;
+        }
+      }
+
+      const mockUser: UserProfile = {
+        id: foundUser.id,
+        email: foundUser.email,
+        fullName: foundUser.fullName,
+        role: foundUser.role,
+        officerId: foundUser.officerId,
+        branchCode: foundUser.branchCode,
+        branchName: foundUser.branchName,
+        terminalId: foundUser.terminalId,
+        title: foundUser.title,
+        avatar: foundUser.avatar,
+        bankAccess: foundUser.bankAccess,
+      };
+
+      const mockToken = generateMockJwtToken(mockUser);
+      token.value = mockToken;
+      currentUser.value = mockUser;
+      setStoredToken(mockToken);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('liva_auth_token', mockToken);
+      }
+      isServerOnline.value = false;
+      return true;
     }
   }
 

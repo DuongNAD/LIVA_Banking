@@ -26,7 +26,7 @@
           @click="showTokenModal = true"
           title="Bấm để xem chi tiết mã Token trong LocalStorage"
         >
-          <span>🔑</span>
+          <svg class="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           <span>LocalStorage: <strong class="text-emerald-400 underline">liva_auth_token</strong></span>
           <span v-if="authStore.token" class="text-[10px] text-slate-400">({{ tokenShort }})</span>
         </button>
@@ -36,7 +36,6 @@
       <div class="flex items-center space-x-2">
         <!-- Current Active User Badge -->
         <div v-if="authStore.currentUser" class="hidden md:flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-indigo-950/60 border border-indigo-500/30 text-indigo-300 text-[11px]">
-          <span>{{ authStore.currentUser.avatar }}</span>
           <span class="font-bold">{{ authStore.currentUser.fullName }}</span>
           <span
             class="px-1.5 py-0.2 rounded text-[10px] font-extrabold uppercase"
@@ -56,7 +55,7 @@
 
           <button
             type="button"
-            class="px-2 py-1 rounded transition flex items-center space-x-1"
+            class="px-2 py-1 rounded transition flex items-center space-x-1 cursor-pointer"
             :class="
               authStore.isMaker
                 ? 'bg-blue-600 text-white font-bold shadow-xs'
@@ -64,13 +63,13 @@
             "
             @click="authStore.loginAsMaker"
           >
-            <span>👤</span>
+            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             <span>Maker (Kế toán)</span>
           </button>
 
           <button
             type="button"
-            class="px-2 py-1 rounded transition flex items-center space-x-1"
+            class="px-2 py-1 rounded transition flex items-center space-x-1 cursor-pointer"
             :class="
               authStore.isChecker
                 ? 'bg-amber-600 text-white font-bold shadow-xs'
@@ -78,7 +77,7 @@
             "
             @click="authStore.loginAsChecker"
           >
-            <span>🛡️</span>
+            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
             <span>Checker (Giám đốc)</span>
           </button>
         </div>
@@ -93,7 +92,7 @@
       <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-xl w-full p-6 shadow-2xl text-slate-200">
         <div class="flex items-center justify-between pb-4 border-b border-slate-800">
           <div class="flex items-center space-x-2">
-            <span class="text-xl">🔑</span>
+            <svg class="w-5 h-5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             <div>
               <h3 class="font-bold text-base text-white font-sans">Chi Tiết JWT Auth Token (Client-Server)</h3>
               <p class="text-xs text-slate-400">Được lưu trực tiếp trong <code class="text-emerald-400 font-mono">localStorage['liva_auth_token']</code></p>
@@ -101,10 +100,10 @@
           </div>
           <button
             type="button"
-            class="text-slate-400 hover:text-white text-lg p-1"
+            class="text-slate-400 hover:text-white p-1 cursor-pointer"
             @click="showTokenModal = false"
           >
-            ✕
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
           </button>
         </div>
 
@@ -122,8 +121,8 @@
           </div>
 
           <div class="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-emerald-200 text-[11px] space-y-1 font-sans">
-            <div class="font-bold flex items-center space-x-1">
-              <span>💡</span>
+            <div class="font-bold flex items-center space-x-1.5">
+              <svg class="w-4 h-4 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
               <span>Cách tự kiểm tra trong trình duyệt của bạn:</span>
             </div>
             <ol class="list-decimal list-inside space-y-0.5 text-emerald-300">

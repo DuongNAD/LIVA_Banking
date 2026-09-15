@@ -315,7 +315,7 @@ export const useReconciliationStore = defineStore('reconciliation', {
         confidence: 0.95,
         explanation:
           overrideNotes ||
-          `Ép khớp thủ công (Manual Match Override) bởi Cán bộ Vận hành${
+          `Khớp thủ công (Manual Match) bởi Cán bộ Vận hành${
             selectedLedger ? ` với hóa đơn ${selectedLedger.docNo}` : ''
           }.`,
         timestamp: new Date().toISOString(),
@@ -350,7 +350,7 @@ export const useReconciliationStore = defineStore('reconciliation', {
         txId,
         action: 'OVERRIDE',
         timestamp: new Date().toISOString(),
-        details: overrideNotes || 'Ép khớp thủ công',
+        details: overrideNotes || 'Khớp thủ công',
       });
 
       return true;

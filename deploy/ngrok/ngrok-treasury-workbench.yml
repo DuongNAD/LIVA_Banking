@@ -19,6 +19,14 @@ tunnels:
     proto: http
     addr: 5173
     domain: rd_3JHcwHJK1iUTdwx1D22XRMeUA5K
+    basic_auth:
+      - "maker_nam:LivaMaker@2026"
+      - "maker_mai:LivaMaker@2026"
+      - "checker_tri:LivaChecker@2026"
+      - "checker_huong:LivaChecker@2026"
+      - "cfo_hoang:LivaCfo@2026"
+      - "auditor_lan:LivaAudit@2026"
+      - "admin_sys:LivaAdmin@2026"
     inspect: true
     metadata: '{"app": "liva-banking", "component": "treasury-workbench", "env": "remote-preview", "domain_id": "rd_3JHcwHJK1iUTdwx1D22XRMeUA5K"}'
     traffic_policy:

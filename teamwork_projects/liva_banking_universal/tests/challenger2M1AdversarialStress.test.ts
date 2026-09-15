@@ -246,7 +246,7 @@ describe('Milestone M1 Challenger 2 Empirical Adversarial Suite', () => {
       }
     });
 
-    it('guarantees JWT generation invariant: 3 parts, valid base64url, valid claims, 24-hour expiration', async () => {
+    it('guarantees JWT generation invariant: 3 parts, valid base64url, valid claims, 4-hour expiration', async () => {
       const auth = useAuthStore();
       const roles: UserRole[] = ['MAKER', 'CHECKER', 'AML', 'TREASURY'];
 
@@ -279,8 +279,8 @@ describe('Milestone M1 Challenger 2 Empirical Adversarial Suite', () => {
         expect(auth.currentBranchCode).toBe('HO-HN-001');
         expect(auth.currentTerminalId).toBe('WS-OPER-04');
 
-        // 24-hour TTL check
-        expect(payload.exp - payload.iat).toBe(86400);
+        // 4-hour TTL check
+        expect(payload.exp - payload.iat).toBe(14400);
       }
     });
 

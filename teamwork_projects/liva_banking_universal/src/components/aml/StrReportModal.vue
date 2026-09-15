@@ -14,10 +14,10 @@
         </div>
         <button
           type="button"
-          class="text-slate-400 hover:text-white transition p-1 rounded-lg"
+          class="text-slate-400 hover:text-white transition p-1 rounded-lg cursor-pointer"
           @click="$emit('close')"
         >
-          ✕
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
       </div>
 
@@ -111,14 +111,14 @@
             class="px-3 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 transition"
             @click="copyJson"
           >
-            {{ copyJsonStatus ? '✓ Đã Sao Chép JSON' : 'Sao Chép JSON' }}
+            {{ copyJsonStatus ? 'Đã Sao Chép JSON' : 'Sao Chép JSON' }}
           </button>
           <button
             type="button"
             class="px-3 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 transition"
             @click="copyDocument"
           >
-            {{ copyDocStatus ? '✓ Đã Sao Chép Văn Bản' : 'Sao Chép Báo Cáo' }}
+            {{ copyDocStatus ? 'Đã Sao Chép Văn Bản' : 'Sao Chép Báo Cáo' }}
           </button>
         </div>
         <div class="flex items-center space-x-2">

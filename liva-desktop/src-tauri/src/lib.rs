@@ -731,6 +731,71 @@ async fn banking_get_compliance_status(
     .await
 }
 
+#[tauri::command]
+async fn auth_login(
+    window: tauri::Window,
+    state: tauri::State<'_, NativeCoreState>,
+    username: Option<String>,
+    password: Option<String>,
+    quick_login: Option<bool>,
+    payload: Option<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    let principal = authorize_tauri_principal(window.label(), "auth:login")?;
+    let final_payload = if let Some(p) = payload {
+        p
+    } else {
+        serde_json::json!({
+            "username": username.unwrap_or_default(),
+            "password": password,
+            "quick_login": quick_login.unwrap_or(false),
+        })
+    };
+    handle_command_as(
+        principal,
+        state.0.clone(),
+        "auth:login",
+        final_payload,
+        None,
+        None,
+    )
+    .await
+}
+
+#[tauri::command]
+async fn auth_get_quick_accounts(
+    window: tauri::Window,
+    state: tauri::State<'_, NativeCoreState>,
+) -> Result<serde_json::Value, String> {
+    let principal = authorize_tauri_principal(window.label(), "auth:get_quick_accounts")?;
+    handle_command_as(
+        principal,
+        state.0.clone(),
+        "auth:get_quick_accounts",
+        serde_json::json!({}),
+        None,
+        None,
+    )
+    .await
+}
+
+#[tauri::command]
+async fn auth_create_user(
+    window: tauri::Window,
+    state: tauri::State<'_, NativeCoreState>,
+    payload: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let principal = authorize_tauri_principal(window.label(), "auth:create_user")?;
+    handle_command_as(
+        principal,
+        state.0.clone(),
+        "auth:create_user",
+        payload,
+        None,
+        None,
+    )
+    .await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Without a subscriber every tracing::info!/error! from liva-native-core
@@ -1007,7 +1072,10 @@ pub fn run() {
             banking_run_reconciliation,
             banking_get_reconciliation_matrix,
             reconciliation_resolve_hitl,
-            banking_get_compliance_status
+            banking_get_compliance_status,
+            auth_login,
+            auth_get_quick_accounts,
+            auth_create_user
         ])
         .run(tauri::generate_context!())
         .expect("[LIVA Tauri] Fatal: Failed to start application");

@@ -265,6 +265,17 @@ Xin trân trọng cảm ơn!
 - **Trả lời phản biện (45 giây)**:  
   *"Thưa Giám khảo, RPA là các con bot cứng nhắc chạy theo tọa độ màn hình (screen scraping). Chỉ cần ngân hàng đổi font chữ, thêm một cột trong Excel hay đổi bố cục giao diện web là bot RPA sẽ gãy vụn và tốn hàng nghìn USD bảo trì. LIVA không phải RPA — chúng tôi là Hệ thống Tác tử Cục bộ có khả năng đọc hiểu cấu trúc linh hoạt của 35+ ngân hàng tại Việt Nam, xử lý được cả file gộp ô, nội dung viết tắt không dấu hay chuyển khoản thiếu tiền phí. Chi phí triển khai của LIVA chỉ mất 15 phút so với 6 tháng của RPA."*
 
+### Câu hỏi 4 (Giám khảo Công nghệ / Kiến trúc): *"Bản web demo này chỉ cần client truy cập URL là chạy được đúng không? Dữ liệu sao kê khách hàng kéo thả vào có bị gửi lên máy chủ đám mây không?"*
+- **Trả lời phản biện (45 giây)**:  
+  *"Thưa Giám khảo, hoàn toàn chính xác. Bản Universal Web Demo của LIVA được thiết kế theo nguyên lý **Zero-Backend Client-Side Execution**: Toàn bộ thuật toán bóc tách bảng tính (SheetJS), động cơ đối soát 3 tầng và quét cảnh báo rửa tiền AML đều đã được tối ưu chạy **100% trong bộ nhớ RAM trình duyệt của máy trạm người dùng**. Khi khách hàng kéo thả file sao kê, không có bất kỳ byte dữ liệu nào bị truyền ra Internet. Khi đóng tab, RAM tự động giải phóng sạch sẽ, bảo đảm tuân thủ tuyệt đối Nghị định 13/2023/NĐ-CP."*
+
+### Câu hỏi 5 (Giám khảo An ninh Thông tin / Pháp lý): *"Làm thế nào để doanh nghiệp giới hạn chỉ nhân viên ngồi trong văn phòng hoặc kết nối đúng mạng nội bộ công ty mới truy cập được trang web này?"*
+- **Trả lời phản biện (45 giây)**:  
+  *"Thưa Giám khảo, hệ thống hỗ trợ cơ chế **Mạng Nội bộ Cách ly (Intranet / Air-Gapped Topology)** với 3 tầng kiểm soát:  
+  1. **Triển khai LAN thuần túy**: Web server lắng nghe trên dải IP nội bộ Private RFC 1918 (`192.168.x.x`), đóng toàn bộ Port-Forwarding trên router văn phòng. Nhân viên bắt Wi-Fi hoặc cắm dây mạng công ty là truy cập được ngay; người ngoài Internet hoàn toàn không thể dò thấy hệ thống.  
+  2. **Mesh VPN (Tailscale/WireGuard)**: Dành cho kịch bản nhân viên làm việc từ xa (WFH) kết nối qua đường hầm mã hóa điểm-điểm có xác thực 2FA.  
+  3. **Tường lửa IP Whitelist**: Nếu đặt trên Cloud, hệ thống chỉ cho phép duy nhất IP Public tĩnh của văn phòng công ty truy cập. Quy trình thiết lập chi tiết đã được chúng tôi chuẩn hóa tại cẩm nang `docs/02-van-hanh/07-trien-khai-web-client-va-mang-noi-bo.md`."*
+
 ---
 
 ## 8. QUY TRÌNH XỬ LÝ SỰ CỐ KHẨN CẤP (DISASTER RECOVERY PROTOCOLS)

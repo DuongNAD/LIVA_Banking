@@ -1,121 +1,86 @@
 <script setup lang="ts">
 /**
- * BankingSettingsView.vue — Màn hình Cài đặt Cấu hình Ngân quỹ & Đối soát
- * Cấu hình các tham số ngưỡng an toàn thanh khoản, Maker-Checker, và liên kết đến Quản trị Hệ thống.
+ * BankingSettingsView.vue — P100–P106 Trung Tâm Cài Đặt & Quản Trị Hệ Thống
+ * =========================================================================
+ * Trung tâm điều hành cấu hình LIVA Banking Harness:
+ * - P101: Phân quyền RBAC & Tuân thủ Phân nhiệm (SoD) TT 09/2020
+ * - P102: Cổng kết nối Open Banking API (VCB, TCB, BIDV, MBB)
+ * - P103: Cầu nối đồng bộ ERP (MISA AMIS, FAST Accounting, SAP B1)
+ * - P104: Tham số dung sai đối soát (Tier 1/2/3, TTL)
+ * - P105: Bảo mật chữ ký số HSM & Khóa Zero Cloud Egress
+ * - P106: Sao lưu dữ liệu Merkle Tree & Diễn tập DR
  */
-import { ref } from 'vue';
-import { useToast } from '../../composables/useToast';
+import { useSettingsStore, type SettingsTab } from '../../stores/settingsStore';
+import UserManagementTab from '../../components/banking/settings/UserManagementTab.vue';
+import BankConnectorTab from '../../components/banking/settings/BankConnectorTab.vue';
+import ErpBridgeTab from '../../components/banking/settings/ErpBridgeTab.vue';
+import ThresholdConfigTab from '../../components/banking/settings/ThresholdConfigTab.vue';
+import SecurityHsmTab from '../../components/banking/settings/SecurityHsmTab.vue';
+import BackupRestoreTab from '../../components/banking/settings/BackupRestoreTab.vue';
 
-const toast = useToast();
+const store = useSettingsStore();
 
-const minLiquidityThreshold = ref('500,000,000');
-const autoReconcileTolerance = ref('11,000');
-const enableMakerChecker = ref(true);
-const enableZeroEgress = ref(true);
-const autoPruneOldLogs = ref(false);
-
-function saveSettings() {
-  toast.success('Đã lưu cấu hình an toàn ngân quỹ thành công!', { title: 'Cài Đặt' });
-}
-
-function openSystemDashboard() {
-  window.open('/dashboard.html', '_blank');
-}
+const tabs: { id: SettingsTab; label: string; code: string }[] = [
+  { id: 'USERS', label: 'Quản Trị Người Dùng & RBAC', code: 'P101' },
+  { id: 'BANK_API', label: 'Open Banking B2B', code: 'P102' },
+  { id: 'ERP_BRIDGE', label: 'Cầu Nối Đồng Bộ ERP', code: 'P103' },
+  { id: 'THRESHOLDS', label: 'Tham Số Dung Sai Đối Soát', code: 'P104' },
+  { id: 'SECURITY', label: 'Bảo Mật & Chữ Ký Số HSM', code: 'P105' },
+  { id: 'BACKUP', label: 'Sao Lưu & Phục Hồi DR', code: 'P106' },
+];
 </script>
 
 <template>
   <div class="banking-view-container">
     <!-- Header Banner -->
     <div class="settings-header-banner">
-      <div>
-        <h2 class="banner-title">Cài Đặt Cấu Hình Ngân Quỹ & Quy Tắc Đối Soát</h2>
+      <div class="banner-left">
+        <div class="header-tags">
+          <span class="p-title-pill">P100–P106 HỆ THỐNG & BẢO MẬT</span>
+          <span class="integrity-badge">
+            ✓ Thông tư 09/2020/TT-NHNN & NĐ 13/2023/NĐ-CP
+          </span>
+        </div>
+        <h2 class="banner-title">Cài Đặt Cấu Hình Hệ Thống & Quản Trị Bảo Mật</h2>
         <p class="banner-desc">
-          Thiết lập các ngưỡng kiểm soát rủi ro, chính sách Maker-Checker và bảo mật theo chuẩn Nghị định 13/2023/NĐ-CP.
+          Quản lý tập trung phân quyền người dùng, hạ tầng kết nối ngân hàng/ERP và chính sách an toàn thông tin.
         </p>
       </div>
-      <button class="save-btn" @click="saveSettings">
-        Lưu Thay Đổi
-      </button>
-    </div>
 
-    <!-- Configuration Cards Grid -->
-    <div class="settings-grid">
-      <!-- Card 1: Treasury Risk Controls -->
-      <div class="settings-card">
-        <h3 class="card-title">1. Kiểm Soát Rủi Ro Ngân Quỹ (Treasury Safeguards)</h3>
-        
-        <div class="form-group">
-          <label class="form-label">Ngưỡng đệm an toàn thanh khoản tối thiểu (VND)</label>
-          <input
-            v-model="minLiquidityThreshold"
-            type="text"
-            class="form-input"
-            placeholder="500,000,000"
-          />
-          <span class="form-hint">Cảnh báo thâm hụt số dư sẽ kích hoạt nếu dự báo dưới ngưỡng này.</span>
+      <div class="banner-stats">
+        <div class="stat-pill">
+          <span class="label">Ngân hàng B2B:</span>
+          <strong>{{ store.connectedBankCount }}/{{ store.bankConfigs.length }}</strong>
         </div>
-
-        <div class="form-group">
-          <label class="form-label">Dung sai sai lệch phí ngân hàng cho phép (VND)</label>
-          <input
-            v-model="autoReconcileTolerance"
-            type="text"
-            class="form-input"
-            placeholder="11,000"
-          />
-          <span class="form-hint">Phù hợp với các giao dịch chênh lệch phí chuyển khoản liên ngân hàng (&plusmn;11,000 VND).</span>
-        </div>
-      </div>
-
-      <!-- Card 2: Compliance & Security -->
-      <div class="settings-card">
-        <h3 class="card-title">2. Chính Sách Tuân Thủ & Bảo Mật Dữ Liệu</h3>
-
-        <div class="toggle-group">
-          <div class="toggle-info">
-            <span class="toggle-title">Chế độ Zero Data Egress (Nghị định 13/2023/NĐ-CP)</span>
-            <span class="toggle-desc">Ngăn chặn 100% dữ liệu số dư, sao kê và PII truyền ra ngoài mạng nội bộ.</span>
-          </div>
-          <input v-model="enableZeroEgress" type="checkbox" class="toggle-switch" disabled />
-        </div>
-
-        <div class="toggle-group">
-          <div class="toggle-info">
-            <span class="toggle-title">Quy tắc Phê duyệt Hai pha Maker-Checker (TT 09/2020)</span>
-            <span class="toggle-desc">Bắt buộc Kế toán trưởng xác nhận bằng mã token UUIDv4 trước khi ghi sổ lệch.</span>
-          </div>
-          <input v-model="enableMakerChecker" type="checkbox" class="toggle-switch" />
-        </div>
-
-        <div class="toggle-group">
-          <div class="toggle-info">
-            <span class="toggle-title">Tự động dọn dẹp log sau 30 ngày (Data Retention)</span>
-            <span class="toggle-desc">Chỉ lưu trữ vết kiểm toán Merkle Tree, thu hồi dung lượng đĩa.</span>
-          </div>
-          <input v-model="autoPruneOldLogs" type="checkbox" class="toggle-switch" />
+        <div class="stat-pill">
+          <span class="label">ERP Bridges:</span>
+          <strong>{{ store.activeErpCount }}/{{ store.erpConfigs.length }}</strong>
         </div>
       </div>
     </div>
 
-    <!-- Advanced System Admin Callout -->
-    <div class="system-admin-callout">
-      <div class="callout-left">
-        <div class="callout-icon">⚙️</div>
-        <div>
-          <h4 class="callout-title">Quản Trị Hệ Thống Toàn Diện (System & AI Dashboard)</h4>
-          <p class="callout-desc">
-            Truy cập giao diện nâng cao để cấu hình Mô hình AI Offline, VieNeu TTS Giọng nói, Quản lý Ký ức L0–L3 và Kết nối Obsidian Vault.
-          </p>
-        </div>
-      </div>
-      <button class="open-system-btn" @click="openSystemDashboard">
-        <span>Mở Dashboard Hệ Thống</span>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-          <polyline points="15 3 21 3 21 9" />
-          <line x1="10" y1="14" x2="21" y2="3" />
-        </svg>
+    <!-- Navigation Sub-tabs -->
+    <div class="settings-subtabs">
+      <button
+        v-for="t in tabs"
+        :key="t.id"
+        class="subtab-btn"
+        :class="{ active: store.activeTab === t.id }"
+        @click="store.setActiveTab(t.id)"
+      >
+        <span class="tab-code">{{ t.code }}</span>
+        <span>{{ t.label }}</span>
       </button>
+    </div>
+
+    <!-- Dynamic Subtab Content -->
+    <div class="settings-content-wrap">
+      <UserManagementTab v-if="store.activeTab === 'USERS'" />
+      <BankConnectorTab v-else-if="store.activeTab === 'BANK_API'" />
+      <ErpBridgeTab v-else-if="store.activeTab === 'ERP_BRIDGE'" />
+      <ThresholdConfigTab v-else-if="store.activeTab === 'THRESHOLDS'" />
+      <SecurityHsmTab v-else-if="store.activeTab === 'SECURITY'" />
+      <BackupRestoreTab v-else-if="store.activeTab === 'BACKUP'" />
     </div>
   </div>
 </template>
@@ -124,200 +89,146 @@ function openSystemDashboard() {
 .banking-view-container {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 20px 24px 40px 24px;
-  background-color: #f8fafc;
-  min-height: 100%;
+  gap: 20px;
+  padding: 24px 32px;
+  max-width: 1600px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .settings-header-banner {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 18px 24px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-}
-
-.banner-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0 0 4px 0;
-}
-
-.banner-desc {
-  font-size: 13px;
-  color: #64748b;
-  margin: 0;
-}
-
-.save-btn {
-  padding: 10px 22px;
-  background: #10b981;
-  color: #ffffff;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.save-btn:hover {
-  background: #059669;
-}
-
-.settings-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
-}
-
-@media (max-width: 1024px) {
-  .settings-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.settings-card {
-  padding: 22px 24px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  display: flex;
-  flex-direction: column;
+  padding: 20px 24px;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
-.card-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0 0 6px 0;
-}
-
-.form-group {
+.banner-left {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.form-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #334155;
+.header-tags {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.form-input {
-  padding: 10px 14px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font-size: 13px;
-  color: #0f172a;
-  outline: none;
-  transition: border-color 0.15s ease;
-}
-
-.form-input:focus {
-  border-color: #10b981;
-}
-
-.form-hint {
+.p-title-pill {
   font-size: 11px;
-  color: #94a3b8;
-}
-
-.toggle-group {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.toggle-group:last-child {
-  border-bottom: none;
-}
-
-.toggle-info {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  max-width: 85%;
-}
-
-.toggle-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #1e293b;
-}
-
-.toggle-desc {
-  font-size: 11px;
-  color: #64748b;
-}
-
-.toggle-switch {
-  width: 18px;
-  height: 18px;
-  accent-color: #10b981;
-  cursor: pointer;
-}
-
-.system-admin-callout {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-}
-
-.callout-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.callout-icon {
-  font-size: 24px;
-}
-
-.callout-title {
-  font-size: 14px;
   font-weight: 700;
-  color: #0f172a;
-  margin: 0 0 4px 0;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 2px 8px;
+  border-radius: 4px;
 }
 
-.callout-desc {
-  font-size: 12px;
-  color: #64748b;
+.integrity-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.banner-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #f8fafc;
   margin: 0;
 }
 
-.open-system-btn {
+.banner-desc {
+  font-size: 13px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.banner-stats {
+  display: flex;
+  gap: 12px;
+}
+
+.stat-pill {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 6px 12px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 18px;
-  background: #0f172a;
-  color: #ffffff;
-  border: none;
-  border-radius: 8px;
   font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s ease;
+  color: #94a3b8;
 }
 
-.open-system-btn:hover {
-  background: #1e293b;
+.stat-pill strong {
+  color: #38bdf8;
+  font-size: 13px;
+}
+
+.settings-subtabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 12px;
+  overflow-x: auto;
+}
+
+.subtab-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: #94a3b8;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.subtab-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+}
+
+.subtab-btn.active {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #f8fafc;
+  font-weight: 600;
+}
+
+.tab-code {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  font-family: monospace;
+}
+
+.subtab-btn.active .tab-code {
+  background: #38bdf8;
+  color: #0f172a;
+}
+
+.settings-content-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 </style>

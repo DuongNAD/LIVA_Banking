@@ -12,6 +12,19 @@ The system features:
 
 ---
 
+## 1.1 Dual Deployment Model: Client-Only Web vs. Enterprise Hybrid On-Premise
+The project supports two deliberate deployment topologies:
+1. **Standalone Universal Web Client (`teamwork_projects/liva_banking_universal`)**:
+   - **Deployment Model**: 100% Client-Side Static Delivery (Vercel, Netlify Drop, Nginx, or `npx serve`).
+   - **Backend Requirement**: **Zero backend dependency**. Statement parsing (SheetJS), 3-tier reconciliation, and AML surveillance execute in-memory inside the browser tab.
+   - **Ready Archive**: [`LIVA_Banking_Web_Demo.zip`](LIVA_Banking_Web_Demo.zip) & `dist/`.
+2. **Enterprise Production Hybrid (`liva-native-core`)**:
+   - **Deployment Model**: On-Premise Private Intranet / Isolated LAN / WireGuard Mesh VPN.
+   - **Backend Requirement**: High-performance Rust native engine, SQLite WAL with hardware-sealed AES-256-GCM encryption, and RFC 6962 binary Merkle tree audit trail.
+   - **Full Operations & Intranet Guide**: [`docs/02-van-hanh/07-trien-khai-web-client-va-mang-noi-bo.md`](docs/02-van-hanh/07-trien-khai-web-client-va-mang-noi-bo.md).
+
+---
+
 ## 2. Architecture & Code Layout
 
 ### 2.1 Technology Stack

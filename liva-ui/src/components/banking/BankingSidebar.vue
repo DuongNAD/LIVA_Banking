@@ -35,10 +35,15 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { id: 'overview', label: 'TỔNG QUAN' },
-  { id: 'reconcile', label: 'ĐỐI SOÁT', hasActiveDot: true },
+  { id: 'workbench', label: 'P42 WORKBENCH', hasActiveDot: true },
+  { id: 'quarantine', label: 'P44 CÁCH LY', hasActiveDot: true },
+  { id: 'ledger', label: 'P50 SỔ CÁI ERP', hasActiveDot: true },
+  { id: 'reconcile', label: 'ĐỐI SOÁT' },
   { id: 'transactions', label: 'GIAO DỊCH' },
   { id: 'cashflow', label: 'THU CHI' },
   { id: 'treasury', label: 'NGÂN QUỸ' },
+  { id: 'risk', label: 'P70 RỦI RO', hasActiveDot: true },
+  { id: 'compliance', label: 'P80 TUÂN THỦ', hasActiveDot: true },
   { id: 'reports', label: 'BÁO CÁO' },
   { id: 'settings', label: 'CÀI ĐẶT' },
 ];
@@ -88,6 +93,28 @@ function selectItem(id: string) {
             <rect x="3" y="14" width="7" height="7" />
           </svg>
 
+          <!-- Icon: P42 WORKBENCH (Columns layout) -->
+          <svg v-else-if="item.id === 'workbench'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <line x1="9" y1="3" x2="9" y2="21" />
+            <line x1="15" y1="3" x2="15" y2="21" />
+          </svg>
+
+          <!-- Icon: P44 CÁCH LY (Shield alert) -->
+          <svg v-else-if="item.id === 'quarantine'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+
+          <!-- Icon: P50 SỔ CÁI ERP (Book / Ledger) -->
+          <svg v-else-if="item.id === 'ledger'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            <line x1="8" y1="7" x2="16" y2="7" />
+            <line x1="8" y1="11" x2="14" y2="11" />
+          </svg>
+
           <!-- Icon: ĐỐI SOÁT (Check in circle) -->
           <svg v-else-if="item.id === 'reconcile'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
@@ -112,6 +139,19 @@ function selectItem(id: string) {
           <!-- Icon: NGÂN QUỸ (Bank building) -->
           <svg v-else-if="item.id === 'treasury'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 21h18M3 10h18M5 10v11M9 10v11M15 10v11M19 10v11M12 2l10 5H2z" />
+          </svg>
+
+          <!-- Icon: P70 RỦI RO (Shield Alert) -->
+          <svg v-else-if="item.id === 'risk'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+
+          <!-- Icon: P80 TUÂN THỦ (Shield Check) -->
+          <svg v-else-if="item.id === 'compliance'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            <path d="m9 12 2 2 4-4" />
           </svg>
 
           <!-- Icon: BÁO CÁO (Bar chart) -->

@@ -897,16 +897,20 @@ async fn resolve_hitl(state: Arc<AppState>, payload: Value) -> Result<Value, Str
     let maker_id = payload
         .get("maker_id")
         .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
         .unwrap_or("accountant_maker")
         .to_string();
 
     let checker_id = payload
         .get("checker_id")
         .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
         .unwrap_or("chief_checker")
         .to_string();
 
-    if maker_id.trim() == checker_id.trim() {
+    if maker_id.eq_ignore_ascii_case(&checker_id) {
         return Err(format!(
             "Circular 09/2020/TT-NHNN violation: Maker cannot self-approve as Checker ('{}' == '{}'). Dual control required.",
             maker_id, checker_id
@@ -952,8 +956,9 @@ async fn resolve_hitl(state: Arc<AppState>, payload: Value) -> Result<Value, Str
             .unwrap_or_default()
             .as_secs() as i64;
 
+        // Invalidate single-use HITL token upon resolution (Circular 09/2020/TT-NHNN)
         conn.execute(
-            "UPDATE reconciliation_matches SET status = ?1, matched_by = 'USER_HITL', matched_at = ?2, notes = ?3 WHERE id = ?4",
+            "UPDATE reconciliation_matches SET status = ?1, matched_by = 'USER_HITL', matched_at = ?2, notes = ?3, hitl_token = NULL WHERE id = ?4",
             params![new_status, now_ts, notes, match_id],
         )
         .map_err(|e| e.to_string())?;
@@ -972,6 +977,33 @@ async fn resolve_hitl(state: Arc<AppState>, payload: Value) -> Result<Value, Str
             params![new_tx_status, bank_tx_id],
         )
         .map_err(|e| e.to_string())?;
+
+        // Synchronize linked ledger entries status
+        let ledger_ids_opt: Option<String> = conn
+            .query_row(
+                "SELECT ledger_entry_ids_json FROM reconciliation_matches WHERE id = ?1",
+                params![match_id],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?
+            .flatten();
+
+        if let Some(json_str) = ledger_ids_opt {
+            if let Ok(entry_ids) = serde_json::from_str::<Vec<String>>(&json_str) {
+                let ledger_target_status = if new_status == "APPROVED" {
+                    "MATCHED"
+                } else {
+                    "UNMATCHED"
+                };
+                for l_id in entry_ids {
+                    let _ = conn.execute(
+                        "UPDATE internal_ledger_entries SET reconciled_status = ?1 WHERE id = ?2",
+                        params![ledger_target_status, l_id],
+                    );
+                }
+            }
+        }
 
         // 3. Audit Log
         let audit_key = get_audit_key(&state);

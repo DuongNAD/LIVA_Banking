@@ -3,8 +3,8 @@
     <!-- Header with Verification Status -->
     <div class="flex items-center justify-between pb-3 border-b border-slate-100">
       <div class="flex items-center space-x-3">
-        <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold shadow-sm">
-          🌳
+        <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18"/><path d="m8 8 4-5 4 5"/><path d="M3 14h18"/><path d="m8 19 4 2 4-2"/></svg>
         </div>
         <div>
           <h3 class="text-sm font-bold text-slate-900">Bảo Chứng Sổ Cái Mật Mã (Merkle Audit Tree)</h3>
@@ -39,7 +39,7 @@
     <!-- Regulatory Compliance Badges -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
       <div class="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs flex items-center space-x-2">
-        <span class="text-emerald-700 font-bold text-sm">🔒</span>
+        <svg class="w-4 h-4 text-emerald-700 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         <div>
           <strong class="text-emerald-900 block font-semibold text-[11px]">Zero Cloud Egress</strong>
           <span class="text-emerald-700 text-[10px]">100% Xử lý nội bộ trên máy trạm</span>
@@ -47,7 +47,7 @@
       </div>
 
       <div class="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-xs flex items-center space-x-2">
-        <span class="text-blue-700 font-bold text-sm">🛡️</span>
+        <svg class="w-4 h-4 text-blue-700 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
         <div>
           <strong class="text-blue-900 block font-semibold text-[11px]">Nghị Định 13/2023</strong>
           <span class="text-blue-700 text-[10px]">Bảo vệ & Ẩn danh hóa dữ liệu cá nhân</span>
@@ -55,7 +55,7 @@
       </div>
 
       <div class="p-2.5 rounded-xl bg-purple-50 border border-purple-200 text-xs flex items-center space-x-2">
-        <span class="text-purple-700 font-bold text-sm">⚖️</span>
+        <svg class="w-4 h-4 text-purple-700 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
         <div>
           <strong class="text-purple-900 block font-semibold text-[11px]">Thông Tư 09/2020</strong>
           <span class="text-purple-700 text-[10px]">Kiểm soát chéo 2 vòng (Maker-Checker)</span>
@@ -132,7 +132,7 @@ function copyRootHash() {
   if (!props.merkleRoot) return;
   if (typeof navigator !== 'undefined' && navigator.clipboard) {
     navigator.clipboard.writeText(props.merkleRoot);
-    copyStatus.value = '✓ Đã sao chép';
+    copyStatus.value = 'Đã sao chép';
     setTimeout(() => {
       copyStatus.value = '';
     }, 2000);

@@ -481,6 +481,153 @@ pub async fn reload_llm_gpu_layers(state: Arc<AppState>, n_gpu_layers: u32) -> b
     true
 }
 
+async fn call_openai_compatible_chat(
+    base_url: &str,
+    api_key: Option<&str>,
+    model_name: &str,
+    messages: &[llm::ChatMessage],
+    temperature: f32,
+    top_p: f32,
+    stream: bool,
+    tx: Option<tokio::sync::mpsc::Sender<String>>,
+    req_id: Option<String>,
+) -> Result<llm::CompletionOutput, String> {
+    let endpoint = format!("{}/chat/completions", base_url.trim_end_matches('/'));
+    let messages_json: Vec<serde_json::Value> = messages
+        .iter()
+        .map(|m| serde_json::json!({ "role": m.role, "content": m.content }))
+        .collect();
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
+
+    let mut req = client.post(&endpoint).json(&serde_json::json!({
+        "model": model_name,
+        "messages": messages_json,
+        "temperature": temperature,
+        "top_p": top_p,
+        "stream": stream,
+    }));
+
+    if let Some(key) = api_key.filter(|k| !k.is_empty()) {
+        req = req.header("Authorization", format!("Bearer {key}"));
+    }
+
+    let mut resp = req
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send request to AI server at {endpoint}: {e}"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("AI server at {endpoint} returned {status}: {body}"));
+    }
+
+    if stream {
+        let tx_inner = tx.ok_or_else(|| "IPC output channel missing for streaming".to_string())?;
+        let req_id_inner = req_id.ok_or_else(|| "Request ID missing for streaming".to_string())?;
+
+        let mut full_text = String::new();
+        let mut byte_buffer: Vec<u8> = Vec::new();
+        let mut stream_done = false;
+
+        while !stream_done
+            && let Some(chunk) = resp
+                .chunk()
+                .await
+                .map_err(|e| format!("Error reading response stream: {e}"))?
+        {
+            byte_buffer.extend_from_slice(&chunk);
+
+            while let Some(pos) = byte_buffer.iter().position(|&b| b == b'\n') {
+                let line_bytes = &byte_buffer[..pos];
+                let line = String::from_utf8_lossy(line_bytes).trim().to_string();
+                byte_buffer.drain(..=pos);
+
+                if line.is_empty() {
+                    continue;
+                }
+
+                let data = if let Some(d) = line.strip_prefix("data: ") {
+                    d.trim()
+                } else if let Some(d) = line.strip_prefix("data:") {
+                    d.trim()
+                } else {
+                    continue;
+                };
+
+                if data == "[DONE]" {
+                    stream_done = true;
+                    break;
+                }
+
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
+                    if let Some(piece) = parsed["choices"][0]["delta"]["content"].as_str() {
+                        if !piece.is_empty() {
+                            full_text.push_str(piece);
+                            let chunk_response = IpcTokenChunkRef {
+                                id: &req_id_inner,
+                                status: "ok",
+                                data: IpcTokenChunkData {
+                                    token: piece,
+                                    done: false,
+                                },
+                            };
+                            let _ = crate::llm::nen_sinh_tiep(&tx_inner, &chunk_response);
+                        }
+                    }
+                }
+            }
+        }
+
+        let done_chunk = IpcTokenChunkRef {
+            id: &req_id_inner,
+            status: "ok",
+            data: IpcTokenChunkData {
+                token: "",
+                done: true,
+            },
+        };
+        let _ = crate::llm::nen_sinh_tiep(&tx_inner, &done_chunk);
+
+        let completion_tokens = full_text.split_whitespace().count();
+        let prompt_tokens = messages.iter().map(|m| m.content.split_whitespace().count()).sum();
+
+        Ok(llm::CompletionOutput {
+            text: full_text,
+            prompt_tokens,
+            completion_tokens,
+        })
+    } else {
+        let json_resp: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse response JSON: {e}"))?;
+
+        let text = json_resp["choices"][0]["message"]["content"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+        let prompt_tokens = json_resp["usage"]["prompt_tokens"]
+            .as_u64()
+            .unwrap_or_else(|| messages.iter().map(|m| m.content.split_whitespace().count()).sum::<usize>() as u64)
+            as usize;
+        let completion_tokens = json_resp["usage"]["completion_tokens"]
+            .as_u64()
+            .unwrap_or_else(|| text.split_whitespace().count() as u64)
+            as usize;
+
+        Ok(llm::CompletionOutput {
+            text,
+            prompt_tokens,
+            completion_tokens,
+        })
+    }
+}
+
 pub async fn handle_chat_completion_scoped(
     state: Arc<AppState>,
     payload: serde_json::Value,
@@ -606,54 +753,112 @@ pub async fn handle_chat_completion_scoped(
         .await
         .map_err(|e| format!("AI queue rejected request: {e}"))?;
 
-    // U14: Tự động tráo đổi router <-> expert model theo do_kho và chính sách chống dao động
-    let _ = state.llm.lock().await.maybe_auto_swap(do_kho).await;
-
-    let n_ctx = state.llm.lock().await.n_ctx;
-    let budget = crate::llm::prompt::dynamic_prompt::PromptBudget::for_dialogue(n_ctx);
-    let budgeted_messages =
-        crate::llm::prompt::dynamic_prompt::DynamicPromptAssembler::budget_chat_messages(
-            &messages, &budget,
-        )
-        .unwrap_or_else(|_| messages.clone());
-    let compiled_prompt = llm::compile_prompt(&budgeted_messages)?;
-
-    let start_instant = std::time::Instant::now();
-    let model_id = state
-        .llm
-        .lock()
-        .await
-        .current_model_path
-        .to_string_lossy()
+    let cfg = crate::paths::read_config_file();
+    let ai_cfg = cfg.get("ai").cloned().unwrap_or(serde_json::Value::Null);
+    let provider = payload
+        .get("provider")
+        .and_then(|v| v.as_str())
+        .or_else(|| ai_cfg.get("provider").and_then(|v| v.as_str()))
+        .unwrap_or("local")
+        .to_string();
+    let cloud_base_url = payload
+        .get("cloudBaseUrl")
+        .and_then(|v| v.as_str())
+        .or_else(|| ai_cfg.get("cloudBaseUrl").and_then(|v| v.as_str()))
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    let cloud_api_key = payload
+        .get("cloudApiKey")
+        .and_then(|v| v.as_str())
+        .or_else(|| ai_cfg.get("cloudApiKey").and_then(|v| v.as_str()))
+        .map(str::trim)
+        .map(str::to_string);
+    let cloud_model = payload
+        .get("model")
+        .and_then(|v| v.as_str())
+        .or_else(|| ai_cfg.get("cloudModel").and_then(|v| v.as_str()))
+        .filter(|s| !s.is_empty())
+        .unwrap_or("llama3")
         .to_string();
 
-    let state_clone = state.clone();
-    let completion_res = tokio::task::spawn_blocking(move || {
-        let mut llm_manager = state_clone.llm.blocking_lock();
-        if stream {
-            let tx_inner =
-                tx.ok_or_else(|| "IPC output channel missing for streaming".to_string())?;
-            let req_id_inner =
-                req_id.ok_or_else(|| "Request ID missing for streaming".to_string())?;
-            llm_manager.generate_completion(&compiled_prompt, temperature, top_p, |piece| {
-                if piece.is_empty() {
-                    return true;
-                }
-                let chunk_response = IpcTokenChunkRef {
-                    id: &req_id_inner,
-                    status: "ok",
-                    data: IpcTokenChunkData {
-                        token: piece,
-                        done: false,
-                    },
-                };
-                crate::llm::nen_sinh_tiep(&tx_inner, &chunk_response)
-            })
-        } else {
-            llm_manager.generate_completion(&compiled_prompt, temperature, top_p, |_| true)
-        }
-    })
-    .await;
+    let is_local_engine_loaded = state.llm.lock().await.engine.is_some();
+    let use_http_provider = provider != "local"
+        || (!is_local_engine_loaded && cloud_base_url.is_some());
+
+    let start_instant = std::time::Instant::now();
+    let (model_id, completion_res) = if use_http_provider {
+        let default_endpoint = match provider.to_ascii_lowercase().as_str() {
+            "lmstudio" => "http://localhost:1234/v1",
+            _ => "http://localhost:11434/v1",
+        };
+        let base_url = cloud_base_url.unwrap_or_else(|| default_endpoint.to_string());
+        let model_id = format!("{provider}:{cloud_model}");
+        let res = call_openai_compatible_chat(
+            &base_url,
+            cloud_api_key.as_deref(),
+            &cloud_model,
+            &messages,
+            temperature,
+            top_p,
+            stream,
+            tx,
+            req_id,
+        )
+        .await;
+        (model_id, res)
+    } else {
+        // U14: Tự động tráo đổi router <-> expert model theo do_kho và chính sách chống dao động
+        let _ = state.llm.lock().await.maybe_auto_swap(do_kho).await;
+
+        let n_ctx = state.llm.lock().await.n_ctx;
+        let budget = crate::llm::prompt::dynamic_prompt::PromptBudget::for_dialogue(n_ctx);
+        let budgeted_messages =
+            crate::llm::prompt::dynamic_prompt::DynamicPromptAssembler::budget_chat_messages(
+                &messages, &budget,
+            )
+            .unwrap_or_else(|_| messages.clone());
+        let compiled_prompt = llm::compile_prompt(&budgeted_messages)?;
+
+        let model_id = state
+            .llm
+            .lock()
+            .await
+            .current_model_path
+            .to_string_lossy()
+            .to_string();
+
+        let state_clone = state.clone();
+        let completion_res = tokio::task::spawn_blocking(move || {
+            let mut llm_manager = state_clone.llm.blocking_lock();
+            if stream {
+                let tx_inner =
+                    tx.ok_or_else(|| "IPC output channel missing for streaming".to_string())?;
+                let req_id_inner =
+                    req_id.ok_or_else(|| "Request ID missing for streaming".to_string())?;
+                llm_manager.generate_completion(&compiled_prompt, temperature, top_p, |piece| {
+                    if piece.is_empty() {
+                        return true;
+                    }
+                    let chunk_response = IpcTokenChunkRef {
+                        id: &req_id_inner,
+                        status: "ok",
+                        data: IpcTokenChunkData {
+                            token: piece,
+                            done: false,
+                        },
+                    };
+                    crate::llm::nen_sinh_tiep(&tx_inner, &chunk_response)
+                })
+            } else {
+                llm_manager.generate_completion(&compiled_prompt, temperature, top_p, |_| true)
+            }
+        })
+        .await
+        .map_err(|e| format!("Blocking task panicked: {e}"))
+        .and_then(|r| r);
+        (model_id, completion_res)
+    };
 
     let latency_ms = start_instant.elapsed().as_millis() as i64;
     let now_ts = std::time::SystemTime::now()
@@ -661,7 +866,7 @@ pub async fn handle_chat_completion_scoped(
         .unwrap_or_default()
         .as_secs() as i64;
     let completion_output = match completion_res {
-        Ok(Ok(out)) => {
+        Ok(out) => {
             let record = crate::db::TurnTelemetryRecord {
                 id: None,
                 event_id: None,
@@ -685,7 +890,7 @@ pub async fn handle_chat_completion_scoped(
             });
             out
         }
-        Ok(Err(err)) => {
+        Err(err) => {
             let record = crate::db::TurnTelemetryRecord {
                 id: None,
                 event_id: None,
@@ -708,30 +913,6 @@ pub async fn handle_chat_completion_scoped(
                 }
             });
             return Err(err);
-        }
-        Err(e) => {
-            let record = crate::db::TurnTelemetryRecord {
-                id: None,
-                event_id: None,
-                ts: now_ts,
-                entry_path: "chat".to_string(),
-                model_id,
-                prompt_tokens: 0,
-                completion_tokens: 0,
-                latency_ms,
-                outcome: "err".to_string(),
-                err_kind: Some(format!("panic: {e}")),
-            };
-            let db = state.db.clone();
-            tokio::spawn(async move {
-                if let Err(e) = db
-                    .spawn_writer(move |conn| crate::db::record_turn_telemetry(conn, &record))
-                    .await
-                {
-                    tracing::warn!("Failed to record turn telemetry: {e}");
-                }
-            });
-            return Err(format!("Blocking task panicked: {e}"));
         }
     };
 
@@ -815,6 +996,12 @@ pub async fn handle_command(
     // không chặn được gì trong bản giao cho người dùng.
     if let Some(verb) = command.strip_prefix("consent:") {
         return commands::consent::handle(state, verb, payload).await;
+    }
+    if let Some(verb) = command.strip_prefix("auth:") {
+        return commands::auth::handle(state, verb, payload).await;
+    }
+    if commands::auth::owns(command) {
+        return commands::auth::handle(state, command, payload).await;
     }
     // Miền cấu hình/trạng thái dùng tên PHẲNG (`ping`, `get_config`, …) do UI
     // đặt từ thời kiến trúc Node.js, nên hỏi module thay vì cắt tiền tố — đổi

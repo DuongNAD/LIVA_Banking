@@ -4,7 +4,9 @@
     <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <div>
         <h1 class="text-xl font-bold text-slate-900 tracking-tight flex items-center space-x-2.5">
-          <span>⚖️</span>
+          <div class="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+          </div>
           <span>Bàn Làm Việc Kiểm Soát Viên & Quản Trị Ngân Quỹ (Maker-Checker Desk)</span>
         </h1>
         <p class="text-xs text-slate-500 mt-0.5">
@@ -17,20 +19,20 @@
         <span class="text-slate-500 font-medium px-2">Phân quyền tác nghiệp:</span>
         <button
           type="button"
-          class="px-3 py-1.5 rounded-lg font-bold transition-all flex items-center space-x-1"
+          class="px-3 py-1.5 rounded-lg font-bold transition-all flex items-center space-x-1.5 cursor-pointer"
           :class="treasuryStore.currentUserRole === 'MAKER' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
           @click="setRole('maker_accountant_01', 'MAKER', 'Lê Hoàng Phúc (Cán bộ Vận hành / Maker)')"
         >
-          <span>✍️</span>
+          <svg class="w-3.5 h-3.5 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           <span>Maker (Lập Lệnh)</span>
         </button>
         <button
           type="button"
-          class="px-3 py-1.5 rounded-lg font-bold transition-all flex items-center space-x-1"
+          class="px-3 py-1.5 rounded-lg font-bold transition-all flex items-center space-x-1.5 cursor-pointer"
           :class="treasuryStore.currentUserRole === 'CHECKER' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'"
           @click="setRole('checker_cfo_01', 'CHECKER', 'Nguyễn Văn Minh (Kiểm soát viên / Checker)')"
         >
-          <span>🔍</span>
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
           <span>Checker (Duyệt Lệnh)</span>
         </button>
       </div>
@@ -71,16 +73,16 @@
       </div>
     </div>
 
-    <!-- Active Workstation Tab Navigation -->
-    <div class="flex items-center space-x-2 border-b border-slate-200 pb-2 text-xs font-bold">
+    <!-- Active Workstation Tab Navigation (Clean Dedicated Functional Sub-Pages) -->
+    <div class="flex items-center space-x-2 border-b border-slate-200 pb-2 text-xs font-bold overflow-x-auto">
       <button
         type="button"
-        class="px-4 py-2 rounded-xl transition flex items-center space-x-2"
+        class="px-4 py-2 rounded-xl transition flex items-center space-x-2 cursor-pointer whitespace-nowrap"
         :class="activeDeskTab === 'APPRAISAL' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'"
         @click="activeDeskTab = 'APPRAISAL'"
       >
-        <span>📋</span>
-        <span>Bàn Thẩm Định Hồ Sơ Chứng Từ (Appraisal Desk)</span>
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+        <span>Thẩm định & Ký duyệt</span>
         <span
           v-if="treasuryStore.pendingVouchers.length > 0"
           class="px-1.5 py-0.5 rounded-full text-[10px] font-mono"
@@ -92,22 +94,32 @@
 
       <button
         type="button"
-        class="px-4 py-2 rounded-xl transition flex items-center space-x-2"
-        :class="activeDeskTab === 'ALL_VOUCHERS' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'"
-        @click="activeDeskTab = 'ALL_VOUCHERS'"
+        class="px-4 py-2 rounded-xl transition flex items-center space-x-2 cursor-pointer whitespace-nowrap"
+        :class="activeDeskTab === 'CREATE' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'"
+        @click="activeDeskTab = 'CREATE'"
       >
-        <span>📑</span>
-        <span>Toàn Bộ Sổ Lệnh Chi & Quyết Toán (All Vouchers)</span>
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>Lập lệnh chi</span>
       </button>
 
       <button
         type="button"
-        class="px-4 py-2 rounded-xl transition flex items-center space-x-2"
+        class="px-4 py-2 rounded-xl transition flex items-center space-x-2 cursor-pointer whitespace-nowrap"
+        :class="activeDeskTab === 'ALL_VOUCHERS' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'"
+        @click="activeDeskTab = 'ALL_VOUCHERS'"
+      >
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <span>Sổ lệnh chi</span>
+      </button>
+
+      <button
+        type="button"
+        class="px-4 py-2 rounded-xl transition flex items-center space-x-2 cursor-pointer whitespace-nowrap"
         :class="activeDeskTab === 'MERKLE_AUDIT' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'"
         @click="activeDeskTab = 'MERKLE_AUDIT'"
       >
-        <span>🌳</span>
-        <span>Sổ Cái Mật Mã & Bằng Chứng Merkle (Merkle Ledger)</span>
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18"/><path d="m8 8 4-5 4 5"/><path d="M3 14h18"/><path d="m8 19 4 2 4-2"/></svg>
+        <span>Bằng chứng Merkle</span>
       </button>
     </div>
 
@@ -118,14 +130,16 @@
         <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3 flex flex-col">
           <div class="flex items-center justify-between pb-2 border-b border-slate-100">
             <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center space-x-2">
-              <span>⏳</span>
+              <svg class="w-3.5 h-3.5 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               <span>Danh Sách Lệnh Chờ Thẩm Định ({{ treasuryStore.pendingVouchers.length }})</span>
             </h3>
             <span class="text-[11px] text-slate-400">Ưu tiên theo thời hạn TTL</span>
           </div>
 
           <div v-if="treasuryStore.pendingVouchers.length === 0" class="p-8 text-center bg-slate-50 rounded-xl border border-slate-200 text-slate-500 text-xs">
-            <div class="text-2xl mb-1">✓</div>
+            <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-2">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+            </div>
             <p class="font-bold text-slate-800">Không có lệnh chi nào chờ thẩm định!</p>
             <p class="text-[11px] mt-0.5">Tất cả lệnh chi đã được phê duyệt hoặc xử lý khép lại.</p>
           </div>
@@ -156,7 +170,7 @@
 
               <div class="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[10px] text-slate-400">
                 <span>Maker: <strong class="text-slate-700">{{ v.makerId }}</strong></span>
-                <span class="text-amber-600 font-semibold">⏳ 15m TTL</span>
+                <span class="text-amber-600 font-semibold font-mono">15m TTL</span>
               </div>
             </div>
           </div>
@@ -165,7 +179,9 @@
         <!-- Right: Document Appraisal Drawer / Panel (7 cols) -->
         <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5 flex flex-col justify-between">
           <div v-if="!selectedVoucher" class="p-12 text-center text-slate-400 text-xs space-y-2 my-auto">
-            <div class="text-3xl">📑</div>
+            <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto mb-2">
+              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
             <p class="font-bold text-slate-700">Chọn một lệnh chi từ danh sách bên trái để mở hồ sơ thẩm định chứng từ</p>
             <p class="text-[11px]">Kiểm soát viên cần rà soát chứng từ gốc, tài khoản thụ hưởng và nội dung trước khi ký số phê duyệt</p>
           </div>
@@ -187,7 +203,7 @@
               v-if="isSelfApproval"
               class="p-4 bg-rose-50 border-2 border-rose-300 rounded-xl flex items-start space-x-3 text-rose-900 text-xs animate-in shake duration-200"
             >
-              <span class="text-xl">🚫</span>
+              <svg class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
               <div>
                 <strong class="font-bold text-rose-900 block text-xs">VI PHẠM ĐIỀU 16 & 18 THÔNG TƯ 09/2020/TT-NHNN</strong>
                 <p class="text-[11px] text-rose-800 mt-0.5 leading-relaxed">
@@ -253,7 +269,7 @@
                   Biên Bản Giải Trình & Ghi Chú Thẩm Định Của Kiểm Soát Viên (<span class="text-rose-600">Bắt buộc theo TT 09/2020</span>):
                 </label>
                 <span class="text-[10px] font-semibold" :class="checkerRemarks.trim() ? 'text-emerald-600' : 'text-rose-500'">
-                  {{ checkerRemarks.trim() ? '✓ Đã nhập giải trình' : '⚠ Chưa nhập biên bản' }}
+                  {{ checkerRemarks.trim() ? 'Đã nhập giải trình' : 'Chưa nhập biên bản' }}
                 </span>
               </div>
               <textarea
@@ -269,7 +285,7 @@
               <div class="flex items-center justify-between">
                 <span class="font-bold text-slate-700">Xác Thực 2 Bước (Step-Up Dual-Control):</span>
                 <span class="font-semibold text-xs" :class="isOtpVerified ? 'text-emerald-700' : 'text-amber-600'">
-                  {{ isOtpVerified ? '✓ OTP / Chữ ký số hợp lệ' : 'Chưa kích hoạt xác thực' }}
+                  {{ isOtpVerified ? 'OTP / Chữ ký số hợp lệ' : 'Chưa kích hoạt xác thực' }}
                 </span>
               </div>
 
@@ -305,7 +321,7 @@
                 </span>
                 <button
                   type="button"
-                  class="px-3 py-1 text-xs font-semibold rounded bg-blue-600 hover:bg-blue-700 text-white transition"
+                  class="px-3 py-1 text-xs font-semibold rounded bg-blue-600 hover:bg-blue-700 text-white transition cursor-pointer"
                   @click="generateAndVerifyOtp"
                 >
                   {{ isOtpVerified ? 'Xác thực lại' : 'Tạo & Xác Thực OTP' }}
@@ -317,21 +333,22 @@
             <div class="flex items-center justify-end space-x-3 pt-2 border-t border-slate-100">
               <button
                 type="button"
-                class="px-4 py-2 text-xs font-bold rounded-xl border border-rose-300 text-rose-700 hover:bg-rose-50 transition"
+                class="px-4 py-2 text-xs font-bold rounded-xl border border-rose-300 text-rose-700 hover:bg-rose-50 transition cursor-pointer"
                 :disabled="!checkerRemarks.trim()"
                 @click="handleAppraisalReject"
               >
-                ✕ Từ Chối Lệnh Chi
+                Từ Chối Lệnh Chi
               </button>
 
               <button
                 type="button"
-                class="px-5 py-2 text-xs font-bold rounded-xl text-white transition shadow-sm"
+                class="px-5 py-2 text-xs font-bold rounded-xl text-white transition shadow-sm flex items-center space-x-1.5 cursor-pointer"
                 :class="canApproveCurrent ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-300 cursor-not-allowed'"
                 :disabled="!canApproveCurrent"
                 @click="handleAppraisalApprove"
               >
-                ⚖️ Ký Số & Phê Duyệt Lệnh Chi (Approve)
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+                <span>Ký Số & Phê Duyệt Lệnh Chi (Approve)</span>
               </button>
             </div>
           </div>
@@ -339,29 +356,16 @@
       </div>
     </div>
 
-    <!-- TAB 2: Full Vouchers Ledger & Creator Accordion -->
-    <div v-if="activeDeskTab === 'ALL_VOUCHERS'" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+    <!-- TAB 2: Dedicated Maker Voucher Creator Form -->
+    <div v-else-if="activeDeskTab === 'CREATE'" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
       <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-        <div class="flex items-center space-x-3">
-          <span class="text-lg">📝</span>
-          <div>
-            <h2 class="text-base font-bold text-slate-900">Danh Sách Lệnh Điều Chuyển Vốn & Lệnh Chi Liên Ngân Hàng</h2>
-            <p class="text-xs text-slate-500">Cán bộ lập lệnh (Maker) và Kiểm soát viên phê duyệt (Checker) độc lập tuyệt đối</p>
-          </div>
+        <div>
+          <h2 class="text-base font-bold text-slate-900">Khởi Tạo Lệnh Điều Chuyển Vốn / Lệnh Chi (Maker Desk)</h2>
+          <p class="text-xs text-slate-500">Lập lệnh chi với tài khoản thụ hưởng, kiểm soát rủi ro hạn mức tự động</p>
         </div>
-
-        <button
-          type="button"
-          class="px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-900 hover:bg-slate-800 text-white transition shadow-sm flex items-center space-x-1.5"
-          @click="showCreateForm = !showCreateForm"
-        >
-          <span>{{ showCreateForm ? '✕ Đóng Biểu Mẫu' : '+ Lập Lệnh Điều Chuyển / Chi (Maker)' }}</span>
-        </button>
       </div>
 
-      <!-- Quick Create Form (Expandable) -->
-      <div v-if="showCreateForm" class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4 animate-in slide-in-from-top-2 duration-150">
-        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Khởi Tạo Lệnh Điều Chuyển Vốn / Chi Liên Ngân Hàng</h3>
+      <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
           <div>
             <label class="block font-medium text-slate-700 mb-1">Đơn Vị Thụ Hưởng / Kênh Nhận:</label>
@@ -398,7 +402,7 @@
             <input
               v-model.number="newVoucher.amountVnd"
               type="number"
-              step="1000000"
+              step="10000000"
               class="w-full p-2 rounded-lg border border-slate-300 bg-white font-mono font-bold"
               placeholder="VD: 50000000"
             />
@@ -410,7 +414,7 @@
               v-model="newVoucher.purpose"
               type="text"
               class="w-full p-2 rounded-lg border border-slate-300 bg-white"
-              placeholder="VD: Thanh toán đợt 1 hợp đồng HD-2026-99"
+              placeholder="VD: Thanh toán bù trừ đợt 1 hợp đồng HD-2026-99"
             />
           </div>
         </div>
@@ -418,20 +422,39 @@
         <div class="flex justify-end space-x-2 pt-2 border-t border-slate-200">
           <button
             type="button"
-            class="px-4 py-2 text-xs font-semibold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300"
-            @click="showCreateForm = false"
+            class="px-4 py-2 text-xs font-semibold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 cursor-pointer"
+            @click="activeDeskTab = 'ALL_VOUCHERS'"
           >
-            Hủy
+            Xem Danh Sách Sổ Lệnh
           </button>
           <button
             type="button"
-            class="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+            class="px-5 py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer"
             :disabled="!newVoucher.amountVnd || !newVoucher.beneficiaryAccount"
             @click="handleCreateVoucher"
           >
             Lưu & Trình Duyệt Ngay
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: Full Vouchers Ledger -->
+    <div v-else-if="activeDeskTab === 'ALL_VOUCHERS'" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">Danh Sách Lệnh Điều Chuyển Vốn & Lệnh Chi Liên Ngân Hàng</h2>
+          <p class="text-xs text-slate-500">Cán bộ lập lệnh (Maker) và Kiểm soát viên phê duyệt (Checker) độc lập tuyệt đối</p>
+        </div>
+
+        <button
+          type="button"
+          class="px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-900 hover:bg-slate-800 text-white transition shadow-sm flex items-center space-x-1.5 cursor-pointer"
+          @click="activeDeskTab = 'CREATE'"
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>+ Lập Lệnh Điều Chuyển / Chi</span>
+        </button>
       </div>
 
       <!-- Vouchers Table -->
@@ -493,16 +516,16 @@
                 <button
                   v-if="v.status === 'PENDING_APPROVAL'"
                   type="button"
-                  class="px-3 py-1.5 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition"
+                  class="px-3 py-1.5 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition cursor-pointer"
                   @click="openAppraisalDrawer(v)"
                 >
-                  ⚖️ Thẩm Định & Duyệt
+                  Thẩm Định & Duyệt
                 </button>
 
                 <button
                   v-else-if="v.status === 'DRAFT'"
                   type="button"
-                  class="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition"
+                  class="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition cursor-pointer"
                   @click="treasuryStore.submitVoucher(v.voucherId)"
                 >
                   Trình Duyệt
@@ -511,7 +534,7 @@
                 <button
                   v-else-if="v.status === 'APPROVED'"
                   type="button"
-                  class="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-xs transition"
+                  class="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-xs transition cursor-pointer"
                   @click="treasuryStore.settleVoucher(v.voucherId)"
                 >
                   Quyết Toán
@@ -527,8 +550,8 @@
       </div>
     </div>
 
-    <!-- TAB 3: Merkle Tree Cryptographic Forward Audit Ledger & Proof Steps Inspector -->
-    <div v-if="activeDeskTab === 'MERKLE_AUDIT'" class="space-y-6">
+    <!-- TAB 4: Merkle Tree Cryptographic Forward Audit Ledger & Proof Steps Inspector -->
+    <div v-else-if="activeDeskTab === 'MERKLE_AUDIT'" class="space-y-6">
       <!-- Merkle Proof Card -->
       <MerkleProofCard
         :merkle-root="treasuryStore.merkleRoot"
@@ -539,26 +562,23 @@
       <!-- Interactive O(log N) Proof Step Inspector & Ledger Verifier -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
         <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-          <div class="flex items-center space-x-2.5">
-            <span class="text-base">🔬</span>
-            <div>
-              <h3 class="text-sm font-bold text-slate-900">Công Cụ Kiểm Định Bằng Chứng Merkle O(log N) & Toàn Vẹn Sổ Cái</h3>
-              <p class="text-xs text-slate-500">Tái tính toán băm mật mã FIPS 180-4 độc lập, bảo đảm không có khối nào bị giả mạo</p>
-            </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900">Công Cụ Kiểm Định Bằng Chứng Merkle O(log N) & Toàn Vẹn Sổ Cái</h3>
+            <p class="text-xs text-slate-500">Tái tính toán băm mật mã FIPS 180-4 độc lập, bảo đảm không có khối nào bị giả mạo</p>
           </div>
 
           <button
             type="button"
-            class="px-4 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition flex items-center space-x-1.5"
+            class="px-4 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition flex items-center space-x-1.5 cursor-pointer"
             @click="runFullLedgerIntegrityCheck"
           >
-            <span>🛡️</span>
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
             <span>Kiểm Tra Toàn Vẹn Chuỗi Khối (Full Chain Check)</span>
           </button>
         </div>
 
         <div v-if="ledgerIntegrityResult" class="p-3 rounded-xl border text-xs font-semibold" :class="ledgerIntegrityResult.isValid ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'">
-          {{ ledgerIntegrityResult.isValid ? '✓ Toàn bộ chuỗi khối (Forward Hash Chain) đạt tính toàn vẹn 100%. Không phát hiện khối nào bị can thiệp dữ liệu.' : ledgerIntegrityResult.details }}
+          {{ ledgerIntegrityResult.isValid ? 'Toàn bộ chuỗi khối (Forward Hash Chain) đạt tính toàn vẹn 100%. Không phát hiện khối nào bị can thiệp dữ liệu.' : ledgerIntegrityResult.details }}
         </div>
 
         <!-- Inclusion Proof Tool -->
@@ -611,7 +631,7 @@
 
               <button
                 type="button"
-                class="px-4 py-2 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white transition shadow-xs"
+                class="px-4 py-2 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white transition shadow-xs cursor-pointer"
                 @click="verifySelectedProof"
               >
                 Xác Thực Bằng Chứng Mật Mã (Verify Proof)
@@ -627,7 +647,9 @@
       v-if="toastMessage"
       class="fixed bottom-6 right-6 z-50 p-4 bg-slate-900 text-white text-xs font-semibold rounded-2xl shadow-xl border border-slate-700 flex items-center space-x-2 animate-in slide-in-from-bottom-3"
     >
-      <span class="text-emerald-400 text-sm">✓</span>
+      <div class="w-4 h-4 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-bold">
+        <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
       <span>{{ toastMessage }}</span>
     </div>
   </div>
@@ -646,8 +668,7 @@ import {
 
 const treasuryStore = useTreasuryStore();
 
-const activeDeskTab = ref<'APPRAISAL' | 'ALL_VOUCHERS' | 'MERKLE_AUDIT'>('APPRAISAL');
-const showCreateForm = ref(false);
+const activeDeskTab = ref<'APPRAISAL' | 'CREATE' | 'ALL_VOUCHERS' | 'MERKLE_AUDIT'>('APPRAISAL');
 const selectedVoucher = ref<PaymentVoucher | null>(null);
 const checkerRemarks = ref('');
 const activeAuthMethod = ref<AuthMethod>('BIOMETRIC_SIM');
@@ -727,7 +748,7 @@ function handleAppraisalApprove() {
     token
   );
 
-  showToast(`✓ Đã ký số và phê duyệt lệnh chi ${vId} thành công!`);
+  showToast(`Đã ký số và phê duyệt lệnh chi ${vId} thành công!`);
 
   // Reset form and select next pending voucher if any
   isOtpVerified.value = false;
@@ -749,7 +770,7 @@ function handleAppraisalReject() {
     token
   );
 
-  showToast(`✓ Đã từ chối lệnh chi ${vId}. Biên bản giải trình đã được lưu trữ.`);
+  showToast(`Đã từ chối lệnh chi ${vId}. Biên bản giải trình đã được lưu trữ.`);
 
   isOtpVerified.value = false;
   simulatedOtpCode.value = '';
@@ -778,8 +799,8 @@ function handleCreateVoucher() {
     amountVnd: 50_000_000,
     purpose: '',
   };
-  showCreateForm.value = false;
-  showToast(`✓ Đã tạo và trình duyệt lệnh chi ${created.voucherId}!`);
+  activeDeskTab.value = 'ALL_VOUCHERS';
+  showToast(`Đã tạo và trình duyệt lệnh chi ${created.voucherId}!`);
 }
 
 // Merkle Proof Inspection Logic
@@ -822,9 +843,9 @@ function verifySelectedProof() {
 
   if (isValid) {
     proofVerificationStatus.value =
-      '✓ Bằng chứng hợp lệ 100%: Khối nằm trong cây Merkle mà không cần tiết lộ giao dịch khác.';
+      'Bằng chứng hợp lệ 100%: Khối nằm trong cây Merkle mà không cần tiết lộ giao dịch khác.';
   } else {
-    proofVerificationStatus.value = '⚠ Bằng chứng không khớp hoặc dữ liệu bị thay đổi.';
+    proofVerificationStatus.value = 'Bằng chứng không khớp hoặc dữ liệu bị thay đổi.';
   }
 }
 

@@ -39,6 +39,7 @@
 //! với bất kỳ nhánh lệnh nào vừa được thêm, và git không hợp nhất nổi "tôi dời
 //! 51 nhánh đi" với "tôi thêm nhánh thứ 52 vào giữa".
 
+pub mod auth;
 pub mod banking;
 pub mod config;
 pub mod consent;

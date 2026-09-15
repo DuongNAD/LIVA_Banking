@@ -112,6 +112,14 @@ tunnels:
     proto: http
     addr: 5173
     domain: rd_3JHcwHJK1iUTdwx1D22XRMeUA5K
+    basic_auth:
+      - "maker_nam:LivaMaker@2026"
+      - "maker_mai:LivaMaker@2026"
+      - "checker_tri:LivaChecker@2026"
+      - "checker_huong:LivaChecker@2026"
+      - "cfo_hoang:LivaCfo@2026"
+      - "auditor_lan:LivaAudit@2026"
+      - "admin_sys:LivaAdmin@2026"
     inspect: true
     metadata: '{"app": "liva-banking", "component": "treasury-workbench", "env": "remote-preview", "domain_id": "rd_3JHcwHJK1iUTdwx1D22XRMeUA5K"}'
     traffic_policy:
@@ -138,8 +146,20 @@ tunnels:
 | `proto` | `http` | Chuyển tiếp lưu lượng HTTP/HTTPS và WebSocket nâng cấp (WSS). |
 | `addr` | `5173` | Cổng upstream cục bộ của Treasury Workbench. |
 | `domain` | `rd_3JHcwHJK1iUTdwx1D22XRMeUA5K` | Tài nguyên miền cố định đã đăng ký trên ngrok dashboard. |
+| `basic_auth` | 7 tài khoản RBAC | Cưỡng chế xác thực HTTP Basic Auth trước khi tải ứng dụng. |
 | `inspect` | `true` | Kích hoạt bộ kiểm định lưu lượng nội bộ qua giao diện quản trị `127.0.0.1:4040`. |
 | `traffic_policy` | Response Headers Policy | Tự động tiêm các tiêu đề an ninh ngân hàng vào mọi phản hồi HTTP trả về client. |
+
+### 3.1 Danh sách Tài khoản Truy cập Từ xa (RBAC Remote Accounts)
+| Role (Vai trò) | Tên đăng nhập (Username) | Mật khẩu mẫu | Họ và tên | Chức danh / Quyền hạn |
+|---|---|---|---|---|
+| **Maker** | `maker_nam` | `LivaMaker@2026` | Trịnh Văn Nam | Chuyên viên Kế toán Vốn (Tải sao kê, lập đề xuất xử lý lệch) |
+| **Maker** | `maker_mai` | `LivaMaker@2026` | Lê Phương Mai | Kế toán viên Thanh toán (Đối soát bán hàng, điều hòa hóa đơn) |
+| **Checker** | `checker_tri` | `LivaChecker@2026` | Nguyễn Minh Trí | Kế toán trưởng (Phê duyệt ngoại lệ HITL 4-Eyes, duyệt lệnh chi) |
+| **Checker** | `checker_huong` | `LivaChecker@2026` | Đỗ Lan Hương | Phó phòng Kế toán (Kiểm soát viên độc lập với Maker) |
+| **CFO** | `cfo_hoang` | `LivaCfo@2026` | Trần Việt Hoàng | Giám đốc Tài chính (Giám sát ngân quỹ, dự báo dòng tiền 30 ngày) |
+| **Auditor** | `auditor_lan` | `LivaAudit@2026` | Phạm Hương Lan | Kiểm toán viên Độc lập (Chỉ đọc, kiểm định Merkle Audit Trail) |
+| **Admin** | `admin_sys` | `LivaAdmin@2026` | Quản trị viên An ninh | Quản trị Hệ thống (Bảo mật Zero-Egress, tham số AI Offline) |
 
 ---
 

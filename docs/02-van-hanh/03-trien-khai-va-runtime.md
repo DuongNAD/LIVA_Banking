@@ -26,7 +26,11 @@ covers:
 > chỉ biến mất. Các kết luận lịch sử “script kill mọi port / desktop không bind
 > gateway / voice fields là None” không còn đúng với runtime hiện tại.
 
-[⬆ Mục lục](../README.md) · [◀ Mô hình AI và tài nguyên](02-mo-hinh-ai-va-tai-nguyen.md) · [Kiểm thử và CI ▶](04-kiem-thu-va-ci.md)
+[⬆ Mục lục](../README.md) · [◀ Mô hình AI và tài nguyên](02-mo-hinh-ai-va-tai-nguyen.md) · [Triển khai Web Client & Mạng nội bộ](07-trien-khai-web-client-va-mang-noi-bo.md) · [Kiểm thử và CI ▶](04-kiem-thu-va-ci.md)
+
+---
+
+> 🌐 **Kiến trúc Web Client & Mạng nội bộ**: Bên cạnh luồng chạy desktop Tauri nhúng lõi Rust dưới đây, LIVA Banking còn cung cấp bản **Universal Web Demo (Zero-Backend)** phục vụ trình diễn và mô hình **Mạng Nội bộ Cách ly (Intranet/LAN/VPN)**. Chi tiết cấu hình xem tại: [Triển khai Web Client & Mạng nội bộ](07-trien-khai-web-client-va-mang-noi-bo.md).
 
 ---
 

@@ -273,7 +273,7 @@ export async function executeBankingToolDispatcher(
 
     const rate = BANKING_MCP_TOOLS.get_exchange_rate.execute({ currency: cur });
     return {
-      text: `📊 **TỶ GIÁ NGOẠI TỆ HÔM NAY (${rate.currency}/VND)**:\n- **Mua tiền mặt**: ${rate.buyCash.toLocaleString('vi-VN')} VND\n- **Mua chuyển khoản**: ${rate.buyTransfer.toLocaleString('vi-VN')} VND\n- **Bán ra**: ${rate.sell.toLocaleString('vi-VN')} VND\n- **Biến động**: ${rate.change}\n- **Nguồn**: ${rate.source} (Áp dụng ngày ${rate.updatedAt}).`,
+      text: `**TỶ GIÁ NGOẠI TỆ (${rate.currency}/VND)**:\n- **Mua tiền mặt**: ${rate.buyCash.toLocaleString('vi-VN')} VND\n- **Mua chuyển khoản**: ${rate.buyTransfer.toLocaleString('vi-VN')} VND\n- **Bán ra**: ${rate.sell.toLocaleString('vi-VN')} VND\n- **Biến động**: ${rate.change}\n- **Nguồn**: ${rate.source} (Áp dụng ngày ${rate.updatedAt}).`,
       toolUsed: 'get_exchange_rate',
       data: rate,
     };
@@ -286,7 +286,7 @@ export async function executeBankingToolDispatcher(
       (a: any) => `• **${a.bank}**: ${a.balance.toLocaleString('vi-VN')} VND (${a.accountNumber})`
     );
     return {
-      text: `🏦 **VỊ THẾ THANH KHOẢN CÁC KÊNH LIÊN NGÂN HÀNG**:\n- **Tổng thanh khoản khả dụng**: **${res.totalLiquidityFormatted}**\n${lines.join('\n')}\n- **Độ dài an toàn thanh khoản (Runway)**: ${res.runwayDays} ngày (Dự trữ đáp ứng quy định NHNN).`,
+      text: `**VỊ THẾ THANH KHOẢN CÁC KÊNH LIÊN NGÂN HÀNG**:\n- **Tổng thanh khoản khả dụng**: **${res.totalLiquidityFormatted}**\n${lines.join('\n')}\n- **Độ dài an toàn thanh khoản (Runway)**: ${res.runwayDays} ngày (Dự trữ đáp ứng quy định NHNN).`,
       toolUsed: 'query_bank_accounts',
       data: res,
     };
@@ -297,7 +297,7 @@ export async function executeBankingToolDispatcher(
     const aml = BANKING_MCP_TOOLS.query_aml_alerts.execute({});
     const lines = aml.statutoryTriggers.map((t: any) => `• [${t.severity}] ${t.description}`);
     return {
-      text: `🛡️ **GIÁM SÁT RỦI RO AML/STR NỘI BỘ (THÔNG TƯ 09/2023/TT-NHNN)**:\n- **Tổng số cảnh báo**: ${aml.totalAlerts} ca đáng ngờ trên tài khoản khách hàng.\n${lines.join('\n')}\n- **Hồ sơ STR**: Đã sẵn sàng mẫu báo cáo gửi Cục PCRT - NHNN.`,
+      text: `**GIÁM SÁT RỦI RO AML/STR NỘI BỘ (THÔNG TƯ 09/2023/TT-NHNN)**:\n- **Tổng số cảnh báo**: ${aml.totalAlerts} ca đáng ngờ trên tài khoản khách hàng.\n${lines.join('\n')}\n- **Hồ sơ STR**: Đã sẵn sàng mẫu báo cáo gửi Cục PCRT - NHNN.`,
       toolUsed: 'query_aml_alerts',
       data: aml,
     };
@@ -307,7 +307,7 @@ export async function executeBankingToolDispatcher(
   if (/đối soát|chênh lệch|khớp|hóa đơn|quyết toán|tra soát/i.test(q)) {
     const rec = BANKING_MCP_TOOLS.query_reconciliation_status.execute({});
     return {
-      text: `⚖️ **TIẾN ĐỘ ĐỐI SOÁT CORE BANKING VỚI CITAD & NAPAS**:\n- **Tỷ lệ tự động khớp**: **${rec.matchRatePercent}%** (Đạt chuẩn kiểm toán)\n- **Khớp 1:1 tuyệt đối**: ${rec.tier1Matches} giao dịch\n- **Khớp Heuristic mờ & Phí NAPAS/CITAD**: ${rec.tier2FuzzyMatches} giao dịch\n- **Khớp Subset-Sum (1:N quyết toán gộp)**: ${rec.tier3CompositeSplits} phiên bù trừ\n- **Giao dịch tra soát treo**: ${rec.unmatchedCount} (Chênh lệch: 0 VND).`,
+      text: `**TIẾN ĐỘ ĐỐI SOÁT CORE BANKING VỚI CITAD & NAPAS**:\n- **Tỷ lệ tự động khớp**: **${rec.matchRatePercent}%** (Đạt chuẩn kiểm toán)\n- **Khớp 1:1 tuyệt đối**: ${rec.tier1Matches} giao dịch\n- **Khớp Heuristic mờ & Phí NAPAS/CITAD**: ${rec.tier2FuzzyMatches} giao dịch\n- **Khớp Subset-Sum (1:N quyết toán gộp)**: ${rec.tier3CompositeSplits} phiên bù trừ\n- **Giao dịch tra soát treo**: ${rec.unmatchedCount} (Chênh lệch: 0 VND).`,
       toolUsed: 'query_reconciliation_status',
       data: rec,
     };
@@ -317,7 +317,7 @@ export async function executeBankingToolDispatcher(
   if (/lệnh chi|phê duyệt|checker|maker|duyệt|điều chuyển/i.test(q)) {
     const vch = BANKING_MCP_TOOLS.query_treasury_vouchers.execute({});
     return {
-      text: `✍️ **QUẢN TRỊ ĐIỀU CHUYỂN VỐN & PHÊ DUYỆT KÉP (TT 09/2020)**:\n- **Số lệnh điều chuyển chờ duyệt**: ${vch.pendingCount} lệnh.\n• **Lệnh ${vch.vouchers[0].id}**: ${vch.vouchers[0].amount.toLocaleString('vi-VN')} VND đến "${vch.vouchers[0].beneficiary}" (${vch.vouchers[0].purpose}).\n- Yêu cầu Kiểm soát viên (Checker) thẩm định và ký duyệt OTP/Sinh trắc học.`,
+      text: `**QUẢN TRỊ ĐIỀU CHUYỂN VỐN & PHÊ DUYỆT KÉP (TT 09/2020)**:\n- **Số lệnh điều chuyển chờ duyệt**: ${vch.pendingCount} lệnh.\n• **Lệnh ${vch.vouchers[0].id}**: ${vch.vouchers[0].amount.toLocaleString('vi-VN')} VND đến "${vch.vouchers[0].beneficiary}" (${vch.vouchers[0].purpose}).\n- Yêu cầu Kiểm soát viên (Checker) thẩm định và ký duyệt OTP/Sinh trắc học.`,
       toolUsed: 'query_treasury_vouchers',
       data: vch,
     };

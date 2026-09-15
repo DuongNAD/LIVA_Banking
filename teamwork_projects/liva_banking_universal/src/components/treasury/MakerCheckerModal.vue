@@ -9,8 +9,8 @@
       <!-- Modal Header -->
       <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
         <div class="flex items-center space-x-3">
-          <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-md">
-            ⚖️
+          <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
           </div>
           <div>
             <h3 class="text-base font-bold tracking-tight">Phê Duyệt Lệnh Chi (Maker-Checker Gate)</h3>
@@ -24,7 +24,7 @@
           class="text-slate-400 hover:text-white transition p-1.5 rounded-lg hover:bg-slate-800"
           @click="onClose"
         >
-          ✕
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
       </div>
 
@@ -35,7 +35,7 @@
           v-if="isSelfApproval"
           class="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start space-x-3 text-rose-800 text-xs"
         >
-          <span class="text-base font-bold">🚫</span>
+          <svg class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
           <div>
             <strong class="font-semibold block">Vi Phạm Nguyên Tắc Bốn Mắt (Circular 09/2020)</strong>
             <span>
@@ -104,7 +104,7 @@
           class="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-xs text-blue-900"
         >
           <div class="flex items-center space-x-2">
-            <span class="font-semibold">🔑 Token HITL (UUIDv4):</span>
+            <span class="font-semibold">Token HITL (UUIDv4):</span>
             <span class="font-mono text-blue-700 text-[11px] truncate max-w-[200px]">
               {{ voucher.hitlToken || 'Đang bảo vệ' }}
             </span>
@@ -172,7 +172,7 @@
             <span class="text-slate-600">
               Trạng thái xác thực 2 bước:
               <strong :class="isStepUpVerified ? 'text-emerald-700 font-bold' : 'text-amber-600'">
-                {{ isStepUpVerified ? '✓ Đã xác thực thành công' : 'Chưa kích hoạt xác thực' }}
+                {{ isStepUpVerified ? 'Đã xác thực thành công' : 'Chưa kích hoạt xác thực' }}
               </strong>
             </span>
             <button

@@ -3,7 +3,11 @@ members = [
     "liva-desktop/src-tauri",
     "liva-native-core",
     "crates/liva-money",
-    "crates/liva-ledger"
+    "crates/liva-ledger",
+    "tools/synthgen",
+    "crates/liva-netguard",
+    "crates/liva-parse",
+    "crates/liva-recon"
 ]
 resolver = "2"
 

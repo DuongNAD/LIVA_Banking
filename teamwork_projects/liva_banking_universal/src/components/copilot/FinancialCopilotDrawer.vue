@@ -1,17 +1,17 @@
 <template>
   <div>
-    <!-- Trigger Button (Floating or Embedded) -->
+    <!-- Trigger Button (Compact Subtle Floating Icon) -->
     <button
       v-if="!isOpen"
       type="button"
-      class="fixed bottom-6 right-6 z-40 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-2xl shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-200 flex items-center space-x-2.5 copilot-drawer-trigger"
+      class="fixed bottom-5 right-5 z-40 w-9 h-9 bg-slate-900/90 hover:bg-slate-900 text-white rounded-full shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center copilot-drawer-trigger cursor-pointer border border-slate-700/50"
+      title="Mở Trợ lý AI (Copilot)"
       @click="$emit('update:isOpen', true)"
     >
-      <span class="text-xl">🤖</span>
-      <span class="text-xs">Trợ Lý Copilot 2D</span>
+      <svg class="w-4 h-4 text-slate-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       <span
         v-if="pendingAlertsCount > 0"
-        class="w-2.5 h-2.5 rounded-full bg-rose-400 animate-ping ml-1"
+        class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500"
       ></span>
     </button>
 
@@ -30,20 +30,20 @@
       <!-- Drawer Header -->
       <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between shadow-md">
         <div class="flex items-center space-x-3">
-          <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-sm">
-            🤖
+          <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white shadow-sm">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           </div>
           <div>
             <h3 class="text-sm font-bold tracking-tight">LIVA Banking Copilot</h3>
-            <p class="text-[11px] text-slate-300">Trợ Lý Quản Trị Ngân Quỹ & Đối Soát Liên Ngân Hàng 2D</p>
+            <p class="text-[11px] text-slate-300">Trợ Lý Quản Trị Ngân Quỹ & Đối Soát</p>
           </div>
         </div>
         <button
           type="button"
-          class="text-slate-400 hover:text-white p-1 rounded-lg transition"
+          class="text-slate-400 hover:text-white p-1 rounded-lg transition cursor-pointer"
           @click="$emit('update:isOpen', false)"
         >
-          ✕
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
       </div>
 

@@ -111,7 +111,7 @@ pub fn stray_database_paths(dang_dung: &std::path::Path) -> Vec<std::path::PathB
     .collect()
 }
 
-fn read_config_file() -> serde_json::Value {
+pub fn read_config_file() -> serde_json::Value {
     std::fs::read_to_string(config_file_path())
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())

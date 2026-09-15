@@ -1,0 +1,19 @@
+[package]
+name = "liva-recon"
+version = "0.1.0"
+edition = "2021"
+authors = ["LIVA Banking Core Team"]
+description = "Deterministic 3-tier reconciliation engine and HITL quarantine queue"
+license = "Proprietary"
+
+[dependencies]
+liva-money = { path = "../liva-money" }
+liva-ledger = { path = "../liva-ledger" }
+liva-parse = { path = "../liva-parse" }
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "1.0"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+proptest = "1.4"
+serde_json = "1.0"

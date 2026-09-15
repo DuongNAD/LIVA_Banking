@@ -57,7 +57,7 @@ describe('2D Banking & Treasury UI Dashboard Suite', () => {
 
   // 2. Sidebar Navigation
   describe('BankingSidebar Navigation (7 Items)', () => {
-    it('renders Brand LIVA Reconciliation and 7 distinct navigation items', async () => {
+    it('renders Brand LIVA Reconciliation and distinct navigation items', async () => {
       const wrapper = mount(BankingSidebar, {
         props: { activeItem: 'overview' },
       });
@@ -66,15 +66,20 @@ describe('2D Banking & Treasury UI Dashboard Suite', () => {
       expect(wrapper.find('.brand-sub').text()).toBe('Reconciliation');
 
       const items = wrapper.findAll('.nav-item');
-      expect(items).toHaveLength(7);
+      expect(items).toHaveLength(12);
 
       const labels = items.map(i => i.find('.nav-item-label').text());
       expect(labels).toEqual([
         'TỔNG QUAN',
+        'P42 WORKBENCH',
+        'P44 CÁCH LY',
+        'P50 SỔ CÁI ERP',
         'ĐỐI SOÁT',
         'GIAO DỊCH',
         'THU CHI',
         'NGÂN QUỸ',
+        'P70 RỦI RO',
+        'P80 TUÂN THỦ',
         'BÁO CÁO',
         'CÀI ĐẶT',
       ]);
@@ -82,14 +87,14 @@ describe('2D Banking & Treasury UI Dashboard Suite', () => {
       // Verify active class on first item by default
       expect(items[0].classes()).toContain('active');
 
-      // Verify green active status dot on 'ĐỐI SOÁT'
-      const reconcileItem = items[1];
-      expect(reconcileItem.find('.status-dot').exists()).toBe(true);
+      // Verify green active status dot on 'P42 WORKBENCH'
+      const workbenchItem = items[1];
+      expect(workbenchItem.find('.status-dot').exists()).toBe(true);
 
-      // Trigger navigation event
-      await items[1].trigger('click');
+      // Trigger navigation event on ledger
+      await items[3].trigger('click');
       expect(wrapper.emitted('navigate')).toBeTruthy();
-      expect(wrapper.emitted('navigate')?.[0]).toEqual(['reconcile']);
+      expect(wrapper.emitted('navigate')?.[0]).toEqual(['ledger']);
     });
   });
 

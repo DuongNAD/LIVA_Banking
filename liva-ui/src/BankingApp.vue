@@ -16,23 +16,34 @@ import BankingSidebar from './components/banking/BankingSidebar.vue';
 import BankingHeader from './components/banking/BankingHeader.vue';
 import FinancialAssistantDrawer from './components/banking/FinancialAssistantDrawer.vue';
 import ToastContainer from './components/ToastContainer.vue';
+import LoginModal from './components/banking/LoginModal.vue';
 
 // Dynamic Sub-views
 import BankingOverviewView from './views/banking/BankingOverviewView.vue';
+import BankingWorkbenchView from './views/banking/BankingWorkbenchView.vue';
+import BankingQuarantineView from './views/banking/BankingQuarantineView.vue';
+import BankingLedgerView from './views/banking/BankingLedgerView.vue';
 import BankingReconciliationView from './views/banking/BankingReconciliationView.vue';
 import BankingTransactionsView from './views/banking/BankingTransactionsView.vue';
 import BankingCashflowView from './views/banking/BankingCashflowView.vue';
 import BankingTreasuryView from './views/banking/BankingTreasuryView.vue';
+import BankingRiskView from './views/banking/BankingRiskView.vue';
+import BankingComplianceView from './views/banking/BankingComplianceView.vue';
 import BankingReportsView from './views/banking/BankingReportsView.vue';
 import BankingSettingsView from './views/banking/BankingSettingsView.vue';
 
 // Dynamic Component Registry (Registry Pattern)
 const viewRegistry: Record<string, Component> = {
   overview: markRaw(BankingOverviewView),
+  workbench: markRaw(BankingWorkbenchView),
+  quarantine: markRaw(BankingQuarantineView),
+  ledger: markRaw(BankingLedgerView),
   reconcile: markRaw(BankingReconciliationView),
   transactions: markRaw(BankingTransactionsView),
   cashflow: markRaw(BankingCashflowView),
   treasury: markRaw(BankingTreasuryView),
+  risk: markRaw(BankingRiskView),
+  compliance: markRaw(BankingComplianceView),
   reports: markRaw(BankingReportsView),
   settings: markRaw(BankingSettingsView),
 };
@@ -108,7 +119,6 @@ function onSearch(query: string) {
       <main class="banking-main-content">
         <!-- Top Dashboard Header -->
         <BankingHeader
-          user-name="Nguyễn Minh Trí"
           :has-unread-notifications="true"
           @toggle-assistant="toggleAssistant"
           @search="onSearch"
@@ -131,6 +141,9 @@ function onSearch(query: string) {
 
     <!-- Global Toast Container -->
     <ToastContainer />
+
+    <!-- Role-based Authentication & Login Modal -->
+    <LoginModal />
   </div>
 </template>
 

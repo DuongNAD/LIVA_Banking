@@ -1,10 +1,12 @@
 <template>
   <div class="banking-dashboard space-y-6 animate-in fade-in duration-200">
-    <!-- Top Action Bar & Interbank Channel Switcher -->
+    <!-- Top Action Bar & Channel Overview -->
     <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <div>
         <h1 class="text-xl font-bold text-slate-900 tracking-tight flex items-center space-x-2.5">
-          <span>🏦</span>
+          <div class="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M3 10h18"/><path d="M5 6l7-3 7 3"/><path d="M4 10v11"/><path d="M20 10v11"/><path d="M8 14v4"/><path d="M12 14v4"/><path d="M16 14v4"/></svg>
+          </div>
           <span>Bàn Giao Dịch Thanh Khoản & Quyết Toán Liên Ngân Hàng (Treasury Desk)</span>
         </h1>
         <p class="text-xs text-slate-500 mt-0.5">
@@ -12,51 +14,24 @@
         </p>
       </div>
 
-      <!-- Interbank Channel Switcher -->
-      <div class="flex items-center space-x-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200 self-start md:self-auto text-xs font-semibold overflow-x-auto max-w-full">
+      <!-- Quick Action Buttons -->
+      <div class="flex items-center space-x-2 self-start md:self-auto text-xs">
         <button
           type="button"
-          class="px-3 py-1.5 rounded-lg transition-all whitespace-nowrap"
-          :class="bankingStore.selectedBankPersona === 'ALL' ? 'bg-white text-slate-900 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'"
-          @click="bankingStore.setBankPersona('ALL')"
+          class="px-3.5 py-2 text-xs font-bold rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition shadow-xs flex items-center space-x-1.5 cursor-pointer"
+          @click="openRebalanceModal()"
         >
-          Toàn Bộ Kênh (Tổng Hợp)
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
+          <span>Điều Chuyển Vốn</span>
         </button>
+
         <button
           type="button"
-          class="px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1 whitespace-nowrap"
-          :class="bankingStore.selectedBankPersona === 'CITAD' ? 'bg-emerald-800 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'"
-          @click="bankingStore.setBankPersona('CITAD')"
+          class="px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-900 hover:bg-slate-800 text-white transition shadow-xs flex items-center space-x-1.5 cursor-pointer"
+          @click="$emit('navigate', 'reconciliation')"
         >
-          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-          <span>CITAD (NHNN)</span>
-        </button>
-        <button
-          type="button"
-          class="px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1 whitespace-nowrap"
-          :class="bankingStore.selectedBankPersona === 'NAPAS' ? 'bg-sky-700 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'"
-          @click="bankingStore.setBankPersona('NAPAS')"
-        >
-          <span class="w-2 h-2 rounded-full bg-sky-400"></span>
-          <span>NAPAS 24/7</span>
-        </button>
-        <button
-          type="button"
-          class="px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1 whitespace-nowrap"
-          :class="bankingStore.selectedBankPersona === 'BILATERAL' ? 'bg-amber-700 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'"
-          @click="bankingStore.setBankPersona('BILATERAL')"
-        >
-          <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-          <span>Song Phương & Nostro</span>
-        </button>
-        <button
-          type="button"
-          class="px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1 whitespace-nowrap"
-          :class="bankingStore.selectedBankPersona === 'SWIFT' ? 'bg-purple-800 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'"
-          @click="bankingStore.setBankPersona('SWIFT')"
-        >
-          <span class="w-2 h-2 rounded-full bg-purple-400"></span>
-          <span>SWIFT</span>
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>
+          <span>Đối Soát Quyết Toán</span>
         </button>
       </div>
     </div>
@@ -67,7 +42,9 @@
       class="p-4 rounded-2xl bg-rose-50 border border-rose-300 text-rose-900 flex items-center justify-between shadow-xs animate-bounce-short"
     >
       <div class="flex items-center space-x-3">
-        <span class="text-2xl">🚨</span>
+        <div class="w-9 h-9 rounded-xl bg-rose-200 text-rose-800 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
         <div>
           <h4 class="text-sm font-bold">CẢNH BÁO VI PHẠM HẠN MỨC DỰ TRỮ THANH KHOẢN (LIQUIDITY LIMIT BREACH)</h4>
           <p class="text-xs text-rose-700">
@@ -77,177 +54,123 @@
       </div>
       <button
         type="button"
-        class="px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white transition shadow-sm whitespace-nowrap"
+        class="px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white transition shadow-sm whitespace-nowrap cursor-pointer flex items-center space-x-1.5"
         @click="openRebalanceModal()"
       >
-        🔄 Điều Chuyển Bù Đắp Ngay
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
+        <span>Điều Chuyển Bù Đắp Ngay</span>
       </button>
     </div>
 
-    <!-- Hero KPI Metric Grid (5 Cards) -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-      <!-- 1. Total Liquid Capital -->
-      <div class="p-5 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl shadow-sm space-y-2 border border-slate-700">
-        <div class="flex items-center justify-between text-xs text-slate-300">
-          <span class="font-medium">Tổng Thanh Khoản</span>
-          <span class="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-mono text-[11px]">VND</span>
-        </div>
-        <div class="text-2xl font-bold font-mono text-emerald-400 tracking-tight">
-          {{ formatVnd(displayedTotalBalance) }}
-        </div>
-        <div class="flex items-center space-x-2 text-[11px] text-slate-400 pt-1 border-t border-slate-700/60">
-          <span class="text-emerald-400 font-semibold">● Nội bộ 100%</span>
-          <span class="truncate">{{ bankingStore.selectedBankPersona === 'ALL' ? '4 Kênh liên ngân hàng' : 'Kênh chuyên biệt' }}</span>
-        </div>
-      </div>
-
-      <!-- 2. Net Cash Flow Month -->
-      <div class="p-5 bg-white rounded-2xl shadow-sm border border-slate-200 space-y-2">
-        <div class="flex items-center justify-between text-xs text-slate-500">
-          <span class="font-medium">Dòng Tiền Ròng Tháng</span>
-          <span
-            class="px-2 py-0.5 rounded-md text-[10px] font-bold"
-            :class="bankingStore.netFlowMonthVnd >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'"
-          >
-            {{ bankingStore.netFlowMonthVnd >= 0 ? 'DƯ DƯƠNG' : 'THÂM HỤT' }}
-          </span>
-        </div>
-        <div
-          class="text-2xl font-bold font-mono tracking-tight"
-          :class="bankingStore.netFlowMonthVnd >= 0 ? 'text-emerald-600' : 'text-rose-600'"
+    <!-- Clean Functional Subpage Navigation Tabs -->
+    <div class="flex items-center space-x-2 border-b border-slate-200 pb-2 text-xs font-bold overflow-x-auto">
+      <button
+        type="button"
+        class="px-4 py-2 rounded-xl transition flex items-center space-x-2 cursor-pointer whitespace-nowrap"
+        :class="activeTab === 'CHANNELS' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'"
+        @click="activeTab = 'CHANNELS'"
+      >
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+        <span>Kênh thanh toán & Hạn mức</span>
+        <span
+          v-if="bankingStore.breachedChannels.length > 0"
+          class="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-rose-500 text-white font-bold"
         >
-          {{ bankingStore.netFlowMonthVnd >= 0 ? '+' : '' }}{{ formatVnd(bankingStore.netFlowMonthVnd) }}
-        </div>
-        <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-100 flex items-center justify-between">
-          <span class="text-emerald-600 font-mono">+{{ formatVnd(bankingStore.totalInflowMonthVnd) }}</span>
-          <span class="text-rose-600 font-mono">-{{ formatVnd(bankingStore.totalOutflowMonthVnd) }}</span>
-        </div>
-      </div>
+          {{ bankingStore.breachedChannels.length }}
+        </span>
+      </button>
 
-      <!-- 3. Liquidity Runway -->
-      <div class="p-5 bg-white rounded-2xl shadow-sm border border-slate-200 space-y-2">
-        <div class="flex items-center justify-between text-xs text-slate-500">
-          <span class="font-medium">Độ Dài Thanh Khoản</span>
-          <span class="text-base">⏳</span>
-        </div>
-        <div class="text-2xl font-bold text-slate-900 font-mono">
-          {{ bankingStore.liquidityRunwayDays }} <span class="text-sm font-normal text-slate-500">Ngày</span>
-        </div>
-        <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-100 flex items-center space-x-1">
-          <span class="text-emerald-600 font-semibold">An toàn</span>
-          <span class="truncate">Mức chi {{ formatVnd(bankingStore.dailyAverageBurnVnd) }} VND/ngày</span>
-        </div>
-      </div>
+      <button
+        type="button"
+        class="px-4 py-2 rounded-xl transition flex items-center space-x-2 cursor-pointer whitespace-nowrap"
+        :class="activeTab === 'REBALANCE_LOGS' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'"
+        @click="activeTab = 'REBALANCE_LOGS'"
+      >
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
+        <span>Nhật ký điều chuyển vốn</span>
+        <span class="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-slate-100 text-slate-700">
+          {{ bankingStore.rebalanceLogs.length }}
+        </span>
+      </button>
 
-      <!-- 4. Reconciliation Match Rate -->
-      <div class="p-5 bg-white rounded-2xl shadow-sm border border-slate-200 space-y-2">
-        <div class="flex items-center justify-between text-xs text-slate-500">
-          <span class="font-medium">Tỷ Lệ Đối Soát</span>
-          <span class="text-base">🎯</span>
-        </div>
-        <div class="text-2xl font-bold text-emerald-600 font-mono">
-          {{ reconStore.matchRate.toFixed(1) }}%
-        </div>
-        <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-100 flex items-center justify-between">
-          <span>Chuẩn: ≥ 99.8%</span>
-          <span class="text-emerald-600 font-semibold font-mono">{{ reconStore.matchedCount }} Khớp</span>
-        </div>
-      </div>
+      <button
+        type="button"
+        class="px-4 py-2 rounded-xl transition flex items-center space-x-2 cursor-pointer whitespace-nowrap"
+        :class="activeTab === 'MERKLE_AUDIT' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'"
+        @click="activeTab = 'MERKLE_AUDIT'"
+      >
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18"/><path d="m8 8 4-5 4 5"/><path d="M3 14h18"/><path d="m8 19 4 2 4-2"/></svg>
+        <span>Sổ cái kiểm toán Merkle</span>
+      </button>
 
-      <!-- 5. Pending Dual-Control & Limit Health -->
-      <div class="p-5 bg-white rounded-2xl shadow-sm border border-slate-200 space-y-2">
-        <div class="flex items-center justify-between text-xs text-slate-500">
-          <span class="font-medium">Kiểm Soát & Hạn Mức</span>
-          <span class="text-base">⚖️</span>
-        </div>
-        <div class="flex items-baseline space-x-2">
-          <div class="text-2xl font-bold text-amber-600 font-mono">
-            {{ treasuryStore.pendingVouchers.length }}
-            <span class="text-xs font-normal text-slate-500">Lệnh</span>
-          </div>
-          <div
-            class="text-2xl font-bold font-mono"
-            :class="bankingStore.hasReserveBreach ? 'text-rose-600' : 'text-emerald-600'"
-          >
-            / {{ bankingStore.breachedChannels.length }}
-            <span class="text-xs font-normal text-slate-500">Vi phạm</span>
-          </div>
-        </div>
-        <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-100 flex items-center justify-between">
-          <span class="text-amber-600 font-medium">Bốn mắt TT 09</span>
-          <span :class="bankingStore.hasReserveBreach ? 'text-rose-600 font-bold' : 'text-emerald-600 font-medium'">
-            {{ bankingStore.hasReserveBreach ? 'Nguy cơ cạn vốn' : 'Hạn mức chuẩn' }}
-          </span>
-        </div>
-      </div>
+      <button
+        type="button"
+        class="px-4 py-2 rounded-xl transition flex items-center space-x-2 cursor-pointer whitespace-nowrap"
+        :class="activeTab === 'KPIS' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'"
+        @click="activeTab = 'KPIS'"
+      >
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        <span>Báo cáo thanh khoản</span>
+      </button>
     </div>
 
-    <!-- Quick Action Launchpad -->
-    <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-5 rounded-2xl text-white shadow-md flex flex-wrap items-center justify-between gap-4">
-      <div class="space-y-1">
-        <div class="flex items-center space-x-2">
-          <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-wider">
-            Thao Tác Tác Nghiệp
-          </span>
-          <span class="text-xs text-slate-300">Bảo mật nội bộ ngân hàng (Zero Cloud Egress)</span>
-        </div>
-        <p class="text-sm font-semibold text-slate-100">
-          Điều chuyển vốn bù trừ thanh khoản, nạp sao kê điện tử hoặc đối soát sai lệch
-        </p>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-2.5">
-        <!-- Rebalance Button -->
-        <button
-          type="button"
-          class="px-4 py-2 text-xs font-bold rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition shadow-sm flex items-center space-x-1.5"
-          @click="openRebalanceModal()"
-        >
-          <span>🔄</span>
-          <span>Điều Chuyển Vốn Nội Bộ</span>
-        </button>
-
-        <button
-          type="button"
-          class="px-4 py-2 text-xs font-bold rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 transition shadow-sm flex items-center space-x-1.5"
-          @click="$emit('navigate', 'reconciliation')"
-        >
-          <span>📥</span>
-          <span>Đối Soát Quyết Toán</span>
-        </button>
-
-        <button
-          type="button"
-          class="px-4 py-2 text-xs font-bold rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition shadow-sm flex items-center space-x-1.5"
-          @click="$emit('navigate', 'aml')"
-        >
-          <span>🛡️</span>
-          <span>Xem Cảnh Báo AML ({{ amlStore.totalAlertsCount }})</span>
-        </button>
-
-        <button
-          type="button"
-          class="px-4 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition shadow-sm flex items-center space-x-1.5"
-          @click="$emit('navigate', 'treasury')"
-        >
-          <span>⚖️</span>
-          <span>Duyệt Lệnh Chi ({{ treasuryStore.pendingVouchers.length }})</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Interbank Settlement Channels Grid with Liquidity Risk Limits -->
-    <div class="space-y-3">
+    <!-- TAB 1: Interbank Settlement Channels & Liquidity Risk Limits -->
+    <div v-if="activeTab === 'CHANNELS'" class="space-y-4">
+      <!-- Channel Switcher Filter Pills -->
       <div class="flex items-center justify-between">
-        <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center space-x-2">
-          <span>📊</span>
-          <span>Giám Sát Vị Thế & Hạn Mức Dự Trữ Các Kênh Thanh Toán</span>
-        </h2>
+        <div class="flex items-center space-x-1.5 p-1 bg-white rounded-xl border border-slate-200 text-xs font-semibold overflow-x-auto">
+          <button
+            type="button"
+            class="px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
+            :class="bankingStore.selectedBankPersona === 'ALL' ? 'bg-slate-900 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'"
+            @click="bankingStore.setBankPersona('ALL')"
+          >
+            Tất Cả Kênh ({{ bankingStore.accounts.length }})
+          </button>
+          <button
+            type="button"
+            class="px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1 whitespace-nowrap cursor-pointer"
+            :class="bankingStore.selectedBankPersona === 'CITAD' ? 'bg-emerald-700 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'"
+            @click="bankingStore.setBankPersona('CITAD')"
+          >
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span>CITAD (NHNN)</span>
+          </button>
+          <button
+            type="button"
+            class="px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1 whitespace-nowrap cursor-pointer"
+            :class="bankingStore.selectedBankPersona === 'NAPAS' ? 'bg-sky-700 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'"
+            @click="bankingStore.setBankPersona('NAPAS')"
+          >
+            <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+            <span>NAPAS 24/7</span>
+          </button>
+          <button
+            type="button"
+            class="px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1 whitespace-nowrap cursor-pointer"
+            :class="bankingStore.selectedBankPersona === 'BILATERAL' ? 'bg-amber-700 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'"
+            @click="bankingStore.setBankPersona('BILATERAL')"
+          >
+            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            <span>Song Phương & Nostro</span>
+          </button>
+          <button
+            type="button"
+            class="px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1 whitespace-nowrap cursor-pointer"
+            :class="bankingStore.selectedBankPersona === 'SWIFT' ? 'bg-purple-700 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'"
+            @click="bankingStore.setBankPersona('SWIFT')"
+          >
+            <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+            <span>SWIFT</span>
+          </button>
+        </div>
+
         <span class="text-xs text-slate-400">
-          Hiển thị: {{ bankingStore.displayedAccounts.length }} / {{ bankingStore.accounts.length }} kênh thanh toán
+          Hiển thị: {{ bankingStore.displayedAccounts.length }} / {{ bankingStore.accounts.length }} kênh
         </span>
       </div>
 
+      <!-- Channel Cards Grid -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div
           v-for="acc in bankingStore.displayedAccounts"
@@ -276,15 +199,15 @@
               <!-- Status Badge -->
               <span
                 v-if="acc.balanceVnd < acc.minReserveVnd"
-                class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 animate-pulse"
+                class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800"
               >
-                ⚠️ DƯỚI HẠN MỨC
+                Dưới Hạn Mức
               </span>
               <span
                 v-else
                 class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800"
               >
-                ✓ An toàn
+                An Toàn
               </span>
             </div>
 
@@ -357,14 +280,15 @@
           <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
             <button
               type="button"
-              class="text-xs font-semibold text-amber-700 hover:text-amber-900 flex items-center space-x-1"
+              class="text-xs font-semibold text-amber-700 hover:text-amber-900 flex items-center space-x-1 cursor-pointer"
               @click="openRebalanceModal(acc.bankCode)"
             >
-              <span>🔄 Điều vốn</span>
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
+              <span>Điều vốn</span>
             </button>
             <button
               type="button"
-              class="font-semibold text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+              class="font-semibold text-blue-600 hover:text-blue-800 flex items-center space-x-1 cursor-pointer"
               @click="onSelectAccount(acc.bankCode)"
             >
               <span>Đối Soát Kênh</span>
@@ -375,108 +299,228 @@
       </div>
     </div>
 
-    <!-- Bottom Split: Audit Ledger Stream & Intraday Cash Rebalancing Log -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      <!-- Intraday Cash Rebalancing Log (7 cols) -->
-      <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-        <div class="flex items-center justify-between pb-2 border-b border-slate-100">
-          <div class="flex items-center space-x-2.5">
-            <span class="text-lg">🔄</span>
-            <div>
-              <h3 class="text-sm font-bold text-slate-900">Nhật Ký Điều Chuyển Vốn Thanh Khoản (Intraday & Overnight)</h3>
-              <p class="text-xs text-slate-500">Lịch sử các lệnh điều phối vốn bù trừ giữa các kênh CITAD, NAPAS, Nostro</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            class="px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-100 text-amber-900 hover:bg-amber-200 transition"
-            @click="openRebalanceModal()"
-          >
-            + Lập Lệnh Điều Vốn
-          </button>
+    <!-- TAB 2: Intraday Cash Rebalancing Log -->
+    <div v-else-if="activeTab === 'REBALANCE_LOGS'" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">Nhật Ký Điều Chuyển Vốn Thanh Khoản (Intraday & Overnight)</h2>
+          <p class="text-xs text-slate-500">Lịch sử các lệnh điều phối vốn bù trừ giữa các kênh CITAD, NAPAS, Nostro</p>
         </div>
+        <button
+          type="button"
+          class="px-3.5 py-2 text-xs font-bold rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition shadow-xs flex items-center space-x-1.5 cursor-pointer self-start sm:self-auto"
+          @click="openRebalanceModal()"
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>+ Lập Lệnh Điều Vốn</span>
+        </button>
+      </div>
 
-        <div class="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
-          <div
-            v-for="log in bankingStore.rebalanceLogs"
-            :key="log.id"
-            class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs flex items-start justify-between space-x-3"
-          >
-            <div class="space-y-1 flex-1">
-              <div class="flex items-center space-x-2">
+      <div v-if="bankingStore.rebalanceLogs.length === 0" class="text-center py-8 text-slate-400 text-xs">
+        Chưa có lệnh điều chuyển vốn nào trong phiên.
+      </div>
+
+      <div v-else class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+            <tr>
+              <th class="p-3">Mã Lệnh</th>
+              <th class="p-3">Kênh Chuyển → Nhận</th>
+              <th class="p-3 text-right">Số Tiền (VND)</th>
+              <th class="p-3">Mục Đích Nghiệp Vụ</th>
+              <th class="p-3">Người Thực Hiện</th>
+              <th class="p-3">Thời Gian</th>
+              <th class="p-3 text-center">Trạng Thái</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr
+              v-for="log in bankingStore.rebalanceLogs"
+              :key="log.id"
+              class="hover:bg-slate-50/80 transition"
+            >
+              <td class="p-3 font-mono font-bold text-slate-900 whitespace-nowrap">{{ log.id }}</td>
+              <td class="p-3 whitespace-nowrap font-mono font-bold text-slate-800">
+                {{ log.fromChannel }} <span class="text-slate-400 mx-1">→</span> {{ log.toChannel }}
+              </td>
+              <td class="p-3 text-right font-mono font-bold text-emerald-700 whitespace-nowrap">
+                {{ formatVnd(log.amountVnd) }}
+              </td>
+              <td class="p-3 text-slate-600 max-w-xs truncate">{{ log.purpose }}</td>
+              <td class="p-3 text-slate-700 whitespace-nowrap">{{ log.executedBy }}</td>
+              <td class="p-3 text-slate-400 whitespace-nowrap">{{ formatTimestamp(log.timestamp) }}</td>
+              <td class="p-3 text-center whitespace-nowrap">
                 <span
-                  class="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono uppercase"
+                  class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
                   :class="log.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'"
                 >
                   {{ log.status }}
                 </span>
-                <span class="font-mono font-bold text-slate-900">{{ log.fromChannel }} ➜ {{ log.toChannel }}</span>
-                <span class="font-bold text-emerald-700 font-mono">{{ formatVnd(log.amountVnd) }} VND</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 3: Merkle Audit Ledger Stream & Compliance -->
+    <div v-else-if="activeTab === 'MERKLE_AUDIT'" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">Sổ Bất Biến Forward Merkle & Chuỗi Khối Kiểm Toán</h2>
+          <p class="text-xs text-slate-500">Mỗi sự kiện điều vốn và duyệt chi được băm mật mã SHA-256 chuỗi tiếp nối</p>
+        </div>
+        <span class="px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-100 text-slate-700 font-semibold">
+          {{ treasuryStore.auditEntries.length }} Khối ghi nhận
+        </span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Events List -->
+        <div class="space-y-2 max-h-[400px] overflow-y-auto pr-1 text-xs">
+          <div
+            v-for="(entry, idx) in treasuryStore.auditEntries.slice(-8).reverse()"
+            :key="idx"
+            class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1"
+          >
+            <div class="flex items-center justify-between text-[11px]">
+              <span class="font-bold uppercase font-mono text-slate-800">{{ entry.event }}</span>
+              <span class="text-slate-400">{{ formatTimestamp(entry.timestamp) }}</span>
+            </div>
+            <div class="text-[10px] text-slate-500 font-mono truncate">
+              Hash: {{ (entry.currentHash || '').slice(0, 36) }}...
+            </div>
+            <div class="text-[10px] text-slate-400">
+              Tác nhân: <strong class="text-slate-700">{{ entry.actor }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Compliance & Security Status -->
+        <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4 text-xs flex flex-col justify-between">
+          <div class="space-y-3">
+            <h3 class="font-bold text-slate-900 uppercase tracking-wider text-[11px]">Tiêu Chuẩn Toàn Vẹn Hệ Thống</h3>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between p-2.5 bg-white rounded-lg border border-slate-200">
+                <span class="text-slate-600">Độc lập môi trường:</span>
+                <span class="font-semibold text-emerald-700 font-mono">100% Client-Side</span>
               </div>
-              <p class="text-slate-600 text-[11px]">{{ log.purpose }}</p>
-              <div class="text-[10px] text-slate-400 flex items-center space-x-2">
-                <span>Mã: {{ log.id }}</span>
-                <span>•</span>
-                <span>Thực hiện: {{ log.executedBy }}</span>
+              <div class="flex items-center justify-between p-2.5 bg-white rounded-lg border border-slate-200">
+                <span class="text-slate-600">Thông tư TT 09/2020:</span>
+                <span class="font-semibold text-blue-700">Maker-Checker Bốn Mắt</span>
+              </div>
+              <div class="flex items-center justify-between p-2.5 bg-white rounded-lg border border-slate-200">
+                <span class="text-slate-600">Hạn mức rủi ro thanh khoản:</span>
+                <span class="font-semibold" :class="bankingStore.hasReserveBreach ? 'text-rose-600 font-bold' : 'text-emerald-700'">
+                  {{ bankingStore.hasReserveBreach ? 'Có Kênh Vi Phạm Hạn Mức' : 'Trong Ngưỡng Cho Phép' }}
+                </span>
               </div>
             </div>
-            <div class="text-[10px] text-slate-400 whitespace-nowrap">
-              {{ formatTimestamp(log.timestamp) }}
-            </div>
+          </div>
+
+          <div class="p-3 bg-slate-900 text-white rounded-xl text-center text-[11px] font-mono">
+            LIVA Universal Banking • Production Ready
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- Merkle Audit Ledger Stream & Compliance (5 cols) -->
-      <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 flex flex-col justify-between">
-        <div class="space-y-3">
-          <div class="flex items-center justify-between pb-2 border-b border-slate-100">
-            <div class="flex items-center space-x-2">
-              <span class="text-lg">📜</span>
-              <h3 class="text-sm font-bold text-slate-900">Sổ Bất Biến Forward Merkle</h3>
-            </div>
-            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-100 text-slate-700 font-semibold">
-              {{ treasuryStore.auditEntries.length }} Events
-            </span>
+    <!-- TAB 4: Financial KPIs & Overview Grid -->
+    <div v-else-if="activeTab === 'KPIS'" class="space-y-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <!-- 1. Total Liquid Capital -->
+        <div class="p-5 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl shadow-sm space-y-2 border border-slate-700">
+          <div class="flex items-center justify-between text-xs text-slate-300">
+            <span class="font-medium">Tổng Thanh Khoản</span>
+            <span class="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-mono text-[11px]">VND</span>
           </div>
-
-          <div class="space-y-2 max-h-[220px] overflow-y-auto pr-1 text-xs">
-            <div
-              v-for="(entry, idx) in treasuryStore.auditEntries.slice(-4).reverse()"
-              :key="idx"
-              class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1"
-            >
-              <div class="flex items-center justify-between text-[10px]">
-                <span class="font-bold uppercase font-mono text-slate-800">{{ entry.event }}</span>
-                <span class="text-slate-400">{{ formatTimestamp(entry.timestamp) }}</span>
-              </div>
-              <div class="text-[10px] text-slate-500 font-mono truncate">
-                Hash: {{ (entry.currentHash || '').slice(0, 28) }}...
-              </div>
-            </div>
+          <div class="text-2xl font-bold font-mono text-emerald-400 tracking-tight">
+            {{ formatVnd(displayedTotalBalance) }}
           </div>
-
-          <!-- Compliance Summary Badges -->
-          <div class="pt-2 border-t border-slate-100 space-y-1.5 text-xs">
-            <div class="flex items-center justify-between text-slate-600">
-              <span>Độc lập môi trường:</span>
-              <span class="font-semibold text-emerald-700 font-mono">100% Client-Side</span>
-            </div>
-            <div class="flex items-center justify-between text-slate-600">
-              <span>Thông tư TT 09/2020:</span>
-              <span class="font-semibold text-blue-700">Maker-Checker Bốn Mắt</span>
-            </div>
-            <div class="flex items-center justify-between text-slate-600">
-              <span>Hạn mức rủi ro thanh khoản:</span>
-              <span class="font-semibold" :class="bankingStore.hasReserveBreach ? 'text-rose-600 font-bold' : 'text-emerald-700'">
-                {{ bankingStore.hasReserveBreach ? '⚠️ Có Kênh Vi Phạm' : '✓ Trong Ngưỡng Cho Phép' }}
-              </span>
-            </div>
+          <div class="flex items-center space-x-2 text-[11px] text-slate-400 pt-1 border-t border-slate-700/60">
+            <span class="text-emerald-400 font-semibold">● Nội bộ 100%</span>
+            <span class="truncate">{{ bankingStore.selectedBankPersona === 'ALL' ? '4 Kênh liên ngân hàng' : 'Kênh chuyên biệt' }}</span>
           </div>
         </div>
 
-        <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-center text-[11px] text-slate-500">
-          LIVA Universal Banking • <code class="font-mono font-bold text-slate-800">Production Ready</code>
+        <!-- 2. Net Cash Flow Month -->
+        <div class="p-5 bg-white rounded-2xl shadow-sm border border-slate-200 space-y-2">
+          <div class="flex items-center justify-between text-xs text-slate-500">
+            <span class="font-medium">Dòng Tiền Ròng Tháng</span>
+            <span
+              class="px-2 py-0.5 rounded-md text-[10px] font-bold"
+              :class="bankingStore.netFlowMonthVnd >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'"
+            >
+              {{ bankingStore.netFlowMonthVnd >= 0 ? 'DƯ DƯƠNG' : 'THÂM HỤT' }}
+            </span>
+          </div>
+          <div
+            class="text-2xl font-bold font-mono tracking-tight"
+            :class="bankingStore.netFlowMonthVnd >= 0 ? 'text-emerald-600' : 'text-rose-600'"
+          >
+            {{ bankingStore.netFlowMonthVnd >= 0 ? '+' : '' }}{{ formatVnd(bankingStore.netFlowMonthVnd) }}
+          </div>
+          <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-100 flex items-center justify-between">
+            <span class="text-emerald-600 font-mono">+{{ formatVnd(bankingStore.totalInflowMonthVnd) }}</span>
+            <span class="text-rose-600 font-mono">-{{ formatVnd(bankingStore.totalOutflowMonthVnd) }}</span>
+          </div>
+        </div>
+
+        <!-- 3. Liquidity Runway -->
+        <div class="p-5 bg-white rounded-2xl shadow-sm border border-slate-200 space-y-2">
+          <div class="flex items-center justify-between text-xs text-slate-500">
+            <span class="font-medium">Độ Dài Thanh Khoản</span>
+            <svg class="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div class="text-2xl font-bold text-slate-900 font-mono">
+            {{ bankingStore.liquidityRunwayDays }} <span class="text-sm font-normal text-slate-500">Ngày</span>
+          </div>
+          <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-100 flex items-center space-x-1">
+            <span class="text-emerald-600 font-semibold">An toàn</span>
+            <span class="truncate">Mức chi {{ formatVnd(bankingStore.dailyAverageBurnVnd) }} VND/ngày</span>
+          </div>
+        </div>
+
+        <!-- 4. Reconciliation Match Rate -->
+        <div class="p-5 bg-white rounded-2xl shadow-sm border border-slate-200 space-y-2">
+          <div class="flex items-center justify-between text-xs text-slate-500">
+            <span class="font-medium">Tỷ Lệ Đối Soát</span>
+            <svg class="w-4 h-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+          </div>
+          <div class="text-2xl font-bold text-emerald-600 font-mono">
+            {{ reconStore.matchRate.toFixed(1) }}%
+          </div>
+          <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-100 flex items-center justify-between">
+            <span>Chuẩn: ≥ 99.8%</span>
+            <span class="text-emerald-600 font-semibold font-mono">{{ reconStore.matchedCount }} Khớp</span>
+          </div>
+        </div>
+
+        <!-- 5. Pending Dual-Control & Limit Health -->
+        <div class="p-5 bg-white rounded-2xl shadow-sm border border-slate-200 space-y-2">
+          <div class="flex items-center justify-between text-xs text-slate-500">
+            <span class="font-medium">Kiểm Soát & Hạn Mức</span>
+            <svg class="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>
+          </div>
+          <div class="flex items-baseline space-x-2">
+            <div class="text-2xl font-bold text-amber-600 font-mono">
+              {{ treasuryStore.pendingVouchers.length }}
+              <span class="text-xs font-normal text-slate-500">Lệnh</span>
+            </div>
+            <div
+              class="text-2xl font-bold font-mono"
+              :class="bankingStore.hasReserveBreach ? 'text-rose-600' : 'text-emerald-600'"
+            >
+              / {{ bankingStore.breachedChannels.length }}
+              <span class="text-xs font-normal text-slate-500">Vi phạm</span>
+            </div>
+          </div>
+          <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-100 flex items-center justify-between">
+            <span class="text-amber-600 font-medium">Bốn mắt TT 09</span>
+            <span :class="bankingStore.hasReserveBreach ? 'text-rose-600 font-bold' : 'text-emerald-600 font-medium'">
+              {{ bankingStore.hasReserveBreach ? 'Nguy cơ cạn vốn' : 'Hạn mức chuẩn' }}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -490,8 +534,8 @@
         <!-- Header -->
         <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
           <div class="flex items-center space-x-3">
-            <div class="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center font-bold text-slate-950 text-sm">
-              🔄
+            <div class="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-slate-950 font-bold">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
             </div>
             <div>
               <h3 class="text-base font-bold">Lệnh Điều Chuyển Vốn Thanh Khoản Nội Bộ</h3>
@@ -500,10 +544,10 @@
           </div>
           <button
             type="button"
-            class="text-slate-400 hover:text-white transition p-1 rounded-lg"
+            class="text-slate-400 hover:text-white transition p-1 rounded-lg cursor-pointer"
             @click="closeRebalanceModal()"
           >
-            ✕
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
           </button>
         </div>
 
@@ -560,28 +604,28 @@
             <div class="flex items-center space-x-1.5 mt-2">
               <button
                 type="button"
-                class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono text-[11px]"
+                class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono text-[11px] cursor-pointer"
                 @click="rebalanceForm.amountVnd = 50_000_000"
               >
                 50M
               </button>
               <button
                 type="button"
-                class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono text-[11px]"
+                class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono text-[11px] cursor-pointer"
                 @click="rebalanceForm.amountVnd = 100_000_000"
               >
                 100M
               </button>
               <button
                 type="button"
-                class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono text-[11px]"
+                class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono text-[11px] cursor-pointer"
                 @click="rebalanceForm.amountVnd = 200_000_000"
               >
                 200M
               </button>
               <button
                 type="button"
-                class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono text-[11px]"
+                class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono text-[11px] cursor-pointer"
                 @click="rebalanceForm.amountVnd = 500_000_000"
               >
                 500M
@@ -624,7 +668,7 @@
                   v-if="isSourceBreaching"
                   class="text-[10px] font-bold text-rose-600 mt-1"
                 >
-                  ⚠️ Số dư sau chuyển sẽ dưới ngưỡng dự trữ ({{ formatVnd(sourceAcc?.minReserveVnd) }})!
+                  Số dư sau chuyển sẽ dưới ngưỡng dự trữ ({{ formatVnd(sourceAcc?.minReserveVnd) }})!
                 </div>
               </div>
 
@@ -642,7 +686,7 @@
                   </span>
                 </div>
                 <div class="text-[10px] text-emerald-600 mt-1 font-semibold">
-                  ✓ Dự trữ an toàn
+                  Dự trữ an toàn
                 </div>
               </div>
             </div>
@@ -653,7 +697,7 @@
         <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
           <button
             type="button"
-            class="px-4 py-2 text-xs font-semibold rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition"
+            class="px-4 py-2 text-xs font-semibold rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition cursor-pointer"
             @click="closeRebalanceModal()"
           >
             Đóng
@@ -689,6 +733,8 @@ const bankingStore = useBankingStore();
 const reconStore = useReconciliationStore();
 const amlStore = useAmlStore();
 const treasuryStore = useTreasuryStore();
+
+const activeTab = ref<'CHANNELS' | 'REBALANCE_LOGS' | 'MERKLE_AUDIT' | 'KPIS'>('CHANNELS');
 
 const displayedTotalBalance = computed(() => {
   if (bankingStore.selectedBankPersona === 'ALL') {

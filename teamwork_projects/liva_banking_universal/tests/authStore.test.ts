@@ -130,4 +130,53 @@ describe('Auth Store & Core Banking RBAC Role Switcher (Milestone M1)', () => {
     expect(auth.isAuthenticated).toBe(false);
     expect(mockStorage.getItem('liva_auth_token')).toBeNull();
   });
+
+  it('authenticates maker_nam successfully with role MAKER', async () => {
+    const auth = useAuthStore();
+    const success = await auth.login('maker_nam', 'LivaMaker@2026', 'MAKER');
+
+    expect(success).toBe(true);
+    expect(auth.isAuthenticated).toBe(true);
+    expect(auth.isMaker).toBe(true);
+    expect(auth.currentOfficerId).toBe('OPR-77092');
+    expect(auth.authError).toBeNull();
+  });
+
+  it('rejects maker_nam when attempting to log in as CHECKER (SoD Violation)', async () => {
+    const auth = useAuthStore();
+    const success = await auth.login('maker_nam', 'LivaMaker@2026', 'CHECKER');
+
+    expect(success).toBe(false);
+    expect(auth.isAuthenticated).toBe(false);
+    expect(auth.authError).toContain('Tách bạch trách nhiệm (SoD');
+  });
+
+  it('authenticates checker_tri successfully with role CHECKER', async () => {
+    const auth = useAuthStore();
+    const success = await auth.login('checker_tri', 'LivaChecker@2026', 'CHECKER');
+
+    expect(success).toBe(true);
+    expect(auth.isAuthenticated).toBe(true);
+    expect(auth.isChecker).toBe(true);
+    expect(auth.currentOfficerId).toBe('SUP-88214');
+    expect(auth.authError).toBeNull();
+  });
+
+  it('rejects checker_tri when attempting to log in as MAKER (SoD Violation)', async () => {
+    const auth = useAuthStore();
+    const success = await auth.login('checker_tri', 'LivaChecker@2026', 'MAKER');
+
+    expect(success).toBe(false);
+    expect(auth.isAuthenticated).toBe(false);
+    expect(auth.authError).toContain('Tách bạch trách nhiệm (SoD');
+  });
+
+  it('rejects incorrect password attempts', async () => {
+    const auth = useAuthStore();
+    const success = await auth.login('maker_nam', 'WrongPassword123', 'MAKER');
+
+    expect(success).toBe(false);
+    expect(auth.isAuthenticated).toBe(false);
+    expect(auth.authError).toContain('Mật khẩu truy cập không chính xác');
+  });
 });

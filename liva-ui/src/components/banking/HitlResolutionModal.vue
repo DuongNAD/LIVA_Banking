@@ -8,8 +8,9 @@
  * - Enforces maker_id != checker_id (Fail-Closed self-approval defense).
  * - Single-use UUIDv4 token with 15-minute TTL.
  */
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useReconciliationStore, type BankTransaction } from '../../stores/reconciliationStore';
+import { useAuthStore } from '../../stores/authStore';
 
 const props = defineProps<{
   transaction: BankTransaction;
@@ -22,6 +23,7 @@ const emit = defineEmits<{
 }>();
 
 const reconcileStore = useReconciliationStore();
+const authStore = useAuthStore();
 
 const selectedAction = ref<'ALLOCATE_FEE' | 'MANUAL_MATCH' | 'CREATE_VOUCHER'>('ALLOCATE_FEE');
 const targetAccount = ref('6425 - Chi phí quản lý ngân hàng');
@@ -30,8 +32,17 @@ const isSubmitting = ref(false);
 const submitError = ref<string | null>(null);
 
 // Circular 09/2020/TT-NHNN 4-Eyes Identities
-const makerId = ref('KT_TRINH_VAN_NAM');
-const checkerId = ref('KTT_NGUYEN_MINH_TRI');
+const makerId = ref(authStore.currentUser.role === 'MAKER' ? authStore.currentUser.id : 'KT_TRINH_VAN_NAM');
+const checkerId = ref(authStore.currentUser.role === 'CHECKER' ? authStore.currentUser.id : 'KTT_NGUYEN_MINH_TRI');
+
+// Keep synchronized if user switches account
+watch(() => authStore.currentUser, (newUser) => {
+  if (newUser.role === 'MAKER') {
+    makerId.value = newUser.id;
+  } else if (newUser.role === 'CHECKER') {
+    checkerId.value = newUser.id;
+  }
+});
 
 const isSelfApprovalViolation = computed(() => {
   return makerId.value.trim().toLowerCase() === checkerId.value.trim().toLowerCase() && makerId.value.trim().length > 0;

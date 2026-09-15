@@ -146,25 +146,45 @@ Giao diện `liva-ui` được xây dựng chuyên biệt cho nghiệp vụ kế
 
 ---
 
+## 🌐 Mô Hình Triển Khai Kép: Web Demo vs. Production On-Premise
+
+LIVA Banking cung cấp hai phương thức triển khai độc lập đáp ứng từng mục đích sử dụng:
+
+| Tiêu chí | 🌐 Bản Web Demo Độc Lập (`liva_banking_universal`) | 🏛️ Bản Doanh Nghiệp Hybrid On-Premise (`liva-native-core`) |
+|---|---|---|
+| **Mục đích** | Trình diễn, pitching, đánh giá UI/UX, thử nghiệm thuật toán | Vận hành kế toán, quản lý quỹ và phê duyệt lệnh thật |
+| **Yêu cầu Server** | **CHỈ CẦN CLIENT (Zero-Backend)** — Không cần server/database | Server nội bộ tự host (Intranet/LAN) chạy lõi Rust Native Core |
+| **Xử lý Dữ liệu** | 100% trong RAM trình duyệt qua TypeScript & SheetJS | Rust Streaming Deserializer & SIMD AHash Engine (< 0.5ms/tx) |
+| **Lưu trữ & Khóa** | In-Memory (tự giải phóng khi đóng tab, 0 byte rò rỉ) | SQLite WAL mã hóa AES-256-GCM niêm phong DPAPI/TPM 2.0 |
+| **Mạng Truy cập** | Mở trên trình duyệt bất kỳ hoặc hosting tĩnh (Netlify/Vercel) | **Cô lập mạng nội bộ**: Chỉ thiết bị kết nối Wi-Fi/LAN văn phòng hoặc VPN mới truy cập được |
+| **Tài liệu Hướng dẫn**| [Cẩm nang Triển khai Web Client & Mạng Nội bộ](docs/02-van-hanh/07-trien-khai-web-client-va-mang-noi-bo.md) | [Kiến trúc Kỹ thuật](docs/01-kien-truc/system-architecture-blueprint.md) |
+
+---
+
 ## 🚀 Hướng Dẫn Cài Đặt & Vận Hành Nhanh
 
-### Yêu Cầu Tiên Quyết
-- **Hệ điều hành**: Windows 10 / 11 (64-bit) hoặc Windows Server 2019/2022.
-- **Phần cứng**: Tối thiểu 8 GB RAM (Khuyến nghị 16 GB), CPU 4 nhân trở lên (hỗ trợ tập lệnh AVX2). Card đồ họa NVIDIA là tùy chọn (chạy mượt trên CPU).
-- **Môi trường phát triển**: Rust 1.85+, Node.js 20+, CMake.
+### 1. Khởi Chạy Nhanh Bản Web Demo (Chỉ Cần Client — 1 Phút)
+Bản Web Demo đã được đóng gói sẵn trong tệp nén [`LIVA_Banking_Web_Demo.zip`](LIVA_Banking_Web_Demo.zip) và thư mục `teamwork_projects/liva_banking_universal/dist/`:
+- **Chạy thử tức thì trên máy cục bộ:**
+  ```powershell
+  npx serve teamwork_projects/liva_banking_universal/dist -l 5000
+  ```
+  Mở trình duyệt truy cập `http://localhost:5000` — kéo thả sao kê hoặc bấm *"Load Demo Data"* để xem đối soát 3 tầng tức thì.
+- **Deploy lấy URL Web chia sẻ (Netlify Drop):**
+  Kéo thả thư mục `teamwork_projects/liva_banking_universal/dist` vào [app.netlify.com/drop](https://app.netlify.com/drop) để có ngay đường link HTTPS bảo mật trong 30 giây.
+- **Bảo vệ chỉ cho phép mạng nội bộ văn phòng truy cập:**
+  Xem hướng dẫn cấu hình mạng LAN / VPN tại [Tài liệu Triển khai Mạng Nội bộ](docs/02-van-hanh/07-trien-khai-web-client-va-mang-noi-bo.md).
 
-### Khởi Chạy Nhanh Trong Môi Trường Phát Triển
+### 2. Khởi Chạy Bản Phát Triển Toàn Phần (Rust Core + Tauri/Nuxt)
+- **Yêu cầu**: Windows 10/11 64-bit, RAM $\ge 8$ GB, Rust 1.85+, Node.js 20+.
 ```powershell
 # 1. Cài đặt các gói phụ thuộc giao diện
 npm ci
 
 # 2. Khởi chạy bàn làm việc giao diện kế toán LIVA
 npm run build:ui
-```
 
-### Kiểm Tra & Đo Kiểm Năng Lực Ngân Hàng
-```powershell
-# Chạy toàn bộ bộ kiểm thử tự động của Lõi Ngân Hàng (Rust Native Core)
+# 3. Chạy toàn bộ bộ kiểm thử tự động của Lõi Ngân Hàng (Rust Native Core)
 cargo test -p liva-native-core --lib banking::tests -j 2 -- --test-threads 2
 ```
 

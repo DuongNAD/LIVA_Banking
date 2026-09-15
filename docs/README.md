@@ -124,6 +124,7 @@ Mô tả **cách làm cho hệ thống chạy được trên một máy thật**
 | [03-trien-khai-va-runtime.md](02-van-hanh/03-trien-khai-va-runtime.md) | Sơ đồ triển khai; bảng tiến trình · cổng · phụ thuộc; bảng bộ nhớ model; **cách chạy đúng** để có đủ cả hai profile (`npm run dev` không khởi động binary lõi); sự cố thường gặp khi khởi động; đóng gói bản build | 1 mermaid |
 | [04-kiem-thu-va-ci.md](02-van-hanh/04-kiem-thu-va-ci.md) | Bản đồ bề mặt kiểm thử; bảng test Rust (cái nào thật sự chạy trong CI); **bảng 17 binary kiểm chứng trong `src/bin/`**; CI pipeline làm và không làm gì; pre-commit hook + ba cách bypass; khoảng trống độ phủ; script/asset mồ côi; công thức chạy nhanh | 4 mermaid |
 | [06-backup-restore-sqlite.md](02-van-hanh/06-backup-restore-sqlite.md) | Runbook online backup, manifest SHA-256, restore offline, rollback và release drill | — |
+| [07-trien-khai-web-client-va-mang-noi-bo.md](02-van-hanh/07-trien-khai-web-client-va-mang-noi-bo.md) | Triển khai Web Demo (Client-Only Zero-Backend) và các phương án kiểm soát mạng nội bộ (LAN On-Premise, Mesh VPN Tailscale/WireGuard, IP Whitelist) | 2 mermaid |
 
 ---
 

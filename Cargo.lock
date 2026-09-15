@@ -3628,6 +3628,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "liva-netguard"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "liva-parse"
+version = "0.1.0"
+dependencies = [
+ "liva-ledger",
+ "liva-money",
+ "quick-xml 0.37.5",
+ "serde",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "liva-recon"
+version = "0.1.0"
+dependencies = [
+ "liva-ledger",
+ "liva-money",
+ "liva-parse",
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "uuid",
+]
+
+[[package]]
 name = "llama-cpp-2"
 version = "0.1.156"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5224,6 +5257,15 @@ dependencies = [
 
 [[package]]
 name = "quick-xml"
+version = "0.37.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "331e97a1af0bf59823e6eadffe373d7b27f485be8748f71471c662c1f269b7fb"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "quick-xml"
 version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e660451e55124f798a69a5af3f49ccfbefbd41910eefd25caf2393e1f3473ec1"
@@ -6637,6 +6679,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.118",
+]
+
+[[package]]
+name = "synthgen"
+version = "0.1.0"
+dependencies = [
+ "fastrand",
+ "liva-ledger",
+ "liva-money",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

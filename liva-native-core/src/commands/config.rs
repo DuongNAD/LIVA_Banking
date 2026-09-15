@@ -103,7 +103,11 @@ const OWNED: &[&str] = &[
     "status",
     "get_config",
     "update_config",
+    "config:get",
+    "config:update",
     "get_ai_config",
+    "ai:get_config",
+    "ai:update_config",
     "get_voice_status",
     "get_voice_profiles",
     "select_voice_profile",
@@ -134,11 +138,11 @@ pub async fn handle(state: Arc<AppState>, command: &str, payload: Value) -> Resu
             "status": "healthy",
             "version": env!("CARGO_PKG_VERSION")
         })),
-        "get_config" => tokio::task::spawn_blocking(get_config)
+        "get_config" | "config:get" => tokio::task::spawn_blocking(get_config)
             .await
             .map_err(|error| format!("Config reader task failed: {error}"))?,
-        "update_config" => update_config(state, payload).await,
-        "get_ai_config" => tokio::task::spawn_blocking(get_ai_config)
+        "update_config" | "config:update" | "ai:update_config" => update_config(state, payload).await,
+        "get_ai_config" | "ai:get_config" => tokio::task::spawn_blocking(get_ai_config)
             .await
             .map_err(|error| format!("AI config reader task failed: {error}"))?,
         "get_voice_status" => get_voice_status(state).await,
@@ -357,10 +361,26 @@ fn get_ai_config() -> Result<Value, String> {
 }
 
 async fn update_config(state: Arc<AppState>, payload: Value) -> Result<Value, String> {
-    ensure_config_patch_has_no_secrets(&payload)?;
+    let is_flat_ai_patch = payload.get("ai").is_none()
+        && (payload.get("provider").is_some()
+            || payload.get("cloudBaseUrl").is_some()
+            || payload.get("cloudModel").is_some()
+            || payload.get("localModelsDir").is_some()
+            || payload.get("routerModel").is_some()
+            || payload.get("expertModel").is_some()
+            || payload.get("maxTokens").is_some()
+            || payload.get("temperature").is_some());
+
+    let effective_payload = if is_flat_ai_patch {
+        json!({ "ai": payload })
+    } else {
+        payload
+    };
+
+    ensure_config_patch_has_no_secrets(&effective_payload)?;
     let path = config_file_path();
-    let reload_ai = payload.get("ai").is_some();
-    tokio::task::spawn_blocking(move || update_config_file_at(&path, &payload))
+    let reload_ai = effective_payload.get("ai").is_some();
+    tokio::task::spawn_blocking(move || update_config_file_at(&path, &effective_payload))
         .await
         .map_err(|error| format!("Config writer task failed: {error}"))??;
 
@@ -919,7 +939,7 @@ mod tests {
         // thêm nhánh vào `handle` mà quên `OWNED` sẽ làm test này đỏ.
         assert_eq!(
             OWNED.len(),
-            20,
+            24,
             "đổi số nhánh thì cập nhật cả OWNED lẫn test"
         );
         for name in OWNED {
@@ -938,6 +958,10 @@ mod tests {
         assert!(owns("select_voice_profile"));
         assert!(owns("update_user_profile"));
         assert!(owns("delete_avatar_model"));
+        assert!(owns("config:get"));
+        assert!(owns("config:update"));
+        assert!(owns("ai:get_config"));
+        assert!(owns("ai:update_config"));
     }
 
     /// Thư mục không tồn tại phải trả danh sách RỖNG, không panic — cả ba lệnh

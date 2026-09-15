@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 pub mod csr_graph;
+pub mod users;
 mod deletion;
 
 pub use deletion::{
@@ -746,6 +747,20 @@ pub fn init_schemas(conn: &Connection) -> Result<(), rusqlite::Error> {
         );
         CREATE INDEX IF NOT EXISTS idx_payment_orders_status ON payment_orders(status);
         CREATE INDEX IF NOT EXISTS idx_payment_orders_maker ON payment_orders(maker_id);
+
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            username TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            salt TEXT NOT NULL,
+            full_name TEXT NOT NULL,
+            role TEXT NOT NULL,
+            department TEXT,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
     ")?;
 
     if has_sqlite_vec(conn) {
@@ -772,6 +787,7 @@ pub fn init_schemas(conn: &Connection) -> Result<(), rusqlite::Error> {
 
     run_migrations(conn)?;
     ensure_foreign_key_integrity(conn)?;
+    users::seed_default_users_if_empty(conn)?;
 
     Ok(())
 }
@@ -800,7 +816,7 @@ fn ensure_foreign_key_integrity(conn: &Connection) -> Result<(), rusqlite::Error
 /// Phiên bản schema hiện tại. Baseline (mọi bảng `CREATE ... IF NOT EXISTS` ở
 /// trên) là **1**. Mỗi lần đổi schema về sau: tăng số này lên và thêm một mục
 /// vào [`MIGRATIONS`].
-pub const SCHEMA_VERSION: i64 = 12;
+pub const SCHEMA_VERSION: i64 = 13;
 
 /// Các bước migration tuyến tính. Mỗi mục là `(phiên_bản_đích, sql)` và được
 /// áp khi DB đang ở phiên bản < đích, theo thứ tự tăng dần, mỗi bước một
@@ -1125,6 +1141,23 @@ const MIGRATIONS: &[(i64, &str)] = &[
          );
          CREATE INDEX IF NOT EXISTS idx_payment_orders_status ON payment_orders(status);
          CREATE INDEX IF NOT EXISTS idx_payment_orders_maker ON payment_orders(maker_id);",
+    ),
+    // Migration 13: Local Banking Users & RBAC Credentials
+    (
+        13,
+        "CREATE TABLE IF NOT EXISTS users (
+             id TEXT PRIMARY KEY,
+             username TEXT NOT NULL UNIQUE,
+             password_hash TEXT NOT NULL,
+             salt TEXT NOT NULL,
+             full_name TEXT NOT NULL,
+             role TEXT NOT NULL,
+             department TEXT,
+             status TEXT NOT NULL DEFAULT 'active',
+             created_at TEXT NOT NULL,
+             updated_at TEXT NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);",
     ),
 ];
 

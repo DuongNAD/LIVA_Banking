@@ -1,0 +1,20 @@
+interface:
+  display_name: "LIVA Teamwork Harness"
+  short_description: "Enterprise banking multi-agent swarm orchestration and verification harness"
+  default_prompt: "Use $liva-teamwork-harness to structure this banking objective into a rigorous multi-agent task prompt and coordinate execution."
+dependencies:
+  tools:
+    - type: "native"
+      value: "swarm_decompose_dag"
+      description: "Decompose banking objective into a topological DAG."
+    - type: "native"
+      value: "swarm_dispatch_task"
+      description: "Dispatch tasks to specialized banking subagents."
+    - type: "native"
+      value: "swarm_enforce_hitl_gate"
+      description: "Enforce Maker-Checker approval barrier before state mutations."
+    - type: "mcp"
+      value: "obsidian"
+      description: "Synchronize execution reports and dossiers to the Obsidian vault."
+policy:
+  allow_implicit_invocation: true

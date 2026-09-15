@@ -13,151 +13,102 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div class="flex items-center justify-between h-16">
             <!-- Logo & Brand Identity -->
-            <div class="flex items-center space-x-3 cursor-pointer" @click="handleDefaultTabForRole">
-              <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-blue-600 flex items-center justify-center font-black text-xl text-white shadow-md">
+            <div class="flex items-center space-x-2.5 cursor-pointer select-none" @click="handleDefaultTabForRole">
+              <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-blue-600 flex items-center justify-center font-black text-lg text-white shadow-md">
                 L
               </div>
               <div>
                 <div class="flex items-center space-x-2">
-                  <span class="text-base font-bold tracking-tight text-white">LIVA COMMERCIAL BANK</span>
-                  <span class="px-2 py-0.2 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    UNIVERSAL INTERBANK CORE
+                  <span class="text-sm sm:text-base font-bold tracking-tight text-white">LIVA BANK</span>
+                  <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    INTERBANK CORE
                   </span>
                 </div>
-                <p class="text-[11px] text-slate-400 font-medium">Hệ Thống Tác Nghiệp Nội Bộ Ngân Hàng Thương Mại</p>
+                <p class="text-[10px] text-slate-400 font-medium hidden sm:block">Hệ Thống Tác Nghiệp Nội Bộ</p>
               </div>
             </div>
 
-            <!-- Role-Specific Navigation Tabs (Only show what is relevant to the logged-in role) -->
+            <!-- Primary Enterprise Navigation Tabs (All 4 Core Banking Functional Workstations) -->
             <nav class="hidden md:flex items-center space-x-1 p-1 bg-slate-800/80 rounded-xl border border-slate-700/80 text-xs font-semibold">
-              <!-- Maker Tabs -->
-              <template v-if="authStore.isMaker">
-                <button
-                  type="button"
-                  class="px-3.5 py-2 rounded-lg transition-all duration-150 flex items-center space-x-1.5 cursor-pointer"
-                  :class="currentTab === 'reconciliation' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'"
-                  @click="currentTab = 'reconciliation'"
-                >
-                  <span>⚖️</span>
-                  <span>Đối Soát Quyết Toán</span>
-                </button>
-                <button
-                  type="button"
-                  class="px-3.5 py-2 rounded-lg transition-all duration-150 flex items-center space-x-1.5 cursor-pointer"
-                  :class="currentTab === 'dashboard' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'"
-                  @click="currentTab = 'dashboard'"
-                >
-                  <span>📊</span>
-                  <span>Vị Thế Thanh Khoản</span>
-                </button>
-              </template>
+              <!-- Tab 1: Reconciliation -->
+              <button
+                type="button"
+                class="px-3.5 py-2 rounded-lg transition-all duration-150 flex items-center space-x-2 cursor-pointer"
+                :class="currentTab === 'reconciliation' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'"
+                @click="currentTab = 'reconciliation'"
+              >
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>
+                <span>Đối Soát Quyết Toán</span>
+              </button>
 
-              <!-- Checker Tabs -->
-              <template v-else-if="authStore.isChecker">
-                <button
-                  type="button"
-                  class="px-3.5 py-2 rounded-lg transition-all duration-150 flex items-center space-x-1.5 cursor-pointer"
-                  :class="currentTab === 'treasury' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'"
-                  @click="currentTab = 'treasury'"
+              <!-- Tab 2: Liquidity Desk -->
+              <button
+                type="button"
+                class="px-3.5 py-2 rounded-lg transition-all duration-150 flex items-center space-x-2 cursor-pointer"
+                :class="currentTab === 'dashboard' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'"
+                @click="currentTab = 'dashboard'"
+              >
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+                <span>Vị Thế Thanh Khoản</span>
+                <span
+                  v-if="bankingStore.hasReserveBreach"
+                  class="ml-1 px-1.5 py-0.2 rounded-full text-[9px] bg-rose-500 text-white font-bold animate-pulse"
                 >
-                  <span>🏦</span>
-                  <span>Phê Duyệt Lệnh Chi (Maker-Checker)</span>
-                  <span
-                    v-if="treasuryStore.pendingVouchers.length > 0"
-                    class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500 text-slate-950 font-bold animate-pulse"
-                  >
-                    {{ treasuryStore.pendingVouchers.length }}
-                  </span>
-                </button>
-              </template>
+                  Cảnh báo
+                </span>
+              </button>
 
-              <!-- AML Specialist Tabs -->
-              <template v-else-if="authStore.isAml">
-                <button
-                  type="button"
-                  class="px-3.5 py-2 rounded-lg transition-all duration-150 flex items-center space-x-1.5 cursor-pointer"
-                  :class="currentTab === 'aml' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'"
-                  @click="currentTab = 'aml'"
+              <!-- Tab 3: Treasury Maker-Checker Approval -->
+              <button
+                type="button"
+                class="px-3.5 py-2 rounded-lg transition-all duration-150 flex items-center space-x-2 cursor-pointer"
+                :class="currentTab === 'treasury' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'"
+                @click="currentTab = 'treasury'"
+              >
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+                <span>Phê Duyệt Lệnh Chi</span>
+                <span
+                  v-if="treasuryStore.pendingVouchers.length > 0"
+                  class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500 text-slate-950 font-bold animate-pulse"
                 >
-                  <span>🛡️</span>
-                  <span>Giám Sát AML/STR</span>
-                  <span
-                    v-if="amlStore.totalAlertsCount > 0"
-                    class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-bold"
-                  >
-                    {{ amlStore.totalAlertsCount }}
-                  </span>
-                </button>
-              </template>
+                  {{ treasuryStore.pendingVouchers.length }}
+                </span>
+              </button>
 
-              <!-- Treasury Desk Tabs -->
-              <template v-else-if="authStore.isTreasury">
-                <button
-                  type="button"
-                  class="px-3.5 py-2 rounded-lg transition-all duration-150 flex items-center space-x-1.5 cursor-pointer"
-                  :class="currentTab === 'dashboard' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'"
-                  @click="currentTab = 'dashboard'"
+              <!-- Tab 4: AML & Compliance -->
+              <button
+                type="button"
+                class="px-3.5 py-2 rounded-lg transition-all duration-150 flex items-center space-x-2 cursor-pointer"
+                :class="currentTab === 'aml' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'"
+                @click="currentTab = 'aml'"
+              >
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+                <span>Giám Sát AML/STR</span>
+                <span
+                  v-if="amlStore.totalAlertsCount > 0"
+                  class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-bold"
                 >
-                  <span>📊</span>
-                  <span>Quản Trị Thanh Khoản</span>
-                </button>
-                <button
-                  type="button"
-                  class="px-3.5 py-2 rounded-lg transition-all duration-150 flex items-center space-x-1.5 cursor-pointer"
-                  :class="currentTab === 'treasury' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'"
-                  @click="currentTab = 'treasury'"
-                >
-                  <span>🏦</span>
-                  <span>Điều Chuyển Vốn</span>
-                </button>
-              </template>
-
-              <!-- Default Fallback All Tabs for general exploration -->
-              <template v-else>
-                <button
-                  type="button"
-                  class="px-3.5 py-2 rounded-lg transition-all duration-150 flex items-center space-x-1.5 cursor-pointer"
-                  :class="currentTab === 'dashboard' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'"
-                  @click="currentTab = 'dashboard'"
-                >
-                  <span>📊</span>
-                  <span>Tổng Quan</span>
-                </button>
-                <button
-                  type="button"
-                  class="px-3.5 py-2 rounded-lg transition-all duration-150 flex items-center space-x-1.5 cursor-pointer"
-                  :class="currentTab === 'reconciliation' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'"
-                  @click="currentTab = 'reconciliation'"
-                >
-                  <span>⚖️</span>
-                  <span>Đối Soát</span>
-                </button>
-                <button
-                  type="button"
-                  class="px-3.5 py-2 rounded-lg transition-all duration-150 flex items-center space-x-1.5 cursor-pointer"
-                  :class="currentTab === 'aml' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'"
-                  @click="currentTab = 'aml'"
-                >
-                  <span>🛡️</span>
-                  <span>AML/STR</span>
-                </button>
-                <button
-                  type="button"
-                  class="px-3.5 py-2 rounded-lg transition-all duration-150 flex items-center space-x-1.5 cursor-pointer"
-                  :class="currentTab === 'treasury' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-300 hover:text-white hover:bg-slate-700/50'"
-                  @click="currentTab = 'treasury'"
-                >
-                  <span>🏦</span>
-                  <span>Thanh Khoản</span>
-                </button>
-              </template>
+                  {{ amlStore.totalAlertsCount }}
+                </span>
+              </button>
             </nav>
 
             <!-- Right Status -->
-            <div class="flex items-center space-x-3 text-xs">
+            <div class="flex items-center space-x-2.5 text-xs">
+              <!-- Copilot Quick Toggle -->
+              <button
+                type="button"
+                class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-medium transition flex items-center space-x-1.5 cursor-pointer"
+                title="Mở Trợ lý AI (Copilot)"
+                @click="isCopilotOpen = true"
+              >
+                <svg class="w-3.5 h-3.5 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <span class="hidden sm:inline">Trợ lý AI</span>
+              </button>
+
               <!-- Simulated Vietnam Live Clock -->
               <div class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 font-mono text-[11px]">
-                <span>🕒</span>
+                <svg class="w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 <span>{{ liveTimeString }}</span>
               </div>
             </div>
@@ -165,62 +116,38 @@
 
           <!-- Mobile Navigation Row -->
           <div class="md:hidden flex items-center space-x-1 pb-3 pt-1 border-t border-slate-800 text-[11px] font-semibold overflow-x-auto">
-            <template v-if="authStore.isMaker">
-              <button
-                type="button"
-                class="px-2.5 py-1.5 rounded-lg whitespace-nowrap"
-                :class="currentTab === 'reconciliation' ? 'bg-white text-slate-900 font-bold' : 'text-slate-300'"
-                @click="currentTab = 'reconciliation'"
-              >
-                Đối Soát Quyết Toán
-              </button>
-              <button
-                type="button"
-                class="px-2.5 py-1.5 rounded-lg whitespace-nowrap"
-                :class="currentTab === 'dashboard' ? 'bg-white text-slate-900 font-bold' : 'text-slate-300'"
-                @click="currentTab = 'dashboard'"
-              >
-                Thanh Khoản
-              </button>
-            </template>
-            <template v-else-if="authStore.isChecker">
-              <button
-                type="button"
-                class="px-2.5 py-1.5 rounded-lg whitespace-nowrap"
-                :class="currentTab === 'treasury' ? 'bg-white text-slate-900 font-bold' : 'text-slate-300'"
-                @click="currentTab = 'treasury'"
-              >
-                Phê Duyệt Lệnh Chi
-              </button>
-            </template>
-            <template v-else-if="authStore.isAml">
-              <button
-                type="button"
-                class="px-2.5 py-1.5 rounded-lg whitespace-nowrap"
-                :class="currentTab === 'aml' ? 'bg-white text-slate-900 font-bold' : 'text-slate-300'"
-                @click="currentTab = 'aml'"
-              >
-                Giám Sát AML/STR
-              </button>
-            </template>
-            <template v-else>
-              <button
-                type="button"
-                class="px-2.5 py-1.5 rounded-lg whitespace-nowrap"
-                :class="currentTab === 'dashboard' ? 'bg-white text-slate-900 font-bold' : 'text-slate-300'"
-                @click="currentTab = 'dashboard'"
-              >
-                Thanh Khoản
-              </button>
-              <button
-                type="button"
-                class="px-2.5 py-1.5 rounded-lg whitespace-nowrap"
-                :class="currentTab === 'treasury' ? 'bg-white text-slate-900 font-bold' : 'text-slate-300'"
-                @click="currentTab = 'treasury'"
-              >
-                Điều Chuyển Vốn
-              </button>
-            </template>
+            <button
+              type="button"
+              class="px-2.5 py-1.5 rounded-lg whitespace-nowrap cursor-pointer"
+              :class="currentTab === 'reconciliation' ? 'bg-white text-slate-900 font-bold' : 'text-slate-300'"
+              @click="currentTab = 'reconciliation'"
+            >
+              Đối Soát Quyết Toán
+            </button>
+            <button
+              type="button"
+              class="px-2.5 py-1.5 rounded-lg whitespace-nowrap cursor-pointer"
+              :class="currentTab === 'dashboard' ? 'bg-white text-slate-900 font-bold' : 'text-slate-300'"
+              @click="currentTab = 'dashboard'"
+            >
+              Vị Thế Thanh Khoản
+            </button>
+            <button
+              type="button"
+              class="px-2.5 py-1.5 rounded-lg whitespace-nowrap cursor-pointer"
+              :class="currentTab === 'treasury' ? 'bg-white text-slate-900 font-bold' : 'text-slate-300'"
+              @click="currentTab = 'treasury'"
+            >
+              Phê Duyệt Lệnh Chi
+            </button>
+            <button
+              type="button"
+              class="px-2.5 py-1.5 rounded-lg whitespace-nowrap cursor-pointer"
+              :class="currentTab === 'aml' ? 'bg-white text-slate-900 font-bold' : 'text-slate-300'"
+              @click="currentTab = 'aml'"
+            >
+              Giám Sát AML/STR
+            </button>
           </div>
         </div>
       </header>
@@ -253,21 +180,20 @@
       </main>
 
       <!-- Footer Security & Regulatory Compliance Banner -->
-      <footer class="bg-white border-t border-slate-200 py-4 text-xs text-slate-500">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+      <footer class="bg-white border-t border-slate-200 py-2.5 text-[11px] text-slate-500">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
           <div>
-            <strong class="text-slate-800">LIVA Commercial Bank Universal Core</strong> — Nền Tảng Tác Nghiệp & Quản Trị Thanh Khoản Liên Ngân Hàng Cục Bộ.
-            <span class="block text-[11px] text-slate-400">
-              Tuân thủ: Thông tư 09/2020/TT-NHNN, Thông tư 09/2023/TT-NHNN, Quyết định 11/2023/QĐ-TTg & Nghị định 13/2023/NĐ-CP
-            </span>
+            <strong class="text-slate-700">LIVA Commercial Bank Universal Core</strong> — Hệ Thống Tác Nghiệp Cán Bộ Ngân Hàng.
           </div>
 
-          <div class="flex items-center space-x-3 text-[11px]">
+          <div class="flex items-center space-x-2 text-slate-400">
             <span class="text-emerald-700 font-semibold">● Zero Cloud Egress Guaranteed</span>
-            <span class="text-slate-300">|</span>
-            <span class="font-mono text-slate-600">Tamper-Evident SHA-256</span>
-            <span class="text-slate-300">|</span>
-            <span class="text-slate-500 font-medium">Hệ Thống Tác Nghiệp Cán Bộ Ngân Hàng</span>
+            <span>•</span>
+            <span>Thông tư 09/2020/TT-NHNN</span>
+            <span>•</span>
+            <span>Nghị định 13/2023/NĐ-CP</span>
+            <span>•</span>
+            <span class="font-mono text-slate-600">SHA-256</span>
           </div>
         </div>
       </footer>

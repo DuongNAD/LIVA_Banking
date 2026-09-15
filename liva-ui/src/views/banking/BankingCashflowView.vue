@@ -5,7 +5,7 @@
  */
 import { onMounted } from 'vue';
 import { useBankingStore } from '../../stores/bankingStore';
-import RollingCashflowSentinel from '../../components/banking/RollingCashflowSentinel.vue';
+import RollingCashflowSentinelCard from '../../components/banking/treasury/RollingCashflowSentinelCard.vue';
 
 const bankingStore = useBankingStore();
 
@@ -32,7 +32,7 @@ onMounted(async () => {
 
     <!-- Main Sentinel Component -->
     <section class="dashboard-row row-sentinel">
-      <RollingCashflowSentinel />
+      <RollingCashflowSentinelCard />
     </section>
 
     <!-- Capital Transfer Recommendation Box -->

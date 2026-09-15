@@ -27,7 +27,7 @@ function base64UrlDecode(str) {
   return Buffer.from(str, 'base64url').toString('utf-8');
 }
 
-function signJwt(payload, expiresInSeconds = 86400) {
+function signJwt(payload, expiresInSeconds = 14400) {
   const header = { alg: 'HS256', typ: 'JWT' };
   const now = Math.floor(Date.now() / 1000);
   const fullPayload = {
@@ -85,37 +85,80 @@ function verifyJwt(token) {
 const USERS = [
   {
     id: 'usr_maker_01',
+    username: 'maker_nam',
     email: 'maker@livabanking.vn',
-    password: 'maker123',
-    fullName: 'Nguyễn Văn Kế Toán (Maker)',
+    password: 'LivaMaker@2026',
+    altPasswords: ['maker123'],
+    aliases: ['maker_nam', 'opr-77092', 'opr77092', 'maker@livabanking.vn', 'maker_nam@livabanking.vn', 'maker'],
+    fullName: 'Nguyễn Văn Kế Toán',
     role: 'MAKER',
     officerId: 'OPR-77092',
     branchCode: 'HO-HN-001',
     branchName: 'Hội Sở Chính Hà Nội',
     terminalId: 'WS-OPER-04',
-    title: 'Cán Bộ Vận Hành & Đối Soát',
+    title: 'Cán Bộ Vận Hành & Đối Soát (Maker)',
+    avatar: '👤',
+    bankAccess: ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
+  },
+  {
+    id: 'usr_maker_02',
+    username: 'maker_mai',
+    email: 'maker_mai@livabanking.vn',
+    password: 'LivaMaker@2026',
+    altPasswords: ['maker123'],
+    aliases: ['maker_mai', 'opr-77093', 'opr77093'],
+    fullName: 'Lê Phương Mai',
+    role: 'MAKER',
+    officerId: 'OPR-77093',
+    branchCode: 'HO-HN-001',
+    branchName: 'Hội Sở Chính Hà Nội',
+    terminalId: 'WS-OPER-04',
+    title: 'Kế toán viên Thanh toán (Maker)',
     avatar: '👤',
     bankAccess: ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
   },
   {
     id: 'usr_checker_01',
+    username: 'checker_tri',
     email: 'checker@livabanking.vn',
-    password: 'checker123',
-    fullName: 'Trần Thị Giám Đốc (Checker)',
+    password: 'LivaChecker@2026',
+    altPasswords: ['checker123'],
+    aliases: ['checker_tri', 'sup-88214', 'sup88214', 'checker@livabanking.vn', 'checker_tri@livabanking.vn', 'checker'],
+    fullName: 'Trần Thị Giám Đốc',
     role: 'CHECKER',
     officerId: 'SUP-88214',
     branchCode: 'HO-HN-001',
     branchName: 'Hội Sở Chính Hà Nội',
     terminalId: 'WS-OPER-04',
-    title: 'Kiểm Soát Viên Phê Duyệt',
+    title: 'Kiểm Soát Viên Phê Duyệt (Checker)',
+    avatar: '🛡️',
+    bankAccess: ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
+  },
+  {
+    id: 'usr_checker_02',
+    username: 'checker_huong',
+    email: 'checker_huong@livabanking.vn',
+    password: 'LivaChecker@2026',
+    altPasswords: ['checker123'],
+    aliases: ['checker_huong', 'sup-88215', 'sup88215'],
+    fullName: 'Đỗ Lan Hương',
+    role: 'CHECKER',
+    officerId: 'SUP-88215',
+    branchCode: 'HO-HN-001',
+    branchName: 'Hội Sở Chính Hà Nội',
+    terminalId: 'WS-OPER-04',
+    title: 'Phó phòng Kế toán / Kiểm Soát Viên (Checker)',
     avatar: '🛡️',
     bankAccess: ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
   },
   {
     id: 'usr_aml_01',
+    username: 'auditor_lan',
     email: 'aml@livabanking.vn',
-    password: 'aml123',
-    fullName: 'Lê Hoàng Thanh Tra (AML)',
+    password: 'LivaAudit@2026',
+    altPasswords: ['aml123', 'auditor123'],
+    aliases: ['auditor_lan', 'aml_lan', 'cmp-99015', 'cmp99015', 'aml@livabanking.vn', 'auditor@livabanking.vn', 'aml', 'auditor'],
+    fullName: 'Lê Hoàng Thanh Tra',
     role: 'AML',
     officerId: 'CMP-99015',
     branchCode: 'HO-HN-001',
@@ -127,9 +170,12 @@ const USERS = [
   },
   {
     id: 'usr_treasury_01',
+    username: 'cfo_hoang',
     email: 'treasury@livabanking.vn',
-    password: 'treasury123',
-    fullName: 'Đặng Đình Bảo (Treasury)',
+    password: 'LivaCfo@2026',
+    altPasswords: ['treasury123'],
+    aliases: ['cfo_hoang', 'trz-55038', 'trz55038', 'treasury@livabanking.vn', 'treasury'],
+    fullName: 'Đặng Đình Bảo',
     role: 'TREASURY',
     officerId: 'TRZ-55038',
     branchCode: 'HO-HN-001',
@@ -137,20 +183,6 @@ const USERS = [
     terminalId: 'WS-OPER-04',
     title: 'Cán Bộ Quản Trị Thanh Khoản & Vốn',
     avatar: '🏦',
-    bankAccess: ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
-  },
-  {
-    id: 'usr_auditor_01',
-    email: 'auditor@livabanking.vn',
-    password: 'auditor123',
-    fullName: 'Lê Hoàng Thanh Tra (Auditor)',
-    role: 'AUDITOR',
-    officerId: 'CMP-99015',
-    branchCode: 'HO-HN-001',
-    branchName: 'Hội Sở Chính Hà Nội',
-    terminalId: 'WS-OPER-04',
-    title: 'Cán Bộ Kiểm Toán & Giám Sát',
-    avatar: '⚖️',
     bankAccess: ['CITAD', 'NAPAS', 'BILATERAL', 'SWIFT', 'VCB', 'TCB', 'BIDV'],
   },
 ];
@@ -340,14 +372,53 @@ const server = http.createServer((req, res) => {
     // Route 2: Auth Login
     // ------------------------------------------
     if (req.method === 'POST' && pathname === '/api/auth/login') {
-      const { email, password } = body;
-      const user = USERS.find((u) => u.email === email && u.password === password);
+      const { email, password, role: preferredRole } = body;
+      const inputIdent = (email || '').trim().toLowerCase();
+
+      const user = USERS.find((u) =>
+        u.email.toLowerCase() === inputIdent ||
+        (u.username && u.username.toLowerCase() === inputIdent) ||
+        u.officerId.toLowerCase() === inputIdent ||
+        (u.aliases && u.aliases.some((a) => a.toLowerCase() === inputIdent))
+      );
 
       if (!user) {
         return sendJson(401, {
           success: false,
           error: 'Email hoặc mật khẩu không chính xác.',
         });
+      }
+
+      const validPasswords = [user.password, ...(user.altPasswords || [])];
+      if (!validPasswords.includes(password)) {
+        return sendJson(401, {
+          success: false,
+          error: 'Email hoặc mật khẩu không chính xác.',
+        });
+      }
+
+      // Enforce Segregation of Duties (SoD - Thông tư 09/2020/TT-NHNN)
+      if (preferredRole) {
+        const isAmlAuditorMatch =
+          (preferredRole === 'AML' && user.role === 'AUDITOR') ||
+          (preferredRole === 'AUDITOR' && user.role === 'AML');
+
+        if (user.role !== preferredRole && !isAmlAuditorMatch) {
+          const roleLabels = {
+            MAKER: 'Kế toán (Maker)',
+            CHECKER: 'Kiểm soát (Checker)',
+            AML: 'Giám sát AML',
+            AUDITOR: 'Kiểm toán (Auditor)',
+            TREASURY: 'Quản trị Vốn (Treasury)',
+          };
+          const userRoleLabel = roleLabels[user.role] || user.role;
+          const requestedRoleLabel = roleLabels[preferredRole] || preferredRole;
+
+          return sendJson(403, {
+            success: false,
+            error: `Vi phạm Tách bạch trách nhiệm (SoD - Thông tư 09/2020/TT-NHNN): Cán bộ ${user.fullName} được định danh vai trò [${userRoleLabel}], không có thẩm quyền truy cập phân hệ [${requestedRoleLabel}].`,
+          });
+        }
       }
 
       const token = signJwt({
