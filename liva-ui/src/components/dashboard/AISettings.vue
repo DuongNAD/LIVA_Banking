@@ -1,0 +1,475 @@
+<script setup lang="ts">
+/**
+ * AISettings.vue — AI Provider & Model Configuration
+ * =====================================================
+ * Switch between Local (GGUF) and Cloud (API) providers.
+ * Configure model parameters, API keys, temperatures.
+ */
+import { ref, onMounted, watch } from "vue";
+import type { AIProvider } from "liva-common";
+import { useGateway } from "../../composables/useGateway";
+import { useI18n } from "../../composables/useI18n";
+import { useToast } from "../../composables/useToast";
+import { detectPlatform } from "../../platform";
+import { logger } from "../../utils/logger";
+
+// AI Provider
+const provider = ref<AIProvider>('local');
+
+// Cloud Settings
+const cloudBaseUrl = ref('');
+const cloudApiKey = ref('');
+const cloudApiKeyConfigured = ref(false);
+const cloudModel = ref('');
+const showApiKey = ref(false);
+
+// Local Settings
+const localModelsDir = ref('E:\\AI_Models');
+const routerModel = ref('gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf');
+const expertModel = ref('gemma-4-12B-it-qat-UD-Q4_K_XL.gguf');
+
+// Parameters
+const temperature = ref(0.7);
+const maxTokens = ref(4096);
+const topP = ref(0.9);
+
+// State
+const isSaving = ref(false);
+const saveMessage = ref('');
+
+// Toggle provider
+const toggleProvider = (p: AIProvider) => {
+  provider.value = p;
+};
+
+// Open file picker for local models
+let currentPickerTarget: 'router' | 'expert' = 'router';
+const fileInputRef = ref<HTMLInputElement | null>(null);
+
+const openModelPicker = async (target: 'router' | 'expert') => {
+  currentPickerTarget = target;
+  try {
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: 'GGUF Models', extensions: ['gguf'] }],
+      title: 'Chọn file model GGUF (.gguf)'
+    });
+    if (!selected) return;
+
+    const fullPath = Array.isArray(selected) ? selected[0] : selected;
+    if (typeof fullPath === 'string' && fullPath) {
+      const lastSlash = Math.max(fullPath.lastIndexOf('\\'), fullPath.lastIndexOf('/'));
+      if (lastSlash !== -1) {
+        localModelsDir.value = fullPath.substring(0, lastSlash);
+        const filename = fullPath.substring(lastSlash + 1);
+        if (target === 'router') {
+          routerModel.value = filename;
+        } else {
+          expertModel.value = filename;
+        }
+      } else {
+        if (target === 'router') {
+          routerModel.value = fullPath;
+        } else {
+          expertModel.value = fullPath;
+        }
+      }
+    }
+  } catch (e) {
+    logger.debug('[AISettings]', 'Native dialog unavailable, falling back to file input', e);
+    if (fileInputRef.value) {
+      fileInputRef.value.click();
+    }
+  }
+};
+
+const onFileSelected = (e: Event) => {
+  const target = e.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (file) {
+    const fullPath = (file as File & { path?: string }).path;
+    if (fullPath) {
+      const lastSlash = Math.max(fullPath.lastIndexOf('\\'), fullPath.lastIndexOf('/'));
+      if (lastSlash !== -1) {
+        localModelsDir.value = fullPath.substring(0, lastSlash);
+        if (currentPickerTarget === 'router') {
+          routerModel.value = fullPath.substring(lastSlash + 1);
+        } else {
+          expertModel.value = fullPath.substring(lastSlash + 1);
+        }
+      }
+    } else {
+      if (currentPickerTarget === 'router') {
+        routerModel.value = file.name;
+      } else {
+        expertModel.value = file.name;
+      }
+    }
+  }
+  target.value = '';
+};
+
+const gateway = useGateway();
+const { t } = useI18n();
+const toast = useToast();
+const platform = detectPlatform();
+
+// Watch for external config updates (e.g. from backend on initial load)
+watch(() => gateway.configData.value, (newVal) => {
+  if (newVal && newVal.ai) {
+    provider.value = newVal.ai.provider || 'local';
+    cloudBaseUrl.value = newVal.ai.cloudBaseUrl || '';
+    cloudModel.value = newVal.ai.cloudModel || '';
+    localModelsDir.value = newVal.ai.localModelsDir || 'E:\\AI_Models';
+    routerModel.value = newVal.ai.routerModel || 'gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf';
+    expertModel.value = newVal.ai.expertModel || 'gemma-4-12B-it-qat-UD-Q4_K_XL.gguf';
+    temperature.value = newVal.ai.temperature || 0.7;
+    maxTokens.value = newVal.ai.maxTokens || 4096;
+    topP.value = newVal.ai.topP || 0.9;
+  }
+}, { immediate: true, deep: true });
+
+// Save config
+const saveConfig = async () => {
+  isSaving.value = true;
+  saveMessage.value = '';
+
+  try {
+    if (cloudApiKey.value) {
+      await platform.storeVaultSecret('ai/cloud_api_key', cloudApiKey.value);
+      cloudApiKey.value = '';
+      cloudApiKeyConfigured.value = true;
+    }
+
+    gateway.updateConfig({
+      ai: {
+        provider: provider.value,
+        cloudBaseUrl: cloudBaseUrl.value,
+        cloudModel: cloudModel.value,
+        localModelsDir: localModelsDir.value,
+        routerModel: routerModel.value,
+        expertModel: expertModel.value,
+        temperature: temperature.value,
+        maxTokens: maxTokens.value,
+        topP: topP.value,
+      }
+    });
+
+    const msg = t('ai_saved');
+    saveMessage.value = msg;
+    toast.success(msg);
+    setTimeout(() => { saveMessage.value = ''; }, 3000);
+  } catch (error) {
+    const errMsg = `Không thể lưu secret: ${String(error)}`;
+    saveMessage.value = errMsg;
+    toast.error(errMsg);
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+onMounted(async () => {
+  cloudApiKeyConfigured.value =
+    await platform.hasVaultSecret('ai/cloud_api_key');
+  if (!gateway.configData.value || Object.keys(gateway.configData.value).length === 0) {
+    gateway.sendMsg('get_config');
+  }
+});
+</script>
+
+<template>
+  <div class="ai-settings animate-fadeIn">
+    <div class="page-header">
+      <h1 class="section-title">🤖 {{ t('ai_title') }}</h1>
+      <p class="page-desc">{{ t('ai_desc') }}</p>
+    </div>
+
+    <!-- Provider Toggle -->
+    <div class="card provider-card">
+      <span class="section-subtitle">{{ t('ai_provider') }}</span>
+      <div class="provider-toggle">
+        <button
+          :class="['provider-btn', { active: provider === 'local' }]"
+          @click="toggleProvider('local')"
+        >
+          <span class="provider-icon">💻</span>
+          <span class="provider-name">{{ t('ai_local_title') }}</span>
+          <span class="provider-desc">{{ t('ai_local_desc') }}</span>
+        </button>
+        <button
+          :class="['provider-btn', { active: provider === 'cloud' }]"
+          @click="toggleProvider('cloud')"
+        >
+          <span class="provider-icon">☁️</span>
+          <span class="provider-name">{{ t('ai_cloud_title') }}</span>
+          <span class="provider-desc">{{ t('ai_cloud_desc') }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Cloud Settings -->
+    <div v-if="provider === 'cloud'" class="card settings-section animate-fadeIn">
+      <span class="section-subtitle">{{ t('ai_cloud_config') }}</span>
+
+      <div class="form-group">
+        <label class="form-label" for="cloud-base-url">API Base URL</label>
+        <input id="cloud-base-url" v-model="cloudBaseUrl" class="input" placeholder="https://api.openai.com/v1" />
+        <span class="form-help">{{ t('ai_cloud_endpoint') }}</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="cloud-api-key">API Key</label>
+        <div class="input-with-toggle">
+          <input
+            id="cloud-api-key"
+            v-model="cloudApiKey"
+            :type="showApiKey ? 'text' : 'password'"
+            class="input"
+            :placeholder="cloudApiKeyConfigured ? 'Đã cấu hình — nhập để thay thế' : 'sk-...'"
+          />
+          <button class="btn btn-ghost toggle-visibility" @click="showApiKey = !showApiKey">
+            {{ showApiKey ? '🙈' : '👁️' }}
+          </button>
+        </div>
+        <span v-if="cloudApiKeyConfigured" class="form-help">Secret đang được bảo vệ trong Stronghold.</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="cloud-model">Model Name</label>
+        <input id="cloud-model" v-model="cloudModel" class="input" placeholder="gpt-4o-mini" />
+      </div>
+    </div>
+
+    <!-- Local Settings -->
+    <div v-if="provider === 'local'" class="card settings-section animate-fadeIn">
+      <span class="section-subtitle">{{ t('ai_local_config') }}</span>
+
+      <div class="form-group">
+        <label class="form-label" for="local-models-dir">{{ t('ai_models_dir') }}</label>
+        <input id="local-models-dir" v-model="localModelsDir" class="input" placeholder="E:\AI_Models" />
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="router-model">Router Model (Light)</label>
+          <div class="input-with-btn">
+            <input id="router-model" v-model="routerModel" class="input" placeholder="gemma-4..." />
+            <button class="btn btn-secondary" @click="openModelPicker('router')" :title="t('ai_pick_gguf')">📂</button>
+          </div>
+          <span class="form-help">{{ t('ai_router_label') }}</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="expert-model">Expert Model (Heavy)</label>
+          <div class="input-with-btn">
+            <input id="expert-model" v-model="expertModel" class="input" placeholder="(optional)" />
+            <button class="btn btn-secondary" @click="openModelPicker('expert')" :title="t('ai_pick_gguf')">📂</button>
+          </div>
+          <span class="form-help">{{ t('ai_deep_label') }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden File Input for Model Selection -->
+    <input 
+      type="file" 
+      ref="fileInputRef" 
+      accept=".gguf" 
+      style="display: none" 
+      @change="onFileSelected" 
+    />
+
+    <!-- Parameters -->
+    <div class="card settings-section">
+      <span class="section-subtitle">{{ t('ai_inference') }}</span>
+
+      <div class="grid-3">
+        <div class="form-group">
+          <label class="form-label" for="temp-slider">{{ t('ai_temperature') }}</label>
+          <div class="slider-group">
+            <input
+              id="temp-slider"
+              type="range"
+              v-model.number="temperature"
+              min="0"
+              max="1.5"
+              step="0.1"
+              class="slider"
+            />
+            <span class="slider-value" :class="{'text-warning': temperature > 0.8}">{{ temperature }}</span>
+          </div>
+          <span class="form-help">{{ t('ai_temp_hint') }}</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="max-tokens">{{ t('ai_max_tokens') }}</label>
+          <input id="max-tokens" v-model.number="maxTokens" type="number" class="input" min="256" max="32768" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="top-p-slider">{{ t('ai_top_p') }}</label>
+          <div class="slider-group">
+            <input
+              id="top-p-slider"
+              type="range"
+              v-model.number="topP"
+              min="0"
+              max="1"
+              step="0.05"
+              class="slider"
+            />
+            <span class="slider-value">{{ topP }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Save Button -->
+    <div class="save-bar">
+      <button class="btn btn-primary" @click="saveConfig" :disabled="isSaving">
+        {{ isSaving ? t('ai_saving') : t('ai_save') }}
+      </button>
+      <span v-if="saveMessage" class="save-message animate-fadeIn">{{ saveMessage }}</span>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.ai-settings {
+  padding: var(--space-lg);
+  overflow-y: auto;
+  height: 100%;
+}
+
+.page-header { margin-bottom: var(--space-lg); }
+.page-desc { color: var(--text-secondary); font-size: 13px; margin-top: 4px; }
+
+.settings-section { margin-bottom: var(--space-md); }
+
+/* Provider Toggle */
+.provider-card { margin-bottom: var(--space-md); }
+
+.provider-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.provider-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-md);
+  background: var(--bg-tertiary);
+  border: 2px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  color: var(--text-secondary);
+}
+
+.provider-btn:hover {
+  border-color: var(--text-muted);
+}
+
+.provider-btn.active {
+  border-color: var(--accent-start);
+  background: rgba(124, 58, 237, 0.08);
+  color: var(--text-primary);
+}
+
+.provider-icon { font-size: 24px; }
+.provider-name { font-size: 14px; font-weight: 600; }
+.provider-desc { font-size: 11px; color: var(--text-muted); }
+
+/* Input with toggle */
+.input-with-toggle {
+  position: relative;
+  display: flex;
+}
+
+.input-with-toggle .input {
+  padding-right: 48px;
+}
+
+.toggle-visibility {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px 8px;
+  font-size: 16px;
+}
+
+/* Input with button (File Picker) */
+.input-with-btn {
+  display: flex;
+  gap: 8px;
+}
+.input-with-btn .input {
+  flex: 1;
+}
+.input-with-btn .btn {
+  padding: 0 16px;
+  font-size: 16px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+}
+.input-with-btn .btn:hover {
+  background: var(--bg-hover);
+}
+
+/* Slider */
+.slider-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.slider {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 4px;
+  background: var(--bg-hover);
+  border-radius: 2px;
+  outline: none;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--accent-start);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.slider-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-start);
+  min-width: 32px;
+  text-align: right;
+}
+
+/* Save Bar */
+.save-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-default);
+  margin-top: var(--space-md);
+}
+
+.save-message {
+  font-size: 13px;
+  color: var(--color-success);
+  font-weight: 500;
+}
+</style>

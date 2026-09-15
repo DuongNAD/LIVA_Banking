@@ -1,0 +1,207 @@
+# ==========================================
+# 1. CÁC THƯ MỤC LÕI & THƯ VIỆN
+# ==========================================
+**/node_modules/
+**/venv/
+**/venv_old/
+**/__pycache__/
+**/.scannerwork/
+**/.gitnexus/
+**/.agents/
+**/target/
+**/target_*/
+# Workspace members use the repository-root Cargo.lock only.
+liva-native-core/Cargo.lock
+
+# ==========================================
+# 2. SECRETS & CREDENTIALS
+# ==========================================
+**/.env
+**/.env.*
+!**/.env.example
+
+sonar-project.properties
+credentials.json
+token.json
+# Cấu hình MCP client THẬT (khuôn: mcp_config.example.json). Khối `env` của mỗi
+# server chứa token — file mẫu đặt GITHUB_PERSONAL_ACCESS_TOKEN ngay trong đó.
+mcp_config.json
+*.pem
+*.key
+data/liva_vault.json
+data/user_profile.json
+# Đồng ý quan sát thụ động (U20): quyết định riêng tư per-máy per-người dùng.
+# KHÔNG commit — đẩy lên nghĩa là áp lựa chọn của một người cho mọi bản clone.
+data/consent.json
+
+# ==========================================
+# 3. MÔ HÌNH AI & DỮ LIỆU NẶNG
+# ==========================================
+*.safetensors
+*.pth
+*.bin
+*.exe
+*.gguf
+*.onnx
+*.onnx.data
+*.onnx_data
+liva-dataset/
+
+# ==========================================
+# 4. FILE TẠM
+# ==========================================
+*.tmp
+*.bak
+.shadow_*
+
+# ==========================================
+# 5. CACHE, LOGS, RÁC TEST
+# ==========================================
+*.log
+**/logs/
+**/test_results*
+**/test_failures*
+**/coverage_*.txt
+**/vitest_output.txt
+
+# ==========================================
+# 5b. SCRATCH & ONE-OFF SCRIPTS
+# ==========================================
+**/fix_*.cjs
+**/fix_*.js
+**/patch_*.cjs
+**/patch_*.js
+**/*_output.txt
+**/*_errors.txt
+gitnexus_log.txt
+scratch.*
+# `scratch.*` ở trên dùng dấu CHẤM nên không bắt được `scratch_check.txt`,
+# `scratch_clippy.txt`, `scratch_out.txt`, `scratch_test_err.txt`,
+# `scratch_test_out.txt` — năm file gạch dưới nằm ở gốc repo ngày 16/08/2026,
+# tất cả đều là output debug đổ ra tay, và tất cả đều đang chờ bị commit nhầm.
+scratch_*
+out_test.txt
+download_*.py
+download_*.bat
+script_*.py
+print_*.py
+test-message.ts
+
+# ==========================================
+# 6. LIVA SPECIFIC
+# ==========================================
+airi/
+.liva_shield/
+.liva_workspaces/
+.shadow/
+liva-ui-old/
+src_backup/
+tests/_legacy/
+**/lancedb*/
+**/liva_learning_vectors/
+shadow_workspace/
+mempalace/
+AI_Models/
+**/liva_*_profile/
+liva-gateway/data/
+data/agents/
+data/global/
+data/hardware_state.json
+
+# Khoá thiết bị mã hoá (DPAPI-sealed) — TUYỆT ĐỐI không commit, dù LIVA_DB_PATH
+# trỏ đâu. Là bản niêm phong khoá mã hoá facts của người dùng.
+.device_key
+**/.device_key
+
+# Legacy (renamed to liva-gateway)
+openclaw-gateway/
+
+# ==========================================
+# 7. THƯ MỤC BUILD
+# ==========================================
+liva-gateway/dist/
+liva-gateway/coverage/
+liva-ui/coverage/
+liva-ui/dist/
+liva-ui/.nuxt/
+liva-ui/.output/
+liva-ui/public/screenshots/
+native_lib/
+llama_cpp_src/
+
+# ==========================================
+# 8. IDE & HỆ ĐIỀU HÀNH
+# ==========================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ==========================================
+# 9. BỔ SUNG 2026-07 (tổng vệ sinh overhaul)
+# ==========================================
+liva-native-core/target_challenger_4_2/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.apk
+*.idsig
+unsloth_compiled_cache/
+static/report.html
+data/ast_graph.json
+liva-voice/workspace/integ_test_output/
+tests/dump.html
+tests/screenshot.png
+
+# ─── 10. Security & privacy (2026-07-04): NEVER commit these ───
+# Android signing keystore — private key, must stay off any public repo
+*.keystore
+*.jks
+# Agent runtime data (personal memory, logs, sqlite) — regenerated at runtime
+liva-native-core/data/agents/
+data/temp_sandbox_test/
+data/skill_embeddings_cache.json
+# Audio samples / test fixtures — fetched out-of-band (see models/README.md)
+*.wav
+models/wake_fixtures/
+# Wake enrollment contains biometric voice data. Training work can also grow
+# to hundreds of GB; neither may enter Git even when individual extensions
+# are not covered by the generic model/audio rules above.
+data/wake-enrollment/
+data/benchmarks/
+tools/wakeword/work/
+# Bản lùi khi train lại wake word, ví dụ
+# `models/wake_liva_en_v2.onnx.rollback.20260805-125553` (956 KB). Luật `*.onnx`
+# ở trên KHÔNG bắt được: đuôi thật của file là dấu thời gian, không phải `.onnx`.
+# Cùng lý do với `reports-archive/` (6,7 MB) — sản phẩm phụ của một lần train,
+# không phải nguồn. Cả hai từng đứng untracked chờ một lệnh `git add -A` nuốt vào.
+models/*.rollback.*
+tools/wakeword/reports-archive/
+# Ba DLL runtime NVIDIA (752 MB, `cublasLt64_12.dll` một mình đã 643 MB) do
+# `scripts/stage-cuda-redist.mjs` chép từ CUDA Toolkit vào ngay trước
+# `tauri build`. Thư mục do `build.rs` tạo và phải tồn tại kể cả ở bản CPU;
+# rỗng thì bundler bỏ qua. Nội dung là bản phát hành lại của NVIDIA, không phải
+# nguồn của dự án.
+liva-desktop/src-tauri/cuda-redist/
+docs/99-luu-tru/bao-cao-lich-su/vieneu_poc_samples/
+# VieNeu-TTS large weights (.onnx/.bin already covered above; these are not).
+# Fetched out-of-band — see models/README.md. The small config/tokenizer/voices
+# JSONs stay tracked so the model dir is self-documenting.
+models/vieneu/*.data
+models/vieneu/*.npz
+# Embedding model cho RAG (fetch-embedding-model.mjs). model.onnx đã dính `*.onnx`
+# ở trên, nhưng tokenizer.json (~16 MB) thì không — ignore cả thư mục để không ai
+# commit nhầm ~465 MB. Trống trên máy mới; xem models/README.md.
+models/embedding/
+# Model avatar VRM — tài sản nhị phân lấy ngoài băng, cùng loại với model weight
+# ở trên. `liva-ui/public/models/vrm/Liva.vrm` một mình đã **21 MB**; đưa vào
+# lịch sử git thì gần như không rút lại được, nên giữ ngoài cây cho nhất quán
+# với `*.gguf` / `*.onnx`.
+#
+# ⚠️ Luật này KHÔNG áp cho các clip Mixamo `liva-ui/public/animations/mixamo/*.fbx`
+# (6 file, tổng 3,4 MB): chúng đã được theo dõi từ `95d641a`, và `.gitignore`
+# không có tác dụng với file đã vào cây. Cỡ đó chấp nhận được nên giữ nguyên —
+# nếu sau này muốn bỏ ra thì phải `git rm --cached`, thêm dòng ignore là vô ích.
+*.vrm
+# Repo history-rewrite backups
+*.bundle

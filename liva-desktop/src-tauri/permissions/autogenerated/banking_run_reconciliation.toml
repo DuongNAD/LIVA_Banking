@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-banking-run-reconciliation"
+description = "Enables the banking_run_reconciliation command without any pre-configured scope."
+commands.allow = ["banking_run_reconciliation"]
+
+[[permission]]
+identifier = "deny-banking-run-reconciliation"
+description = "Denies the banking_run_reconciliation command without any pre-configured scope."
+commands.deny = ["banking_run_reconciliation"]

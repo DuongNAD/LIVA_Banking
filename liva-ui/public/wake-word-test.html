@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LIVA Microphone Energy Test</title>
+    <link rel="stylesheet" href="./wake-word-test.css" />
+  </head>
+  <body>
+    <h1>🎤 LIVA Microphone Test (chỉ đo năng lượng)</h1>
+
+    <div id="status" class="status pending">Chờ khởi tạo...</div>
+
+    <div class="visualizer">
+      <progress id="energyBar" max="100" value="0"></progress>
+      <div class="threshold-line"></div>
+    </div>
+
+    <div id="confidenceDisplay" class="confidence-display confidence-low">-</div>
+
+    <div>
+      <button id="btnStart" class="btn-start">Bắt đầu kiểm tra mic</button>
+      <button id="btnStop" class="btn-stop" disabled>Dừng</button>
+      <button id="btnTest" class="btn-test">Test Manual</button>
+    </div>
+
+    <p>
+      <strong>Hướng dẫn:</strong> Nói một câu đầy đủ, ví dụ “Hey Liva, bật nhạc lên giúp tôi”. Trang
+      này chỉ đo năng lượng, không xác minh từ khóa; kết quả phát hiện giọng nói không chứng minh
+      wake word hoạt động.
+    </p>
+
+    <section class="enrollment">
+      <h2>Thu corpus “Hey Liva” cá nhân</h2>
+      <p>
+        Mỗi lần bấm, hãy nói đúng “Hey Liva” với tốc độ và khoảng cách khác nhau. Trang chỉ ghi khi
+        bạn bấm nút; audio được tải xuống máy, không tự gửi đi đâu.
+      </p>
+      <button id="btnRecordSample" class="btn-record">Ghi một mẫu 2,5 giây</button>
+      <strong id="enrollmentCount">0/20 mẫu đã tải</strong>
+      <h3>Hard negatives của chính giọng bạn</h3>
+      <p>
+        Đọc câu gợi ý bên dưới nhưng không nói “Hey Liva”. Các mẫu này dạy model phân biệt câu gọi
+        với giọng nói bình thường và những cụm gần âm.
+      </p>
+      <p><strong id="negativePrompt">“Liva”</strong></p>
+      <button id="btnRecordNegative" class="btn-record-negative">
+        Ghi một mẫu negative 2,5 giây
+      </button>
+      <strong id="negativeEnrollmentCount">0/20 mẫu negative đã tải</strong>
+      <p class="privacy-note">
+        Đây là dữ liệu sinh trắc học giọng nói. Lưu vào
+        <code>data/wake-enrollment/positive/</code> và <code>data/wake-enrollment/negative/</code>;
+        hai thư mục đã bị Git bỏ qua.
+      </p>
+    </section>
+
+    <h3>Console Log:</h3>
+    <div id="log" class="log"></div>
+
+    <script type="module" src="./wake-word-test.js"></script>
+  </body>
+</html>

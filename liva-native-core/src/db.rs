@@ -1,0 +1,2786 @@
+#![allow(non_snake_case)]
+pub mod csr_graph;
+mod deletion;
+
+pub use deletion::{
+    ConversationDeletionCounts, ConversationDeletionReport, RetentionSweepReport,
+    SubjectDeletionCounts, SubjectDeletionReport, delete_conversation, delete_subject,
+    sweep_conversation_retention,
+};
+
+use crate::crypto::EncryptionEngine;
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
+use rusqlite::{
+    Connection, OpenFlags,
+    types::{ToSql, Value},
+};
+use serde::{Deserialize, Serialize};
+use std::path::Path;
+use std::sync::Arc;
+
+#[derive(Debug, Clone)]
+pub struct CustomSqliteManager {
+    inner: Arc<SqliteConnectionManager>,
+    read_only: bool,
+}
+
+impl r2d2::ManageConnection for CustomSqliteManager {
+    type Connection = Connection;
+    type Error = rusqlite::Error;
+
+    fn connect(&self) -> Result<Self::Connection, Self::Error> {
+        let conn = self.inner.connect()?;
+        if let Err(e) = load_sqlite_vec(&conn) {
+            eprintln!("Warning: Failed to load sqlite-vec: {:?}", e);
+        }
+        configure_connection(&conn, self.read_only)?;
+        Ok(conn)
+    }
+
+    fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
+        self.inner.is_valid(conn)
+    }
+
+    fn has_broken(&self, conn: &mut Self::Connection) -> bool {
+        self.inner.has_broken(conn)
+    }
+}
+
+fn configure_connection(conn: &Connection, read_only: bool) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "
+        PRAGMA foreign_keys = ON;
+        PRAGMA busy_timeout = 5000;
+        PRAGMA cache_size = -8192;
+        PRAGMA page_size = 32768;
+        PRAGMA mmap_size = 268435456;
+        PRAGMA temp_store = MEMORY;
+    ",
+    )?;
+
+    if read_only {
+        conn.execute("PRAGMA synchronous = NORMAL", [])?;
+    } else {
+        conn.execute_batch(
+            "
+            PRAGMA journal_mode = WAL;
+            PRAGMA synchronous = NORMAL;
+            PRAGMA wal_autocheckpoint = 500;
+        ",
+        )?;
+    }
+    Ok(())
+}
+
+/// Danh sách đường dẫn thử nạp `vec0` (sqlite-vec), theo thứ tự ưu tiên. Tách
+/// THUẦN (nhận `exe_dir`) để test được mà không phụ thuộc môi trường.
+///
+/// Bao ba tình huống:
+/// - **dev** (chạy từ repo): `node_modules/…/vec0.dll` quanh cwd;
+/// - **đóng gói** (app Tauri cài đặt, KHÔNG có node_modules): cạnh executable và
+///   trong `resources/` — nơi `bundle.resources` của Tauri đặt file. Đây là lý do
+///   H5 (thiếu vec0 → DB sập lúc boot): candidate cũ chỉ dựa vào cwd, còn app cài
+///   đặt thì cwd không phải thư mục exe;
+/// - **hệ thống**: `vec0` trần để `load_extension` dùng tìm kiếm DLL của OS (trên
+///   Windows có kèm thư mục exe).
+pub fn vec0_candidate_paths(exe_dir: Option<&std::path::Path>) -> Vec<String> {
+    let ext = if cfg!(target_os = "windows") {
+        ".dll"
+    } else if cfg!(target_os = "macos") {
+        ".dylib"
+    } else {
+        ".so"
+    };
+    let platform_dirs: &[&str] = if cfg!(target_os = "windows") {
+        &["sqlite-vec-windows-x64", "sqlite-vec-windows-arm64"]
+    } else if cfg!(target_os = "macos") {
+        &["sqlite-vec-darwin-x64", "sqlite-vec-darwin-arm64"]
+    } else {
+        &["sqlite-vec-linux-x64", "sqlite-vec-linux-arm64"]
+    };
+
+    let dev_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")));
+    let mut candidates = Vec::new();
+    for dir in platform_dirs {
+        candidates.push(
+            dev_root
+                .join("node_modules")
+                .join(dir)
+                .join(format!("vec0{ext}"))
+                .to_string_lossy()
+                .into_owned(),
+        );
+    }
+    // đóng gói: cạnh exe + resources/ (Tauri bundle) — không phụ thuộc cwd
+    if let Some(dir) = exe_dir {
+        let s = |p: std::path::PathBuf| p.to_string_lossy().into_owned();
+        candidates.push(s(dir.join(format!("vec0{ext}"))));
+        candidates.push(s(dir.join("resources").join(format!("vec0{ext}"))));
+    }
+    candidates
+}
+
+fn vec0_trust_candidates(
+    exe_dir: Option<&std::path::Path>,
+) -> Vec<(std::path::PathBuf, std::path::PathBuf)> {
+    let paths = vec0_candidate_paths(exe_dir);
+    let dev_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")))
+        .to_path_buf();
+    paths
+        .into_iter()
+        .map(std::path::PathBuf::from)
+        .filter_map(|path| {
+            if let Ok(relative) = path.strip_prefix(&dev_root) {
+                Some((dev_root.clone(), relative.to_path_buf()))
+            } else if let Some(root) = exe_dir {
+                if let Ok(relative) = path.strip_prefix(root) {
+                    Some((root.to_path_buf(), relative.to_path_buf()))
+                } else if let Some(parent) = path.parent() {
+                    let rel = path
+                        .file_name()
+                        .map(std::path::PathBuf::from)
+                        .unwrap_or_default();
+                    Some((parent.to_path_buf(), rel))
+                } else {
+                    None
+                }
+            } else if let Some(parent) = path.parent() {
+                let rel = path
+                    .file_name()
+                    .map(std::path::PathBuf::from)
+                    .unwrap_or_default();
+                Some((parent.to_path_buf(), rel))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+pub fn load_sqlite_vec(conn: &Connection) -> Result<(), rusqlite::Error> {
+    // Check if vec0 functions are already loaded
+    if conn
+        .query_row("SELECT vec_version()", [], |_| Ok(()))
+        .is_ok()
+    {
+        return Ok(());
+    }
+
+    unsafe {
+        conn.load_extension_enable()?;
+
+        let exe_dir = std::env::current_exe().ok();
+        let candidates = vec0_trust_candidates(exe_dir.as_deref().and_then(|p| p.parent()));
+        let expected_hash = crate::embedded_runtime_artifact_hash("vec0").map_err(|error| {
+            rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::other(error)))
+        })?;
+
+        let mut success = false;
+        let mut last_err = None::<String>;
+
+        for (root, relative) in &candidates {
+            let path = match crate::verify_trusted_file(root, relative, &expected_hash) {
+                Ok(path) => path,
+                Err(error) => {
+                    last_err = Some(error);
+                    continue;
+                }
+            };
+            match conn.load_extension(&path, None) {
+                Ok(_) => {
+                    success = true;
+                    break;
+                }
+                Err(e) => {
+                    last_err = Some(e.to_string());
+                }
+            }
+        }
+
+        conn.load_extension_disable()?;
+
+        if success {
+            Ok(())
+        } else {
+            // Thông báo phải nói được cách khắc phục: khi thiếu vec0 thì lỗi kế
+            // tiếp mà người dùng thấy là "no such module: vec0" ở tận lúc tạo
+            // bảng `vec_idx` — hoàn toàn không gợi ý được nguyên nhân thật.
+            let err_msg = format!(
+                "khong nap duoc sqlite-vec (vec0). Da thu {n} duong dan: {tried}. \
+                 Nguyen nhan thuong gap: chua chay `npm ci` o thu muc goc repo — \
+                 vec0 do goi npm `sqlite-vec` cung cap. Loi cuoi cung: {last}",
+                n = candidates.len(),
+                tried = candidates
+                    .iter()
+                    .map(|(root, relative)| root.join(relative).display().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                last = last_err.unwrap_or_else(|| "khong ro".to_string()),
+            );
+            Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+                std::io::Error::other(err_msg),
+            )))
+        }
+    }
+}
+
+/// Kiểm tra xem extension sqlite-vec (vec0) đã được nạp thành công vào connection hay chưa.
+pub fn has_sqlite_vec(conn: &rusqlite::Connection) -> bool {
+    conn.query_row("SELECT vec_version()", [], |_| Ok(()))
+        .is_ok()
+}
+
+pub fn get_reader_pool_size() -> u32 {
+    std::env::var("LIVA_DB_READER_POOL_SIZE")
+        .or_else(|_| std::env::var("LIVA_DB_READERS"))
+        .ok()
+        .and_then(|v| v.parse::<u32>().ok())
+        .filter(|&v| (1..=64).contains(&v))
+        .unwrap_or(4)
+}
+
+#[derive(Clone)]
+pub struct DatabasePool {
+    pub writer: Pool<CustomSqliteManager>,
+    pub readers: Pool<CustomSqliteManager>,
+    pub writer_actor: crate::db_actor::DbActorHandle,
+    pub csr_graph: Arc<std::sync::RwLock<csr_graph::CsrGraph>>,
+}
+
+impl DatabasePool {
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
+        let write_manager = SqliteConnectionManager::file(path.as_ref())
+            .with_flags(OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE);
+        let read_manager = SqliteConnectionManager::file(path.as_ref())
+            .with_flags(OpenFlags::SQLITE_OPEN_READ_ONLY);
+
+        let writer = Pool::builder().max_size(1).build(CustomSqliteManager {
+            inner: Arc::new(write_manager),
+            read_only: false,
+        })?;
+
+        let readers_size = get_reader_pool_size();
+        let readers = Pool::builder()
+            .max_size(readers_size)
+            .build(CustomSqliteManager {
+                inner: Arc::new(read_manager),
+                read_only: true,
+            })?;
+
+        let conn = writer.get()?;
+        init_schemas(&conn)?;
+
+        let writer_actor = crate::db_actor::DbActorHandle::new(writer.clone());
+        let graph = csr_graph::CsrGraph::from_db(&conn)?;
+        let csr_graph = Arc::new(std::sync::RwLock::new(graph));
+
+        Ok(DatabasePool {
+            writer,
+            readers,
+            writer_actor,
+            csr_graph,
+        })
+    }
+
+    pub fn new_in_memory() -> Result<Self, Box<dyn std::error::Error>> {
+        // Shared cache is required for readers and writers to share the memory database
+        let rand_val = rand::random::<u64>();
+        let db_uri = format!("file:memdb_{}?mode=memory&cache=shared", rand_val);
+        let write_manager = SqliteConnectionManager::file(&db_uri).with_flags(
+            OpenFlags::SQLITE_OPEN_READ_WRITE
+                | OpenFlags::SQLITE_OPEN_CREATE
+                | OpenFlags::SQLITE_OPEN_URI,
+        );
+        let read_manager = SqliteConnectionManager::file(&db_uri)
+            .with_flags(OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_URI);
+
+        let writer = Pool::builder().max_size(1).build(CustomSqliteManager {
+            inner: Arc::new(write_manager),
+            read_only: false,
+        })?;
+
+        let readers_size = get_reader_pool_size();
+        let readers = Pool::builder()
+            .max_size(readers_size)
+            .build(CustomSqliteManager {
+                inner: Arc::new(read_manager),
+                read_only: true,
+            })?;
+
+        let conn = writer.get()?;
+        init_schemas(&conn)?;
+
+        let writer_actor = crate::db_actor::DbActorHandle::new(writer.clone());
+        let graph = csr_graph::CsrGraph::from_db(&conn)?;
+        let csr_graph = Arc::new(std::sync::RwLock::new(graph));
+
+        Ok(DatabasePool {
+            writer,
+            readers,
+            writer_actor,
+            csr_graph,
+        })
+    }
+
+    /// Execute a read-only closure synchronously with a pooled reader connection.
+    pub fn with_reader<F, R>(&self, f: F) -> Result<R, rusqlite::Error>
+    where
+        F: FnOnce(&rusqlite::Connection) -> Result<R, rusqlite::Error>,
+    {
+        let conn = self.readers.get().map_err(|e| {
+            rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::other(format!(
+                "Failed to acquire SQLite reader connection from pool: {e}"
+            ))))
+        })?;
+        f(&conn)
+    }
+
+    /// Execute a write closure synchronously on the dedicated DbActor thread.
+    ///
+    /// Routes via DbActorHandle to enforce single-writer discipline.
+    pub fn with_writer<F, R>(&self, f: F) -> Result<R, rusqlite::Error>
+    where
+        F: FnOnce(&rusqlite::Connection) -> Result<R, rusqlite::Error> + Send + 'static,
+        R: Send + 'static,
+    {
+        self.writer_actor
+            .blocking_execute(move |conn| f(conn).map_err(|e| e.to_string()))
+            .map_err(|e| {
+                rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::other(format!(
+                    "DbActor with_writer failed: {e}"
+                ))))
+            })
+    }
+
+    /// Execute a read-only closure asynchronously on tokio's blocking threadpool with a pooled reader connection.
+    pub async fn spawn_reader<F, R>(&self, f: F) -> Result<R, String>
+    where
+        F: FnOnce(&rusqlite::Connection) -> Result<R, rusqlite::Error> + Send + 'static,
+        R: Send + 'static,
+    {
+        let pool = self.clone();
+        tokio::task::spawn_blocking(move || pool.with_reader(f).map_err(|e| e.to_string()))
+            .await
+            .map_err(|e| format!("spawn_reader blocking task panicked: {e}"))?
+    }
+
+    /// Execute a write closure asynchronously on the dedicated DbActor thread with the pooled writer connection.
+    pub async fn spawn_writer<F, R>(&self, f: F) -> Result<R, String>
+    where
+        F: FnOnce(&rusqlite::Connection) -> Result<R, rusqlite::Error> + Send + 'static,
+        R: Send + 'static,
+    {
+        self.writer_actor
+            .execute(move |conn| f(conn).map_err(|e| e.to_string()))
+            .await
+    }
+
+    /// Asynchronously insert an L3 knowledge graph triple via DbActor and update in-memory CSR cache.
+    pub async fn insert_l3_triple(
+        &self,
+        subject: &str,
+        predicate: &str,
+        object: &str,
+        weight: f32,
+    ) -> Result<(), String> {
+        self.writer_actor
+            .insert_l3_triple(
+                subject.to_string(),
+                predicate.to_string(),
+                object.to_string(),
+                weight,
+            )
+            .await?;
+
+        if let Ok(mut graph) = self.csr_graph.write() {
+            graph.add_node(subject.to_string(), subject.to_string(), "{}".to_string());
+            graph.add_node(object.to_string(), object.to_string(), "{}".to_string());
+            graph.add_edge(subject, object, predicate, weight, true);
+            graph.compile_csr();
+        }
+
+        Ok(())
+    }
+}
+
+pub fn init_schemas(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch("
+        CREATE TABLE IF NOT EXISTS facts (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            createdAt TEXT NOT NULL,
+            updatedAt TEXT NOT NULL,
+            ttlDays INTEGER,
+            source TEXT NOT NULL,
+            category TEXT,
+            importance REAL DEFAULT 0.5,
+            confidenceScore REAL DEFAULT 1.0,
+            sourceTurnId TEXT,
+            memory_strength REAL DEFAULT 1.0,
+            last_accessed_at INTEGER DEFAULT 0,
+            access_count INTEGER DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS agent_checkpoints (
+            thread_id TEXT PRIMARY KEY,
+            state_json TEXT NOT NULL
+        );
+
+        -- Sao lưu bản ghi facts KHÔNG giải mã được (locked) TRƯỚC khi set_fact
+        -- ghi đè. Chống mất vĩnh viễn khi đổi khoá: một fact đang locked (đọc ra
+        -- rỗng) mà consolidation/LLM ghi đè thì bản gốc mã hoá sẽ mất; ở đây giữ
+        -- lại để khôi phục được khi có đúng khoá.
+        CREATE TABLE IF NOT EXISTS facts_locked_backup (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key TEXT NOT NULL,
+            value TEXT NOT NULL,
+            backed_up_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS events (
+            eventId TEXT PRIMARY KEY,
+            timestamp INTEGER NOT NULL,
+            phi_facts TEXT,
+            phi_entities TEXT,
+            psi_sentiment TEXT,
+            psi_intent TEXT,
+            psi_relational TEXT,
+            rawUserMsg TEXT,
+            rawAiReply TEXT,
+            consolidated INTEGER DEFAULT 0,
+            domain TEXT DEFAULT 'General',
+            category TEXT DEFAULT 'Uncategorized',
+            trace_keywords TEXT,
+            last_accessed_at INTEGER DEFAULT 0,
+            consolidation_status TEXT DEFAULT 'pending',
+            retry_count INTEGER DEFAULT 0,
+            agentId TEXT DEFAULT 'liva_core'
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_events_pending_ts ON events(timestamp, eventId) WHERE consolidation_status = 'pending';
+
+        CREATE TABLE IF NOT EXISTS vector_dlq (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            delete_filter TEXT NOT NULL,
+            status TEXT DEFAULT 'pending',
+            retry_count INTEGER DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS turn_layer_nodes (
+            turnId TEXT PRIMARY KEY,
+            temporal_anchor INTEGER NOT NULL,
+            userMsg TEXT,
+            aiReply TEXT,
+            createdAt TEXT NOT NULL,
+            agentId TEXT DEFAULT 'liva_core'
+        );
+        CREATE INDEX IF NOT EXISTS idx_turns_temporal ON turn_layer_nodes(temporal_anchor);
+
+        CREATE TABLE IF NOT EXISTS daily_briefings (
+            id TEXT PRIMARY KEY,
+            created_at INTEGER NOT NULL,
+            topics TEXT NOT NULL,
+            content TEXT NOT NULL,
+            is_read INTEGER DEFAULT 0,
+            source TEXT DEFAULT 'tavily',
+            expires_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS tasks (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            status TEXT DEFAULT 'pending',
+            priority TEXT DEFAULT 'medium',
+            result TEXT DEFAULT '',
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS consolidation_checkpoints (
+            session_id TEXT PRIMARY KEY,
+            last_step INTEGER DEFAULT 0,
+            state_data TEXT DEFAULT '{}',
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS dlq_consolidation (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            failed_step TEXT NOT NULL,
+            error_msg TEXT,
+            retry_count INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'pending',
+            created_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS personality_state (
+            agentId TEXT PRIMARY KEY,
+            valence REAL NOT NULL DEFAULT 0.5,
+            arousal REAL NOT NULL DEFAULT 0.5,
+            friendliness REAL NOT NULL DEFAULT 0.8,
+            verbosity REAL NOT NULL DEFAULT 0.6,
+            assertiveness REAL NOT NULL DEFAULT 0.5,
+            updatedAt INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS vectors_meta (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            vec_id TEXT UNIQUE NOT NULL,
+            type TEXT NOT NULL,
+            content TEXT NOT NULL,
+            domain TEXT DEFAULT 'General',
+            category TEXT DEFAULT 'Uncategorized',
+            trace_keywords TEXT DEFAULT '[]',
+            file_target TEXT,
+            created_at INTEGER NOT NULL,
+            last_accessed_at INTEGER DEFAULT 0,
+            decay_weight REAL DEFAULT 1.0,
+            access_count INTEGER DEFAULT 0,
+            source_event_ids TEXT DEFAULT '[]'
+        );
+        CREATE INDEX IF NOT EXISTS idx_vectors_meta_type_domain_category ON vectors_meta (type, domain, category);
+        CREATE INDEX IF NOT EXISTS idx_vectors_meta_created_at ON vectors_meta (created_at);
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS vectors_fts USING fts5(
+            content,
+            tokenize=\"unicode61 remove_diacritics 0\"
+        );
+
+        CREATE TABLE IF NOT EXISTS l3_nodes (
+            id TEXT PRIMARY KEY,
+            label TEXT NOT NULL,
+            properties TEXT DEFAULT '{}'
+        );
+
+        CREATE TABLE IF NOT EXISTS l3_edges (
+            source TEXT NOT NULL,
+            target TEXT NOT NULL,
+            relation TEXT NOT NULL,
+            weight REAL DEFAULT 1.0,
+            obsolete INTEGER DEFAULT 0,
+            PRIMARY KEY (source, target, relation),
+            FOREIGN KEY(source) REFERENCES l3_nodes(id),
+            FOREIGN KEY(target) REFERENCES l3_nodes(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS idempotency_records (
+            idempotency_key TEXT PRIMARY KEY,
+            action_id TEXT NOT NULL,
+            tool_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            response_json TEXT,
+            created_at_ms INTEGER NOT NULL,
+            expires_at_ms INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_idempotency_expiry ON idempotency_records(expires_at_ms);
+
+        CREATE TABLE IF NOT EXISTS action_audit_ledger (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            action_id TEXT UNIQUE NOT NULL,
+            idempotency_key TEXT NOT NULL,
+            source_event_id TEXT,
+            tool_id TEXT NOT NULL,
+            risk_tier TEXT NOT NULL,
+            policy_decision TEXT NOT NULL,
+            principal TEXT NOT NULL,
+            redacted_params TEXT NOT NULL,
+            redacted_observation TEXT,
+            status TEXT NOT NULL,
+            duration_ms INTEGER,
+            created_at_ms INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_action_audit_created ON action_audit_ledger(created_at_ms);
+        CREATE INDEX IF NOT EXISTS idx_action_audit_tool ON action_audit_ledger(tool_id, status);
+
+        CREATE TABLE IF NOT EXISTS memory_conflict_queue (
+            conflict_id TEXT PRIMARY KEY,
+            fact_key TEXT NOT NULL,
+            domain TEXT NOT NULL DEFAULT 'memory_owner:local',
+            existing_value TEXT NOT NULL,
+            proposed_value TEXT NOT NULL,
+            source_event_id TEXT,
+            conflict_type TEXT NOT NULL DEFAULT 'contradiction',
+            resolution_status TEXT NOT NULL DEFAULT 'pending',
+            created_at_ms INTEGER NOT NULL,
+            resolved_at_ms INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS idx_conflict_queue_domain_status ON memory_conflict_queue(domain, resolution_status);
+
+        CREATE TABLE IF NOT EXISTS facts_history (
+            history_id TEXT PRIMARY KEY,
+            key TEXT NOT NULL,
+            domain TEXT NOT NULL DEFAULT 'memory_owner:local',
+            old_value TEXT NOT NULL,
+            archived_at_ms INTEGER NOT NULL,
+            superseded_by TEXT,
+            reason TEXT NOT NULL DEFAULT 'superseded'
+        );
+        CREATE INDEX IF NOT EXISTS idx_facts_history_key ON facts_history(key, domain);
+
+        CREATE TABLE IF NOT EXISTS turn_telemetry (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id TEXT,
+            ts INTEGER NOT NULL,
+            entry_path TEXT NOT NULL,
+            model_id TEXT NOT NULL,
+            prompt_tokens INTEGER NOT NULL,
+            completion_tokens INTEGER NOT NULL,
+            latency_ms INTEGER NOT NULL,
+            outcome TEXT NOT NULL,
+            err_kind TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_telemetry_ts ON turn_telemetry(ts);
+        CREATE INDEX IF NOT EXISTS idx_telemetry_model ON turn_telemetry(model_id);
+
+        CREATE TABLE IF NOT EXISTS bank_accounts (
+            id TEXT PRIMARY KEY,
+            bank_code TEXT NOT NULL,
+            account_number_enc TEXT NOT NULL,
+            account_name TEXT NOT NULL,
+            currency TEXT DEFAULT 'VND',
+            opening_balance INTEGER NOT NULL,
+            current_balance INTEGER NOT NULL,
+            last_synced_at INTEGER,
+            created_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS bank_statements (
+            id TEXT PRIMARY KEY,
+            account_id TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            file_hash TEXT NOT NULL,
+            file_format TEXT NOT NULL,
+            statement_from INTEGER NOT NULL,
+            statement_to INTEGER NOT NULL,
+            total_transactions INTEGER NOT NULL,
+            parsed_duration_ms INTEGER NOT NULL,
+            parsed_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS bank_transactions (
+            id TEXT PRIMARY KEY,
+            statement_id TEXT NOT NULL,
+            account_id TEXT NOT NULL,
+            tx_date INTEGER NOT NULL,
+            value_date INTEGER NOT NULL,
+            doc_ref TEXT,
+            tx_type TEXT NOT NULL,
+            amount INTEGER NOT NULL,
+            balance_after INTEGER,
+            counterparty_account_enc TEXT,
+            counterparty_name TEXT,
+            counterparty_bank TEXT,
+            narration_enc TEXT NOT NULL,
+            reconciled_status TEXT NOT NULL DEFAULT 'UNMATCHED',
+            reconciled_match_id TEXT,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_bank_tx_lookup ON bank_transactions(account_id, tx_date, amount, reconciled_status);
+
+        CREATE TABLE IF NOT EXISTS internal_ledger_entries (
+            id TEXT PRIMARY KEY,
+            account_id TEXT NOT NULL,
+            doc_no TEXT NOT NULL,
+            entry_date INTEGER NOT NULL,
+            entry_type TEXT NOT NULL,
+            amount INTEGER NOT NULL,
+            partner_code TEXT,
+            partner_name TEXT,
+            description TEXT,
+            reconciled_status TEXT NOT NULL DEFAULT 'UNMATCHED',
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_internal_ledger_lookup ON internal_ledger_entries(account_id, amount, reconciled_status);
+
+        CREATE TABLE IF NOT EXISTS reconciliation_matches (
+            id TEXT PRIMARY KEY,
+            bank_tx_id TEXT NOT NULL,
+            ledger_entry_ids_json TEXT NOT NULL,
+            match_type TEXT NOT NULL,
+            confidence_score REAL NOT NULL,
+            matched_amount INTEGER NOT NULL,
+            discrepancy_amount INTEGER DEFAULT 0,
+            status TEXT NOT NULL,
+            matched_by TEXT NOT NULL,
+            matched_at INTEGER NOT NULL,
+            notes TEXT,
+            hitl_token TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS banking_audit_chain (
+            seq_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            prev_hash TEXT NOT NULL,
+            record_hash TEXT NOT NULL,
+            timestamp INTEGER NOT NULL,
+            event_type TEXT NOT NULL,
+            actor_principal TEXT NOT NULL,
+            payload_digest TEXT NOT NULL,
+            signature TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_banking_audit_seq ON banking_audit_chain(seq_id);
+
+        CREATE TABLE IF NOT EXISTS payment_orders (
+            id TEXT PRIMARY KEY,
+            order_ref TEXT NOT NULL,
+            debit_account TEXT NOT NULL,
+            beneficiary_account TEXT NOT NULL,
+            beneficiary_name TEXT NOT NULL,
+            beneficiary_bank TEXT NOT NULL,
+            amount_vnd INTEGER NOT NULL,
+            purpose TEXT NOT NULL,
+            maker_id TEXT NOT NULL,
+            checker_id TEXT,
+            status TEXT NOT NULL,
+            hitl_token TEXT,
+            signature_hmac TEXT,
+            created_at INTEGER NOT NULL,
+            approved_at INTEGER,
+            rejection_reason TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_payment_orders_status ON payment_orders(status);
+        CREATE INDEX IF NOT EXISTS idx_payment_orders_maker ON payment_orders(maker_id);
+    ")?;
+
+    if has_sqlite_vec(conn) {
+        let count: i64 = conn.query_row(
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='vec_idx'",
+            [],
+            |row| row.get(0),
+        )?;
+        if count == 0 {
+            conn.execute(
+                &format!(
+                    "CREATE VIRTUAL TABLE vec_idx USING vec0(embedding int8[{MEMORY_VECTOR_DIM}])"
+                ),
+                [],
+            )?;
+        }
+    } else {
+        tracing::warn!(
+            "[DEGRADED MODE] sqlite-vec (vec0) extension is unavailable. \
+             Skipping vec_idx virtual table initialization. \
+             Conversational and memory retrieval will operate in pure FTS5 keyword fallback mode."
+        );
+    }
+
+    run_migrations(conn)?;
+    ensure_foreign_key_integrity(conn)?;
+
+    Ok(())
+}
+
+fn ensure_foreign_key_integrity(conn: &Connection) -> Result<(), rusqlite::Error> {
+    let mut statement = conn.prepare("PRAGMA foreign_key_check")?;
+    let mut rows = statement.query([])?;
+    if let Some(row) = rows.next()? {
+        let table: String = row.get(0)?;
+        let row_id: Option<i64> = row.get(1)?;
+        let parent: String = row.get(2)?;
+        let message = format!(
+            "foreign key violation: table={table}, rowid={}, parent={parent}",
+            row_id
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "<without-rowid>".to_string())
+        );
+        return Err(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CONSTRAINT_FOREIGNKEY),
+            Some(message),
+        ));
+    }
+    Ok(())
+}
+
+/// Phiên bản schema hiện tại. Baseline (mọi bảng `CREATE ... IF NOT EXISTS` ở
+/// trên) là **1**. Mỗi lần đổi schema về sau: tăng số này lên và thêm một mục
+/// vào [`MIGRATIONS`].
+pub const SCHEMA_VERSION: i64 = 12;
+
+/// Các bước migration tuyến tính. Mỗi mục là `(phiên_bản_đích, sql)` và được
+/// áp khi DB đang ở phiên bản < đích, theo thứ tự tăng dần, mỗi bước một
+/// transaction. Baseline (phiên bản 1) do `init_schemas` dựng nên KHÔNG nằm ở
+/// đây — danh sách này bắt đầu từ 1→2.
+///
+/// Ví dụ khi cần đổi schema:
+///   (2, "ALTER TABLE facts ADD COLUMN source TEXT DEFAULT '';")
+const MIGRATIONS: &[(i64, &str)] = &[
+    (
+        2,
+        "UPDATE vectors_meta \
+         SET domain = 'memory_owner:legacy_unowned' \
+         WHERE domain = 'General' AND type = 'conversation_turn';",
+    ),
+    (
+        3,
+        "CREATE INDEX IF NOT EXISTS idx_events_pending_ts \
+         ON events(timestamp, eventId) \
+         WHERE consolidation_status = 'pending'; \
+         DROP INDEX IF EXISTS idx_events_pending; \
+         DROP INDEX IF EXISTS idx_events_consolidated_ts;",
+    ),
+    // Rung G2 — kho skill cục bộ. Xem
+    // docs/03-danh-gia/04-de-xuat-tich-hop-openspace.md §3 (G2).
+    //
+    // Ba bảng, tách vai rõ ràng:
+    //
+    // - `skills`      : danh tính + bản hiện hành. Khoá chính là `skill_id` đọc từ
+    //                   file `.skill_id` trong thư mục skill, KHÔNG phải `name` hay
+    //                   đường dẫn — để đổi tên thư mục hoặc đổi `name:` không làm
+    //                   mất lịch sử và tín hiệu đã tích luỹ.
+    // - `skill_versions` : DAG qua `parent_id`. Mỗi lần nội dung đổi là một version
+    //                   mới trỏ về cha. `body_sha` cho phép nhận ra "không đổi gì"
+    //                   mà không phải so cả thân bài.
+    // - `skill_signals`: sổ ghi thô cho G3. G2 chỉ DỰNG BẢNG và cho phép ghi; việc
+    //                   dùng tín hiệu làm prior khi xếp hạng là G3, không phải đây.
+    //                   Các cột `actionability`/`evidence_status`/`failure_signature`/
+    //                   `merge_key` lấy đúng taxonomy ở §2 để G3 không phải migrate lại.
+    //
+    // `ON DELETE CASCADE` có ý: xoá một skill thì lịch sử và tín hiệu của nó đi
+    // theo. Không giữ bản ghi mồ côi trỏ vào skill_id không còn tồn tại.
+    (
+        4,
+        "CREATE TABLE IF NOT EXISTS skills (
+             skill_id           TEXT PRIMARY KEY,
+             name               TEXT NOT NULL,
+             description        TEXT NOT NULL DEFAULT '',
+             dir_path           TEXT NOT NULL,
+             current_version_id TEXT,
+             updated_at         INTEGER NOT NULL
+         );
+         CREATE TABLE IF NOT EXISTS skill_versions (
+             version_id TEXT PRIMARY KEY,
+             skill_id   TEXT NOT NULL REFERENCES skills(skill_id) ON DELETE CASCADE,
+             parent_id  TEXT REFERENCES skill_versions(version_id),
+             body       TEXT NOT NULL,
+             body_sha   TEXT NOT NULL,
+             created_at INTEGER NOT NULL
+         );
+         CREATE TABLE IF NOT EXISTS skill_signals (
+             signal_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+             skill_id          TEXT NOT NULL REFERENCES skills(skill_id) ON DELETE CASCADE,
+             version_id        TEXT,
+             kind              TEXT NOT NULL,
+             actionability     TEXT,
+             evidence_status   TEXT,
+             failure_signature TEXT,
+             merge_key         TEXT,
+             detail            TEXT,
+             created_at        INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS idx_skill_versions_skill ON skill_versions(skill_id, created_at);
+         CREATE INDEX IF NOT EXISTS idx_skill_versions_parent ON skill_versions(parent_id);
+         CREATE INDEX IF NOT EXISTS idx_skill_signals_skill ON skill_signals(skill_id, created_at);
+         CREATE INDEX IF NOT EXISTS idx_skill_signals_merge ON skill_signals(merge_key);",
+    ),
+    // Sổ danh bạ cho việc nhắn tin ra ngoài.
+    //
+    // `lookup_key` là tên đã bỏ dấu + thường hoá, do `messaging::contacts` sinh
+    // ra — người nói "nhắn cho Minh Hiến", STT trả "minh hien", và cả hai phải
+    // tìm ra cùng một người. Nó là UNIQUE **cùng với** `platform`: một người có
+    // thể vừa có Telegram vừa có Messenger, nhưng không thể có hai Telegram, vì
+    // khi đó "nhắn cho Hiến" thành câu không có câu trả lời đúng.
+    //
+    // `handle` cố ý là TEXT cho cả hai nền: Telegram cần chat id dạng số (i64,
+    // có thể âm với group), Messenger cần thread id/URL. Ép kiểu số ở đây là tự
+    // chặn nền thứ hai.
+    //
+    // KHÔNG có cột nào chứa mật khẩu/token của người dùng — danh bạ chỉ là tên
+    // và địa chỉ đích. Đăng nhập là việc của trình duyệt, không phải của LIVA.
+    (
+        5,
+        "CREATE TABLE IF NOT EXISTS contacts (
+             contact_id  TEXT PRIMARY KEY,
+             display_name TEXT NOT NULL,
+             lookup_key  TEXT NOT NULL,
+             platform    TEXT NOT NULL,
+             handle      TEXT NOT NULL,
+             note        TEXT NOT NULL DEFAULT '',
+             created_at  INTEGER NOT NULL,
+             updated_at  INTEGER NOT NULL
+         );
+         CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_lookup
+             ON contacts(lookup_key, platform);
+         CREATE INDEX IF NOT EXISTS idx_contacts_platform ON contacts(platform);",
+    ),
+    // Hộp xác nhận gửi tin phải sống qua restart nhưng không được ghi plaintext.
+    //
+    // `seq` là khóa tăng đơn điệu do SQLite quản lý, dùng làm tie-break khi
+    // nhiều bản nháp được tạo trong cùng một giây. Nội dung nằm ở
+    // `text_ciphertext`; khóa không nằm trong DB.
+    (
+        6,
+        "CREATE TABLE IF NOT EXISTS message_outbox (
+             seq             INTEGER PRIMARY KEY AUTOINCREMENT,
+             draft_id        TEXT NOT NULL UNIQUE,
+             platform        TEXT NOT NULL CHECK(platform IN ('telegram', 'messenger')),
+             display_name    TEXT NOT NULL,
+             handle          TEXT NOT NULL,
+             text_ciphertext TEXT NOT NULL,
+             created_at      INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS idx_message_outbox_age
+             ON message_outbox(created_at, seq);",
+    ),
+    // Audit tối thiểu cho quyền quên. Chỉ giữ hash của scope, request id và số
+    // hàng; không giữ owner/conversation plaintext sau khi người dùng đã xóa.
+    (
+        7,
+        "CREATE TABLE IF NOT EXISTS deletion_audit (
+             audit_id    TEXT PRIMARY KEY,
+             scope_hash  TEXT NOT NULL,
+             dry_run     INTEGER NOT NULL,
+             counts_json TEXT NOT NULL,
+             created_at  INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS idx_deletion_audit_created
+             ON deletion_audit(created_at);",
+    ),
+    // Migration 8: Cognitive Runtime v1 — Idempotency Records and Redacted Action Audit Ledger
+    (
+        8,
+        "CREATE TABLE IF NOT EXISTS idempotency_records (
+             idempotency_key TEXT PRIMARY KEY,
+             action_id TEXT NOT NULL,
+             tool_id TEXT NOT NULL,
+             status TEXT NOT NULL,
+             response_json TEXT,
+             created_at_ms INTEGER NOT NULL,
+             expires_at_ms INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS idx_idempotency_expiry ON idempotency_records(expires_at_ms);
+         CREATE TABLE IF NOT EXISTS action_audit_ledger (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             action_id TEXT UNIQUE NOT NULL,
+             idempotency_key TEXT NOT NULL,
+             source_event_id TEXT,
+             tool_id TEXT NOT NULL,
+             risk_tier TEXT NOT NULL,
+             policy_decision TEXT NOT NULL,
+             principal TEXT NOT NULL,
+             redacted_params TEXT NOT NULL,
+             redacted_observation TEXT,
+             status TEXT NOT NULL,
+             duration_ms INTEGER,
+             created_at_ms INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS idx_action_audit_created ON action_audit_ledger(created_at_ms);
+         CREATE INDEX IF NOT EXISTS idx_action_audit_tool ON action_audit_ledger(tool_id, status);",
+    ),
+    // Migration 9: Cognitive Memory Architecture — Memory Conflict Queue and Facts History
+    (
+        9,
+        "CREATE TABLE IF NOT EXISTS memory_conflict_queue (
+             conflict_id TEXT PRIMARY KEY,
+             fact_key TEXT NOT NULL,
+             domain TEXT NOT NULL DEFAULT 'memory_owner:local',
+             existing_value TEXT NOT NULL,
+             proposed_value TEXT NOT NULL,
+             source_event_id TEXT,
+             conflict_type TEXT NOT NULL DEFAULT 'contradiction',
+             resolution_status TEXT NOT NULL DEFAULT 'pending',
+             created_at_ms INTEGER NOT NULL,
+             resolved_at_ms INTEGER
+         );
+         CREATE INDEX IF NOT EXISTS idx_conflict_queue_domain_status ON memory_conflict_queue(domain, resolution_status);
+         CREATE TABLE IF NOT EXISTS facts_history (
+             history_id TEXT PRIMARY KEY,
+             key TEXT NOT NULL,
+             domain TEXT NOT NULL DEFAULT 'memory_owner:local',
+             old_value TEXT NOT NULL,
+             archived_at_ms INTEGER NOT NULL,
+             superseded_by TEXT,
+             reason TEXT NOT NULL DEFAULT 'superseded'
+         );
+         CREATE INDEX IF NOT EXISTS idx_facts_history_key ON facts_history(key, domain);",
+    ),
+    // Migration 10: Turn Telemetry Ledger (U21)
+    (
+        10,
+        "CREATE TABLE IF NOT EXISTS turn_telemetry (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             event_id TEXT,
+             ts INTEGER NOT NULL,
+             entry_path TEXT NOT NULL,
+             model_id TEXT NOT NULL,
+             prompt_tokens INTEGER NOT NULL,
+             completion_tokens INTEGER NOT NULL,
+             latency_ms INTEGER NOT NULL,
+             outcome TEXT NOT NULL,
+             err_kind TEXT
+         );
+         CREATE INDEX IF NOT EXISTS idx_telemetry_ts ON turn_telemetry(ts);
+         CREATE INDEX IF NOT EXISTS idx_telemetry_model ON turn_telemetry(model_id);",
+    ),
+    // Migration 11: Banking Statement & Reconciliation Ledger
+    (
+        11,
+        "CREATE TABLE IF NOT EXISTS bank_accounts (
+             id TEXT PRIMARY KEY,
+             bank_code TEXT NOT NULL,
+             account_number_enc TEXT NOT NULL,
+             account_name TEXT NOT NULL,
+             currency TEXT DEFAULT 'VND',
+             opening_balance INTEGER NOT NULL,
+             current_balance INTEGER NOT NULL,
+             last_synced_at INTEGER,
+             created_at INTEGER NOT NULL
+         );
+         CREATE TABLE IF NOT EXISTS bank_statements (
+             id TEXT PRIMARY KEY,
+             account_id TEXT NOT NULL,
+             filename TEXT NOT NULL,
+             file_hash TEXT NOT NULL,
+             file_format TEXT NOT NULL,
+             statement_from INTEGER NOT NULL,
+             statement_to INTEGER NOT NULL,
+             total_transactions INTEGER NOT NULL,
+             parsed_duration_ms INTEGER NOT NULL,
+             parsed_at INTEGER NOT NULL
+         );
+         CREATE TABLE IF NOT EXISTS bank_transactions (
+             id TEXT PRIMARY KEY,
+             statement_id TEXT NOT NULL,
+             account_id TEXT NOT NULL,
+             tx_date INTEGER NOT NULL,
+             value_date INTEGER NOT NULL,
+             doc_ref TEXT,
+             tx_type TEXT NOT NULL,
+             amount INTEGER NOT NULL,
+             balance_after INTEGER,
+             counterparty_account_enc TEXT,
+             counterparty_name TEXT,
+             counterparty_bank TEXT,
+             narration_enc TEXT NOT NULL,
+             reconciled_status TEXT NOT NULL DEFAULT 'UNMATCHED',
+             reconciled_match_id TEXT,
+             created_at INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS idx_bank_tx_lookup ON bank_transactions(account_id, tx_date, amount, reconciled_status);
+         CREATE TABLE IF NOT EXISTS internal_ledger_entries (
+             id TEXT PRIMARY KEY,
+             account_id TEXT NOT NULL,
+             doc_no TEXT NOT NULL,
+             entry_date INTEGER NOT NULL,
+             entry_type TEXT NOT NULL,
+             amount INTEGER NOT NULL,
+             partner_code TEXT,
+             partner_name TEXT,
+             description TEXT,
+             reconciled_status TEXT NOT NULL DEFAULT 'UNMATCHED',
+             created_at INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS idx_internal_ledger_lookup ON internal_ledger_entries(account_id, amount, reconciled_status);
+         CREATE TABLE IF NOT EXISTS reconciliation_matches (
+             id TEXT PRIMARY KEY,
+             bank_tx_id TEXT NOT NULL,
+             ledger_entry_ids_json TEXT NOT NULL,
+             match_type TEXT NOT NULL,
+             confidence_score REAL NOT NULL,
+             matched_amount INTEGER NOT NULL,
+             discrepancy_amount INTEGER DEFAULT 0,
+             status TEXT NOT NULL,
+             matched_by TEXT NOT NULL,
+             matched_at INTEGER NOT NULL,
+             notes TEXT,
+             hitl_token TEXT
+         );
+         CREATE TABLE IF NOT EXISTS banking_audit_chain (
+             seq_id INTEGER PRIMARY KEY AUTOINCREMENT,
+             prev_hash TEXT NOT NULL,
+             record_hash TEXT NOT NULL,
+             timestamp INTEGER NOT NULL,
+             event_type TEXT NOT NULL,
+             actor_principal TEXT NOT NULL,
+             payload_digest TEXT NOT NULL,
+             signature TEXT NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS idx_banking_audit_seq ON banking_audit_chain(seq_id);",
+    ),
+    // Migration 12: Treasury Payment Orders Ledger
+    (
+        12,
+        "CREATE TABLE IF NOT EXISTS payment_orders (
+             id TEXT PRIMARY KEY,
+             order_ref TEXT NOT NULL,
+             debit_account TEXT NOT NULL,
+             beneficiary_account TEXT NOT NULL,
+             beneficiary_name TEXT NOT NULL,
+             beneficiary_bank TEXT NOT NULL,
+             amount_vnd INTEGER NOT NULL,
+             purpose TEXT NOT NULL,
+             maker_id TEXT NOT NULL,
+             checker_id TEXT,
+             status TEXT NOT NULL,
+             hitl_token TEXT,
+             signature_hmac TEXT,
+             created_at INTEGER NOT NULL,
+             approved_at INTEGER,
+             rejection_reason TEXT
+         );
+         CREATE INDEX IF NOT EXISTS idx_payment_orders_status ON payment_orders(status);
+         CREATE INDEX IF NOT EXISTS idx_payment_orders_maker ON payment_orders(maker_id);",
+    ),
+];
+
+/// Đưa schema từ phiên bản hiện tại của DB lên [`SCHEMA_VERSION`].
+///
+/// Vì sao cần (lộ trình 0.2): trước đây toàn bộ schema dựng bằng
+/// `CREATE TABLE IF NOT EXISTS` — không phiên bản, không đường nâng cấp. Với
+/// beta tester đã cài, một thay đổi cột là không có cách áp mà không mất dữ
+/// liệu. `PRAGMA user_version` + khung này biến việc đó thành tuyến tính, có
+/// thể tái lập, chạy trong transaction.
+///
+/// DB cũ (chưa từng đánh số) ở `user_version = 0` nhưng đã có đủ bảng baseline
+/// nhờ `init_schemas` idempotent — nên chỉ cần **đóng dấu** lên 1, không chạy
+/// SQL phá huỷ nào.
+fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
+    let mut version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+
+    if version > SCHEMA_VERSION {
+        // DB được tạo bởi bản LIVA mới hơn: không hạ cấp mù. Báo lỗi rõ thay vì
+        // âm thầm chạy trên schema mình không hiểu.
+        return Err(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_ERROR),
+            Some(format!(
+                "DB ở schema version {version} mới hơn bản LIVA này ({SCHEMA_VERSION}). \
+                 Cập nhật LIVA hoặc dùng đúng bản đã tạo DB."
+            )),
+        ));
+    }
+
+    // 0 → 1: baseline đã do init_schemas dựng, chỉ đóng dấu.
+    if version < 1 {
+        conn.execute_batch("PRAGMA user_version = 1;")?;
+        version = 1;
+    }
+
+    for &(target, sql) in MIGRATIONS {
+        if version < target {
+            let tx = conn.unchecked_transaction()?;
+            tx.execute_batch(sql)?;
+            tx.execute_batch(&format!("PRAGMA user_version = {target};"))?;
+            tx.commit()?;
+            version = target;
+            tracing::info!("DB migration: đã nâng schema lên version {target}");
+        }
+    }
+
+    Ok(())
+}
+
+// Structs representing tables and query parameters
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[allow(non_snake_case)]
+pub struct Fact {
+    pub key: String,
+    pub value: String,
+    pub createdAt: String,
+    pub updatedAt: String,
+    pub ttlDays: Option<i64>,
+    pub source: String,
+    pub category: Option<String>,
+    pub importance: f64,
+    pub confidenceScore: f64,
+    pub sourceTurnId: Option<String>,
+    #[serde(default = "default_fact_memory_strength")]
+    pub memory_strength: f64,
+    #[serde(default)]
+    pub last_accessed_at: i64,
+    #[serde(default)]
+    pub access_count: i64,
+}
+
+fn default_fact_memory_strength() -> f64 {
+    1.0
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct MetadataFilter {
+    pub r#type: Option<String>,
+    pub domain: Option<String>,
+    pub category: Option<String>,
+    pub created_after: Option<i64>,
+    pub created_before: Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VectorSearchResult {
+    pub id: i64,
+    pub vec_id: String,
+    pub content: String,
+    pub r#type: String,
+    pub domain: String,
+    pub category: String,
+    pub distance: f64,
+    pub score: f64,
+    pub trace_keywords: Vec<String>,
+    pub source_event_ids: Vec<String>,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FtsSearchResult {
+    pub id: i64,
+    pub vec_id: String,
+    pub content: String,
+    pub r#type: String,
+    pub domain: String,
+    pub category: String,
+    pub trace_keywords: Vec<String>,
+    pub source_event_ids: Vec<String>,
+    pub created_at: i64,
+}
+
+// Logic implementations
+
+fn build_metadata_conditions(filter: &MetadataFilter) -> (String, Vec<Value>) {
+    let mut conditions = Vec::new();
+    let mut params = Vec::new();
+
+    if let Some(ref t) = filter.r#type {
+        conditions.push("m.type = ?");
+        params.push(Value::Text(t.clone()));
+    }
+    if let Some(ref d) = filter.domain {
+        conditions.push("m.domain = ?");
+        params.push(Value::Text(d.clone()));
+    }
+    if let Some(ref c) = filter.category {
+        conditions.push("m.category = ?");
+        params.push(Value::Text(c.clone()));
+    }
+    if let Some(ca) = filter.created_after {
+        conditions.push("m.created_at >= ?");
+        params.push(Value::Integer(ca));
+    }
+    if let Some(cb) = filter.created_before {
+        conditions.push("m.created_at <= ?");
+        params.push(Value::Integer(cb));
+    }
+
+    let where_clause = if conditions.is_empty() {
+        "1=1".to_string()
+    } else {
+        conditions.join(" AND ")
+    };
+
+    (where_clause, params)
+}
+
+pub fn set_fact(
+    conn: &Connection,
+    engine: &EncryptionEngine,
+    fact: &Fact,
+) -> Result<(), rusqlite::Error> {
+    use rusqlite::OptionalExtension;
+
+    let encrypted_val = match engine.encrypt(&fact.value) {
+        Ok(v) => v,
+        Err(e) => {
+            return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+                std::io::Error::other(format!("Encryption failed: {}", e)),
+            )));
+        }
+    };
+
+    // BACKUP-BEFORE-OVERWRITE (fail-closed): nếu value ĐANG lưu KHÔNG giải mã
+    // được bằng khoá hiện tại (locked — vd đổi khoá, hoặc rekey chưa kịp chạy),
+    // đè nó đi sẽ MẤT bản gốc mã hoá VĨNH VIỄN. Đây chính là kịch bản
+    // "consolidation/LLM học lại rồi set_fact đè bản gốc" mà UI-disable không
+    // với tới (caller tự động). Sao lưu ciphertext cũ vào facts_locked_backup
+    // TRƯỚC khi ghi, atomic trong 1 transaction. Chỉ đụng ca locked — ghi đè
+    // value đọc-được là hành vi bình thường, không sao lưu.
+    let tx = conn.unchecked_transaction()?;
+    {
+        let existing: Option<String> = tx
+            .query_row("SELECT value FROM facts WHERE key = ?1", [&fact.key], |r| {
+                r.get(0)
+            })
+            .optional()?;
+        if let Some(old) = existing
+            && engine.read_fact(&old).is_locked()
+        {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0);
+            tx.execute(
+                "INSERT INTO facts_locked_backup (key, value, backed_up_at) VALUES (?1, ?2, ?3)",
+                (&fact.key, &old, now),
+            )?;
+            tracing::warn!(
+                "set_fact: value cũ của '{}' KHÔNG giải mã được bằng khoá hiện tại — \
+                 đã sao lưu ciphertext vào facts_locked_backup trước khi ghi đè (không mất bản gốc)",
+                fact.key
+            );
+        }
+
+        tx.execute(
+            "INSERT INTO facts (key, value, createdAt, updatedAt, ttlDays, source, category, importance, confidenceScore, sourceTurnId, memory_strength, last_accessed_at, access_count)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+             ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updatedAt = excluded.updatedAt,
+                ttlDays = excluded.ttlDays,
+                source = excluded.source,
+                category = excluded.category,
+                importance = excluded.importance,
+                confidenceScore = excluded.confidenceScore,
+                sourceTurnId = excluded.sourceTurnId,
+                memory_strength = CASE
+                    WHEN excluded.memory_strength > 0.0 AND excluded.memory_strength != 1.0
+                    THEN excluded.memory_strength
+                    ELSE facts.memory_strength
+                END,
+                last_accessed_at = MAX(facts.last_accessed_at, excluded.last_accessed_at),
+                access_count = MAX(facts.access_count, excluded.access_count)",
+            (
+                &fact.key,
+                &encrypted_val,
+                &fact.createdAt,
+                &fact.updatedAt,
+                &fact.ttlDays,
+                &fact.source,
+                &fact.category,
+                fact.importance,
+                fact.confidenceScore,
+                &fact.sourceTurnId,
+                fact.memory_strength,
+                fact.last_accessed_at,
+                fact.access_count,
+            ),
+        )?;
+    }
+    tx.commit()?;
+
+    Ok(())
+}
+
+/// Mã hoá lại facts về khoá HIỆN TẠI (`live`), cứu được cả dữ liệu do khoá
+/// khác ghi (`extra_decryptors` — vd khoá mặc định, hoặc `LIVA_ENCRYPTION_KEY_OLD`).
+/// Trả `(số_rekey, số_không_giải_mã_được)`.
+///
+/// Đây là nền của việc BỎ KHOÁ MẶC ĐỊNH mà không mất dữ liệu: máy đã mã hoá
+/// facts bằng `"0"×32` truyền `default_engine` vào `extra_decryptors`, boot đầu
+/// tiên sau nâng cấp sẽ nâng chúng sang khoá thật tại chỗ.
+///
+/// **Tiêu chí idempotent CHÍ MẠNG:** chỉ bỏ qua khi `value` **đã v2 VÀ khoá
+/// `live` giải mã được**. TUYỆT ĐỐI không dùng riêng `starts_with("v2:")` như
+/// bản migrate cũ: ciphertext của khoá mặc định/cũ CŨNG mang tiền tố `v2:`
+/// nhưng `live` không mở được — nếu bỏ qua theo tiền tố thì khi gỡ khoá mặc
+/// định khỏi tập giải mã, số fact đó mất VĨNH VIỄN. Ở đây `live` không mở được
+/// ⇒ không skip ⇒ thử `extra_decryptors` để cứu.
+///
+/// An toàn: chỉ đụng bản GIẢI MÃ được (không bao giờ mã hoá lại rác); UPDATE có
+/// điều kiện `value = bản_gốc` để không đè mất bản mới do tiến trình khác ghi
+/// xen (lost-update). Bản không khoá nào mở được → để NGUYÊN + đếm + WARN.
+pub fn rekey_facts_encryption(
+    conn: &Connection,
+    live: &EncryptionEngine,
+    extra_decryptors: &[&EncryptionEngine],
+) -> Result<(usize, usize), rusqlite::Error> {
+    use crate::crypto::DecryptError;
+
+    let reencrypt = |plain: &str| -> Result<String, rusqlite::Error> {
+        live.encrypt(plain).map_err(|e| {
+            rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::other(format!(
+                "re-encrypt fail: {e}"
+            ))))
+        })
+    };
+
+    // Bước 1: quét + quyết định (KHÔNG UPDATE — stmt còn mượn conn). Giữ value
+    // gốc để chống lost-update ở bước 2.
+    let mut can_rekey: Vec<(String, String, String)> = Vec::new(); // (key, value_gốc, v2_mới)
+    let mut khong_giai_ma = 0usize;
+    {
+        let mut stmt = conn.prepare("SELECT key, value FROM facts")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        for row in rows {
+            let (key, value) = row?;
+            match live.try_decrypt(&value) {
+                Ok(plain) => {
+                    // Đã ở khoá live rồi. Nếu đúng định dạng v2 → idempotent, bỏ
+                    // qua. Nếu là v1 (do live giải được bằng legacy_key) → nâng
+                    // định dạng lên v2 dưới chính live.
+                    if value.starts_with("v2:") {
+                        continue;
+                    }
+                    can_rekey.push((key, value, reencrypt(&plain)?));
+                }
+                Err(DecryptError::NotEncrypted) => { /* plaintext cũ — để nguyên */ }
+                Err(_) => {
+                    // live KHÔNG mở được (sai khoá / hỏng). Thử các khoá phụ để CỨU.
+                    let recovered = extra_decryptors
+                        .iter()
+                        .find_map(|d| d.try_decrypt(&value).ok());
+                    match recovered {
+                        Some(plain) => can_rekey.push((key, value, reencrypt(&plain)?)),
+                        None => {
+                            khong_giai_ma += 1;
+                            tracing::warn!(
+                                "rekey_facts_encryption: bỏ qua fact '{key}' (không khoá nào giải mã được — hỏng hoặc mất khoá)"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    } // stmt thả ở đây
+
+    // Bước 2: UPDATE trong MỘT transaction, có ĐIỀU KIỆN `value = bản_gốc`. Nếu
+    // giữa bước 1 và 2 có tiến trình khác ghi đè fact (vd set_fact từ gateway
+    // thứ hai cùng DB), value đã đổi → khớp 0 dòng → BỎ QUA, không đè bản mới.
+    let mut so_rekey = 0usize;
+    if !can_rekey.is_empty() {
+        let tx = conn.unchecked_transaction()?;
+        {
+            let mut up = tx.prepare("UPDATE facts SET value = ?1 WHERE key = ?2 AND value = ?3")?;
+            for (key, value_goc, v2) in &can_rekey {
+                let n = up.execute((v2, key, value_goc))?;
+                if n == 0 {
+                    tracing::warn!(
+                        "rekey_facts_encryption: fact '{key}' đã bị đổi bởi tiến trình khác giữa chừng — bỏ qua để không ghi đè bản mới"
+                    );
+                } else {
+                    so_rekey += n;
+                }
+            }
+        }
+        tx.commit()?;
+        if so_rekey > 0 {
+            tracing::info!(
+                "rekey_facts_encryption: đã mã hoá lại {so_rekey} fact dưới khoá hiện tại (v2)"
+            );
+        }
+    }
+
+    Ok((so_rekey, khong_giai_ma))
+}
+
+/// Kết quả nâng cấp mã hóa cho dữ liệu hội thoại/checkpoint nhạy cảm.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PersonalDataRekeyReport {
+    /// Số checkpoint + conversation turn được mã hóa mới hoặc đổi sang khóa hiện tại.
+    pub rekeyed: usize,
+    /// Số bản ghi có vẻ là ciphertext nhưng không khóa nào mở được; bản gốc được giữ nguyên.
+    pub locked: usize,
+    /// Số bản ghi FTS plaintext của conversation turn đã bị xóa.
+    pub fts_removed: usize,
+}
+
+/// Mã hóa dữ liệu cá nhân từng bị lưu plaintext và đổi ciphertext khóa cũ sang khóa hiện tại.
+///
+/// Phạm vi cố ý hẹp:
+/// - `agent_checkpoints.state_json`;
+/// - `vectors_meta.content` khi `type = 'conversation_turn'`;
+/// - mọi projection FTS của conversation turn bị xóa vì FTS5 không hỗ trợ tìm kiếm trên
+///   ciphertext. Dense vector vẫn dùng để chọn ứng viên, rồi content mới được giải mã.
+///
+/// UPDATE luôn so khớp cả khóa bản ghi và giá trị đã đọc để không ghi đè thay đổi đồng thời.
+/// Ciphertext không khóa nào mở được được giữ nguyên và đếm `locked`, không mã hóa chồng.
+pub fn rekey_personal_data_encryption(
+    conn: &Connection,
+    live: &EncryptionEngine,
+    extra_decryptors: &[&EncryptionEngine],
+) -> Result<PersonalDataRekeyReport, rusqlite::Error> {
+    use crate::crypto::DecryptError;
+
+    fn replacement(
+        value: &str,
+        live: &EncryptionEngine,
+        extra_decryptors: &[&EncryptionEngine],
+    ) -> Result<Option<String>, bool> {
+        let plaintext = match live.try_decrypt(value) {
+            Ok(_) if value.starts_with("v2:") => return Ok(None),
+            Ok(plain) => plain,
+            Err(DecryptError::NotEncrypted) => value.to_string(),
+            Err(DecryptError::BadFormat) if !value.starts_with("v2:") => value.to_string(),
+            Err(_) => match extra_decryptors
+                .iter()
+                .find_map(|decryptor| decryptor.try_decrypt(value).ok())
+            {
+                Some(plain) => plain,
+                None => return Err(true),
+            },
+        };
+        live.encrypt(&plaintext).map(Some).map_err(|_| false)
+    }
+
+    let encryption_error = || {
+        rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::other(
+            "không mã hóa được dữ liệu cá nhân trong migration",
+        )))
+    };
+    let mut checkpoint_updates = Vec::<(String, String, String)>::new();
+    let mut conversation_updates = Vec::<(i64, String, String)>::new();
+    let mut report = PersonalDataRekeyReport::default();
+
+    {
+        let mut stmt =
+            conn.prepare("SELECT thread_id, state_json FROM agent_checkpoints ORDER BY thread_id")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        for row in rows {
+            let (thread_id, original) = row?;
+            match replacement(&original, live, extra_decryptors) {
+                Ok(Some(encrypted)) => {
+                    checkpoint_updates.push((thread_id, original, encrypted));
+                }
+                Ok(None) => {}
+                Err(true) => {
+                    report.locked += 1;
+                    tracing::warn!(
+                        "rekey_personal_data_encryption: checkpoint '{thread_id}' bị khóa; giữ nguyên"
+                    );
+                }
+                Err(false) => return Err(encryption_error()),
+            }
+        }
+    }
+
+    {
+        let mut stmt = conn.prepare(
+            "SELECT id, content FROM vectors_meta \
+             WHERE type = 'conversation_turn' ORDER BY id",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+        })?;
+        for row in rows {
+            let (id, original) = row?;
+            match replacement(&original, live, extra_decryptors) {
+                Ok(Some(encrypted)) => conversation_updates.push((id, original, encrypted)),
+                Ok(None) => {}
+                Err(true) => {
+                    report.locked += 1;
+                    tracing::warn!(
+                        "rekey_personal_data_encryption: conversation vector rowid={id} bị khóa; giữ nguyên"
+                    );
+                }
+                Err(false) => return Err(encryption_error()),
+            }
+        }
+    }
+
+    conn.execute_batch("PRAGMA secure_delete = ON;")?;
+    let tx = conn.unchecked_transaction()?;
+    {
+        let mut update_checkpoint = tx.prepare(
+            "UPDATE agent_checkpoints SET state_json = ?1 \
+             WHERE thread_id = ?2 AND state_json = ?3",
+        )?;
+        for (thread_id, original, encrypted) in &checkpoint_updates {
+            report.rekeyed += update_checkpoint.execute((encrypted, thread_id, original))?;
+        }
+    }
+    {
+        let mut update_conversation =
+            tx.prepare("UPDATE vectors_meta SET content = ?1 WHERE id = ?2 AND content = ?3")?;
+        for (id, original, encrypted) in &conversation_updates {
+            report.rekeyed += update_conversation.execute((encrypted, id, original))?;
+        }
+    }
+    report.fts_removed = tx.execute(
+        "DELETE FROM vectors_fts \
+         WHERE rowid IN (SELECT id FROM vectors_meta WHERE type = 'conversation_turn')",
+        [],
+    )?;
+    tx.commit()?;
+
+    if report.rekeyed > 0 || report.fts_removed > 0 {
+        tracing::info!(
+            "rekey_personal_data_encryption: rekeyed={}, fts_removed={}, locked={}",
+            report.rekeyed,
+            report.fts_removed,
+            report.locked
+        );
+    }
+    Ok(report)
+}
+
+/// Buộc SQLite loại các bản plaintext cũ còn có thể nằm trong page/WAL sau migration.
+///
+/// Chỉ gọi cho DB trên đĩa và chỉ sau khi đã cập nhật/xóa dữ liệu nhạy cảm. `VACUUM`
+/// xây lại file DB; hai checkpoint `TRUNCATE` dọn WAL trước và sau quá trình đó.
+pub fn purge_personal_data_plaintext_remnants(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "PRAGMA wal_checkpoint(TRUNCATE);
+         VACUUM;
+         PRAGMA wal_checkpoint(TRUNCATE);",
+    )
+}
+
+/// Nâng cấp mã hoá facts v1 → v2 dưới CÙNG một khoá (không đổi khoá). Là trường
+/// hợp riêng của [`rekey_facts_encryption`] với không có khoá phụ. Giữ tên cũ
+/// cho các call-site boot + test không đổi.
+pub fn migrate_facts_encryption(
+    conn: &Connection,
+    engine: &EncryptionEngine,
+) -> Result<(usize, usize), rusqlite::Error> {
+    rekey_facts_encryption(conn, engine, &[])
+}
+
+/// Cập nhật thời điểm truy xuất và tăng biến đếm số lần truy xuất cho một fact.
+pub fn touch_fact_access(
+    conn: &Connection,
+    key: &str,
+    now_ts: i64,
+) -> Result<bool, rusqlite::Error> {
+    let rows_affected = conn.execute(
+        "UPDATE facts SET last_accessed_at = ?1, access_count = access_count + 1 WHERE key = ?2",
+        rusqlite::params![now_ts, key],
+    )?;
+    Ok(rows_affected > 0)
+}
+
+/// Cập nhật các thông số lịch ôn (spaced retrieval) cho một fact khi nhớ đúng hoặc không nhớ.
+pub fn update_fact_recall_stats(
+    conn: &Connection,
+    key: &str,
+    memory_strength: f64,
+    now_ts: i64,
+) -> Result<bool, rusqlite::Error> {
+    let rows_affected = conn.execute(
+        "UPDATE facts 
+         SET memory_strength = ?1, 
+             last_accessed_at = ?2, 
+             access_count = access_count + 1 
+         WHERE key = ?3",
+        rusqlite::params![memory_strength, now_ts, key],
+    )?;
+    Ok(rows_affected > 0)
+}
+
+pub fn get_fact(
+    conn: &Connection,
+    engine: &EncryptionEngine,
+    key: &str,
+) -> Result<Option<Fact>, rusqlite::Error> {
+    let mut stmt = conn.prepare(
+        "SELECT key, value, createdAt, updatedAt, ttlDays, source, category, importance, confidenceScore, sourceTurnId, memory_strength, last_accessed_at, access_count
+         FROM facts WHERE key = ?"
+    )?;
+
+    let mut rows = stmt.query([key])?;
+    if let Some(row) = rows.next()? {
+        let enc_value: String = row.get(1)?;
+        let decrypted_value = engine.decrypt_read(&enc_value);
+
+        let fact = Fact {
+            key: row.get(0)?,
+            value: decrypted_value,
+            createdAt: row.get(2)?,
+            updatedAt: row.get(3)?,
+            ttlDays: row.get(4)?,
+            source: row.get(5)?,
+            category: row.get(6)?,
+            importance: row.get(7)?,
+            confidenceScore: row.get(8)?,
+            sourceTurnId: row.get(9)?,
+            memory_strength: row.get(10)?,
+            last_accessed_at: row.get(11)?,
+            access_count: row.get(12)?,
+        };
+
+        // Ghi lại trên đường đọc nếu connection là read-write.
+        // Lỗi ghi KHÔNG được làm hỏng lượt đọc — nuốt vào tracing::warn!, đừng ?
+        let is_readonly = conn
+            .is_readonly(rusqlite::DatabaseName::Main)
+            .unwrap_or(true);
+        if !is_readonly {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0);
+            if let Err(e) = touch_fact_access(conn, key, now) {
+                tracing::warn!("get_fact: cannot update access stats for '{key}': {e}");
+            }
+        }
+
+        Ok(Some(fact))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Số chiều vector bộ nhớ, dùng chung cho schema `vec_idx` và mọi guard.
+///
+/// Phải khớp `llm::embedder::EMBEDDING_DIM`. Đổi hằng số này thì **index cũ
+/// không dùng lại được** — vector sinh bởi model N chiều không so sánh được
+/// với vector M chiều; phải xoá `vec_idx` và index lại toàn bộ.
+pub const MEMORY_VECTOR_DIM: usize = 384;
+
+/// Kiểm chiều vector trước khi chạm sqlite-vec.
+///
+/// sqlite-vec **có** báo lỗi khi lệch chiều (đã kiểm chứng: `"Dimension
+/// mismatch ... Expected 384 dimensions but received 2048"`), nên đây không
+/// phải để chống ghi sai lặng lẽ. Lý do có hàm này là **vị trí báo lỗi**:
+/// không có nó, lỗi nổ ở tận câu SQL và thông báo không nói được nguồn vector
+/// sai từ đâu ra.
+fn check_vector_dim(vector: &[f32], what: &str) -> Result<(), rusqlite::Error> {
+    if vector.len() == MEMORY_VECTOR_DIM {
+        return Ok(());
+    }
+    Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+        std::io::Error::other(format!(
+            "{what}: vector {} chieu nhung bo nho can dung {}. \
+             Nguyen nhan thuong gap: dung embedding cua model chat \
+             (llm::embed::get_embedding tra ve n_embd cua model dang nap, \
+             vi du 2048 voi Qwen3-VL-2B) thay vi model embedding chuyen dung. \
+             Hay dung llm::embedder::EmbeddingEngine.",
+            vector.len(),
+            MEMORY_VECTOR_DIM
+        )),
+    )))
+}
+
+// Chữ ký phẳng có chủ ý: đây là một câu SQL upsert với 6 cột metadata TUỲ
+// CHỌN — gói vào struct chỉ thêm nghi lễ ở 3 call site (handle_command,
+// persist_turn, test) mà không thêm an toàn kiểu nào (toàn Option cùng kiểu).
+// Nếu số cột còn tăng thì lúc đó mới đáng dựng struct VectorMeta.
+#[allow(clippy::too_many_arguments)]
+pub fn upsert_vector(
+    conn: &Connection,
+    engine: &EncryptionEngine,
+    vec_id: &str,
+    r#type: &str,
+    content: &str,
+    vector: &[f32],
+    domain: Option<&str>,
+    category: Option<&str>,
+    trace_keywords: Option<&[String]>,
+    file_target: Option<&str>,
+    source_event_ids: Option<&[String]>,
+) -> Result<(), rusqlite::Error> {
+    check_vector_dim(vector, "upsert_vector")?;
+    let stored_content = if r#type == "conversation_turn" {
+        engine.encrypt(content).map_err(|error| {
+            rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::other(error)))
+        })?
+    } else {
+        content.to_string()
+    };
+    let domain = domain.unwrap_or("General");
+    let category = category.unwrap_or("Uncategorized");
+    let trace_keywords_json =
+        serde_json::to_string(trace_keywords.unwrap_or(&[])).unwrap_or_else(|_| "[]".to_string());
+    let file_target = file_target.map(|s| s.to_string());
+
+    let event_ids_list = source_event_ids.unwrap_or(&[]);
+    let capped_event_ids = &event_ids_list[..event_ids_list.len().min(50)];
+    let source_event_ids_json =
+        serde_json::to_string(capped_event_ids).unwrap_or_else(|_| "[]".to_string());
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64;
+
+    // Guard atomicity: If caller did not provide an active transaction,
+    // establish an unchecked transaction for the multi-table upsert.
+    let tx = if conn.is_autocommit() {
+        Some(conn.unchecked_transaction()?)
+    } else {
+        None
+    };
+
+    // 1. Insert or ignore into vectors_meta
+    let changes = conn.execute(
+        "INSERT OR IGNORE INTO vectors_meta (vec_id, type, content, domain, category, trace_keywords, file_target, source_event_ids, created_at, last_accessed_at, decay_weight, access_count)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0, 1.0, 0)",
+        (
+            vec_id,
+            r#type,
+            &stored_content,
+            domain,
+            category,
+            &trace_keywords_json,
+            &file_target,
+            &source_event_ids_json,
+            now,
+        ),
+    )?;
+
+    // 2. Fetch the ID
+    let row_id: i64 = conn.query_row(
+        "SELECT id FROM vectors_meta WHERE vec_id = ?",
+        [vec_id],
+        |row| row.get(0),
+    )?;
+
+    // 3. If INSERT was ignored, force UPDATE
+    if changes == 0 {
+        conn.execute(
+            "UPDATE vectors_meta SET type=?1, content=?2, domain=?3, category=?4, trace_keywords=?5, file_target=?6, source_event_ids=?7, last_accessed_at=?8, decay_weight=1.0, access_count=access_count+1
+             WHERE id=?9",
+            (
+                r#type,
+                &stored_content,
+                domain,
+                category,
+                &trace_keywords_json,
+                &file_target,
+                &source_event_ids_json,
+                now,
+                row_id,
+            ),
+        )?;
+
+        // Delete from vec_idx to ensure replacement
+        if has_sqlite_vec(conn) {
+            conn.execute("DELETE FROM vec_idx WHERE rowid = ?", [row_id])?;
+        }
+    }
+
+    // 4. Insert into vec_idx and update vectors_fts
+    if has_sqlite_vec(conn) {
+        let blob = bytemuck::cast_slice::<f32, u8>(vector);
+        conn.execute(
+            "INSERT INTO vec_idx (rowid, embedding) VALUES (?, vec_quantize_int8(?, 'unit'))",
+            (row_id, blob),
+        )?;
+
+        // Conversation transcripts must not be duplicated as plaintext in FTS.
+        // Their dense vector remains searchable; content is decrypted only after
+        // candidate selection. Other memory types retain sparse retrieval.
+        if r#type == "conversation_turn" {
+            conn.execute("DELETE FROM vectors_fts WHERE rowid = ?", [row_id])?;
+        } else {
+            conn.execute(
+                "INSERT OR REPLACE INTO vectors_fts (rowid, content) VALUES (?, ?)",
+                (row_id, content),
+            )?;
+        }
+    } else {
+        // Degraded mode: vec_idx skipped, FTS retains dialogue turn content for BM25 search
+        conn.execute(
+            "INSERT OR REPLACE INTO vectors_fts (rowid, content) VALUES (?, ?)",
+            (row_id, content),
+        )?;
+    }
+
+    if let Some(tx) = tx {
+        tx.commit()?;
+    }
+
+    Ok(())
+}
+
+/// Ghi một lượt hội thoại vào event ledger và các chỉ mục truy hồi như một đơn vị atomic.
+///
+/// `event_id == vec_id` là khóa lineage cố định cho consolidation. Event chỉ giữ metadata
+/// điều phối; nội dung plaintext đã nằm trong `vectors_meta` nên không nhân bản vào
+/// `rawUserMsg`/`rawAiReply`.
+pub fn persist_conversation_event_vector(
+    conn: &Connection,
+    engine: &EncryptionEngine,
+    event_id: &str,
+    content: &str,
+    vector: &[f32],
+    domain: &str,
+    category: &str,
+) -> Result<(), rusqlite::Error> {
+    let transaction = conn.unchecked_transaction()?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64;
+
+    transaction.execute(
+        "INSERT INTO events (
+            eventId, timestamp, consolidated, domain, category,
+            consolidation_status, retry_count, agentId
+         ) VALUES (?1, ?2, 0, ?3, ?4, 'pending', 0, 'liva_core')",
+        (event_id, now, domain, category),
+    )?;
+
+    let source_event_ids = [event_id.to_string()];
+    upsert_vector(
+        &transaction,
+        engine,
+        event_id,
+        "conversation_turn",
+        content,
+        vector,
+        Some(domain),
+        Some(category),
+        None,
+        None,
+        Some(&source_event_ids),
+    )?;
+
+    transaction.commit()
+}
+
+pub fn search_similar_vectors(
+    conn: &Connection,
+    engine: &EncryptionEngine,
+    query_vector: &[f32],
+    top_k: usize,
+    filter: &MetadataFilter,
+) -> Result<Vec<VectorSearchResult>, rusqlite::Error> {
+    check_vector_dim(query_vector, "search_similar_vectors")?;
+    let blob = bytemuck::cast_slice::<f32, u8>(query_vector);
+
+    // As in JS: if there are filter conditions, fetch top_k * 3 to allow post-filtering.
+    let has_filter =
+        filter.r#type.is_some() || filter.domain.is_some() || filter.category.is_some();
+    let fetch_k = if has_filter { top_k * 3 } else { top_k };
+
+    let (meta_conditions, meta_params) = build_metadata_conditions(filter);
+
+    let sql = format!(
+        "SELECT v.rowid, v.distance, m.vec_id, m.content, m.type, m.domain, m.category, m.trace_keywords, m.source_event_ids, m.decay_weight, m.created_at, m.last_accessed_at, m.access_count \
+         FROM vec_idx v \
+         INNER JOIN vectors_meta m ON m.id = v.rowid \
+         WHERE v.embedding MATCH vec_quantize_int8(?, 'unit') \
+           AND v.k = ? \
+           AND v.rowid IN (SELECT id FROM vectors_meta m WHERE {})",
+        meta_conditions
+    );
+
+    let mut stmt = conn.prepare(&sql)?;
+
+    let mut params: Vec<Value> = vec![Value::Blob(blob.to_vec()), Value::Integer(fetch_k as i64)];
+    params.extend(meta_params);
+
+    let params_refs: Vec<&dyn ToSql> = params.iter().map(|p| p as &dyn ToSql).collect();
+    let mut rows = stmt.query(&params_refs[..])?;
+    let mut results = Vec::new();
+
+    while let Some(row) = rows.next()? {
+        let rowid: i64 = row.get(0)?;
+        let distance: f64 = row.get(1)?;
+        let vec_id: String = row.get(2)?;
+        let stored_content: String = row.get(3)?;
+        let r#type: String = row.get(4)?;
+        let domain: String = row.get(5)?;
+        let category: String = row.get(6)?;
+        let trace_keywords_raw: String = row.get(7)?;
+        let source_event_ids_raw: String = row.get(8)?;
+        let decay_weight: f64 = row.get(9)?;
+        let created_at: i64 = row.get(10)?;
+        let last_accessed_at: i64 = row.get(11)?;
+        let access_count: i64 = row.get(12)?;
+
+        let content = if r#type == "conversation_turn" {
+            match engine.read_fact(&stored_content) {
+                crate::crypto::FactRead::Ok(plain) => plain,
+                crate::crypto::FactRead::Locked { .. } => {
+                    tracing::warn!(
+                        vec_id = %vec_id,
+                        "Bỏ qua conversation memory bị khóa; cần đúng LIVA_ENCRYPTION_KEY"
+                    );
+                    continue;
+                }
+            }
+        } else {
+            stored_content
+        };
+        let trace_keywords = serde_json::from_str(&trace_keywords_raw).unwrap_or_default();
+        let source_event_ids = serde_json::from_str(&source_event_ids_raw).unwrap_or_default();
+
+        // Ebbinghaus Forgetting Curve with Dynamic Reinforcement:
+        // S(t) = S0 * exp(-delta_t / (tau * (1.0 + 0.2 * ln(1 + n_access))))
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        let ref_time = if last_accessed_at > 0 {
+            last_accessed_at
+        } else {
+            created_at
+        };
+        let delta_days = ((now_ms - ref_time).max(0) as f64) / 86_400_000.0;
+        let tau = 30.0; // 30-day baseline retention half-life
+        let n_access = access_count.max(0) as f64;
+        let stability = tau * (1.0 + 0.2 * (1.0 + n_access).ln());
+        let decay_factor = (-delta_days / stability).exp().clamp(0.05, 1.0);
+
+        // Calculate similarity matching JS:
+        // similarity = Math.max(0, 1.0 - (distF32 * distF32) / 2.0) where distF32 = distance / 120.0
+        let dist_f32 = distance / 120.0;
+        let similarity = (1.0 - (dist_f32 * dist_f32) / 2.0).max(0.0);
+        let score = similarity * decay_weight * decay_factor;
+
+        results.push(VectorSearchResult {
+            id: rowid,
+            vec_id,
+            content,
+            r#type,
+            domain,
+            category,
+            distance,
+            score,
+            trace_keywords,
+            source_event_ids,
+            created_at,
+        });
+    }
+
+    results.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    // Truncate to top_k only if we fetched extra for post-filtering
+    if results.len() > top_k {
+        results.truncate(top_k);
+    }
+
+    Ok(results)
+}
+
+fn prepare_fts_query(query_text: &str) -> String {
+    let escaped = query_text.replace('"', "\"\"");
+    let terms: Vec<String> = escaped
+        .split_whitespace()
+        .map(|word| format!("\"{}\"*", word))
+        .collect();
+    terms.join(" AND ")
+}
+
+pub fn search_fts_vectors(
+    conn: &Connection,
+    query_text: &str,
+    top_k: usize,
+    filter: &MetadataFilter,
+) -> Result<Vec<FtsSearchResult>, rusqlite::Error> {
+    let clean_query = prepare_fts_query(query_text);
+    let (meta_conditions, meta_params) = build_metadata_conditions(filter);
+
+    let has_filter =
+        filter.r#type.is_some() || filter.domain.is_some() || filter.category.is_some();
+    let limit_k = if has_filter { top_k * 3 } else { top_k };
+
+    let sql = format!(
+        "SELECT f.rowid, m.vec_id, m.content, m.type, m.domain, m.category, m.trace_keywords, m.source_event_ids, m.created_at \
+         FROM vectors_fts f \
+         INNER JOIN vectors_meta m ON m.id = f.rowid \
+         WHERE f.content MATCH ? AND m.type != 'conversation_turn' AND {} \
+         LIMIT ?",
+        meta_conditions
+    );
+
+    let mut stmt = conn.prepare(&sql)?;
+    let mut params = vec![Value::Text(clean_query.clone())];
+    params.extend(meta_params);
+    params.push(Value::Integer(limit_k as i64));
+
+    let params_refs: Vec<&dyn ToSql> = params.iter().map(|p| p as &dyn ToSql).collect();
+    let rows_res = stmt.query(&params_refs[..]);
+
+    let mut results = Vec::new();
+
+    match rows_res {
+        Ok(mut rows) => {
+            while let Some(row) = rows.next()? {
+                let rowid: i64 = row.get(0)?;
+                let vec_id: String = row.get(1)?;
+                let content: String = row.get(2)?;
+                let r#type: String = row.get(3)?;
+                let domain: String = row.get(4)?;
+                let category: String = row.get(5)?;
+                let trace_keywords_raw: String = row.get(6)?;
+                let source_event_ids_raw: String = row.get(7)?;
+                let created_at: i64 = row.get(8)?;
+
+                let trace_keywords = serde_json::from_str(&trace_keywords_raw).unwrap_or_default();
+                let source_event_ids =
+                    serde_json::from_str(&source_event_ids_raw).unwrap_or_default();
+
+                results.push(FtsSearchResult {
+                    id: rowid,
+                    vec_id,
+                    content,
+                    r#type,
+                    domain,
+                    category,
+                    trace_keywords,
+                    source_event_ids,
+                    created_at,
+                });
+            }
+        }
+        Err(e) => {
+            eprintln!(
+                "Warning: FTS query {:?} failed: {:?}. Retrying raw query.",
+                clean_query, e
+            );
+            let (meta_conds, meta_p) = build_metadata_conditions(filter);
+            let fallback_sql = format!(
+                "SELECT f.rowid, m.vec_id, m.content, m.type, m.domain, m.category, m.trace_keywords, m.source_event_ids, m.created_at \
+                 FROM vectors_fts f \
+                 INNER JOIN vectors_meta m ON m.id = f.rowid \
+                 WHERE f.content MATCH ? AND m.type != 'conversation_turn' AND {} \
+                 LIMIT ?",
+                meta_conds
+            );
+            let mut fb_stmt = conn.prepare(&fallback_sql)?;
+            let mut fb_params = vec![Value::Text(query_text.to_string())];
+            fb_params.extend(meta_p);
+            fb_params.push(Value::Integer(limit_k as i64));
+            let fb_refs: Vec<&dyn ToSql> = fb_params.iter().map(|p| p as &dyn ToSql).collect();
+            let mut fb_rows = fb_stmt.query(&fb_refs[..])?;
+            while let Some(row) = fb_rows.next()? {
+                let rowid: i64 = row.get(0)?;
+                let vec_id: String = row.get(1)?;
+                let content: String = row.get(2)?;
+                let r#type: String = row.get(3)?;
+                let domain: String = row.get(4)?;
+                let category: String = row.get(5)?;
+                let trace_keywords_raw: String = row.get(6)?;
+                let source_event_ids_raw: String = row.get(7)?;
+                let created_at: i64 = row.get(8)?;
+
+                let trace_keywords = serde_json::from_str(&trace_keywords_raw).unwrap_or_default();
+                let source_event_ids =
+                    serde_json::from_str(&source_event_ids_raw).unwrap_or_default();
+
+                results.push(FtsSearchResult {
+                    id: rowid,
+                    vec_id,
+                    content,
+                    r#type,
+                    domain,
+                    category,
+                    trace_keywords,
+                    source_event_ids,
+                    created_at,
+                });
+            }
+        }
+    }
+
+    if results.len() > top_k {
+        results.truncate(top_k);
+    }
+
+    Ok(results)
+}
+
+/// Thực hiện tìm kiếm thuần FTS5 BM25 khi sqlite-vec (vec0) không khả dụng (chế độ suy giảm).
+///
+/// Khác với `search_fts_vectors`:
+/// 1. Không loại bỏ `conversation_turn` (được lưu vào FTS khi vec0 vắng mặt).
+/// 2. Giải mã ciphertext cho `conversation_turn` qua `engine.read_fact(&stored_content)`.
+/// 3. Trả về `VectorSearchResult` với `distance: 999.0` (sentinel value cho FTS fallback).
+pub fn search_fts5_fallback(
+    conn: &Connection,
+    engine: &EncryptionEngine,
+    query_text: &str,
+    top_k: usize,
+    filter: &MetadataFilter,
+) -> Result<Vec<VectorSearchResult>, rusqlite::Error> {
+    if query_text.trim().is_empty() || top_k == 0 {
+        return Ok(Vec::new());
+    }
+
+    let clean_query = prepare_fts_query(query_text);
+    let (meta_conditions, meta_params) = build_metadata_conditions(filter);
+
+    let has_filter =
+        filter.r#type.is_some() || filter.domain.is_some() || filter.category.is_some();
+    let limit_k = if has_filter { top_k * 3 } else { top_k };
+
+    let sql = format!(
+        "SELECT f.rowid, m.vec_id, m.content, m.type, m.domain, m.category, \
+                m.trace_keywords, m.source_event_ids, m.decay_weight, m.created_at, \
+                m.last_accessed_at, m.access_count, bm25(vectors_fts) as bm25_rank \
+         FROM vectors_fts f \
+         INNER JOIN vectors_meta m ON m.id = f.rowid \
+         WHERE f.content MATCH ? AND {} \
+         ORDER BY bm25_rank ASC \
+         LIMIT ?",
+        meta_conditions
+    );
+
+    let mut stmt = conn.prepare(&sql)?;
+    let mut params = vec![Value::Text(clean_query.clone())];
+    params.extend(meta_params.clone());
+    params.push(Value::Integer(limit_k as i64));
+
+    let params_refs: Vec<&dyn ToSql> = params.iter().map(|p| p as &dyn ToSql).collect();
+    let rows_res = stmt.query(&params_refs[..]);
+
+    let mut raw_rows = Vec::new();
+
+    match rows_res {
+        Ok(mut rows) => {
+            while let Some(row) = rows.next()? {
+                let rowid: i64 = row.get(0)?;
+                let vec_id: String = row.get(1)?;
+                let stored_content: String = row.get(2)?;
+                let r#type: String = row.get(3)?;
+                let domain: String = row.get(4)?;
+                let category: String = row.get(5)?;
+                let trace_keywords_raw: String = row.get(6)?;
+                let source_event_ids_raw: String = row.get(7)?;
+                let decay_weight: f64 = row.get(8)?;
+                let created_at: i64 = row.get(9)?;
+                let last_accessed_at: i64 = row.get(10)?;
+                let access_count: i64 = row.get(11)?;
+                let bm25_rank: f64 = row.get(12)?;
+
+                raw_rows.push((
+                    rowid,
+                    vec_id,
+                    stored_content,
+                    r#type,
+                    domain,
+                    category,
+                    trace_keywords_raw,
+                    source_event_ids_raw,
+                    decay_weight,
+                    created_at,
+                    last_accessed_at,
+                    access_count,
+                    bm25_rank,
+                ));
+            }
+        }
+        Err(e) => {
+            tracing::warn!(
+                "FTS fallback query {:?} failed: {:?}. Retrying raw query.",
+                clean_query,
+                e
+            );
+            let mut fb_stmt = conn.prepare(&sql)?;
+            let mut fb_params = vec![Value::Text(query_text.to_string())];
+            fb_params.extend(meta_params);
+            fb_params.push(Value::Integer(limit_k as i64));
+            let fb_refs: Vec<&dyn ToSql> = fb_params.iter().map(|p| p as &dyn ToSql).collect();
+            if let Ok(mut fb_rows) = fb_stmt.query(&fb_refs[..]) {
+                while let Some(row) = fb_rows.next()? {
+                    let rowid: i64 = row.get(0)?;
+                    let vec_id: String = row.get(1)?;
+                    let stored_content: String = row.get(2)?;
+                    let r#type: String = row.get(3)?;
+                    let domain: String = row.get(4)?;
+                    let category: String = row.get(5)?;
+                    let trace_keywords_raw: String = row.get(6)?;
+                    let source_event_ids_raw: String = row.get(7)?;
+                    let decay_weight: f64 = row.get(8)?;
+                    let created_at: i64 = row.get(9)?;
+                    let last_accessed_at: i64 = row.get(10)?;
+                    let access_count: i64 = row.get(11)?;
+                    let bm25_rank: f64 = row.get(12)?;
+
+                    raw_rows.push((
+                        rowid,
+                        vec_id,
+                        stored_content,
+                        r#type,
+                        domain,
+                        category,
+                        trace_keywords_raw,
+                        source_event_ids_raw,
+                        decay_weight,
+                        created_at,
+                        last_accessed_at,
+                        access_count,
+                        bm25_rank,
+                    ));
+                }
+            }
+        }
+    }
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64;
+    const K: f64 = 60.0;
+
+    let mut results = Vec::new();
+    for (index, item) in raw_rows.into_iter().enumerate() {
+        let (
+            rowid,
+            vec_id,
+            stored_content,
+            r#type,
+            domain,
+            category,
+            trace_keywords_raw,
+            source_event_ids_raw,
+            decay_weight,
+            created_at,
+            last_accessed_at,
+            access_count,
+            _bm25_rank,
+        ) = item;
+
+        let content = if r#type == "conversation_turn" {
+            match engine.read_fact(&stored_content) {
+                crate::crypto::FactRead::Ok(plain) => plain,
+                crate::crypto::FactRead::Locked { .. } => {
+                    tracing::warn!(
+                        vec_id = %vec_id,
+                        "Bỏ qua conversation memory bị khóa; cần đúng LIVA_ENCRYPTION_KEY"
+                    );
+                    continue;
+                }
+            }
+        } else {
+            stored_content
+        };
+
+        let trace_keywords = serde_json::from_str(&trace_keywords_raw).unwrap_or_default();
+        let source_event_ids = serde_json::from_str(&source_event_ids_raw).unwrap_or_default();
+
+        let ref_time = if last_accessed_at > 0 {
+            last_accessed_at
+        } else {
+            created_at
+        };
+        let delta_days = ((now_ms - ref_time).max(0) as f64) / 86_400_000.0;
+        let tau = 30.0;
+        let n_access = access_count.max(0) as f64;
+        let stability = tau * (1.0 + 0.2 * (1.0 + n_access).ln());
+        let decay_factor = (-delta_days / stability).exp().clamp(0.05, 1.0);
+
+        let rank = (index + 1) as f64;
+        let score = (1.0 / (K + rank)) * decay_weight * decay_factor;
+
+        results.push(VectorSearchResult {
+            id: rowid,
+            vec_id,
+            content,
+            r#type,
+            domain,
+            category,
+            distance: 999.0,
+            score,
+            trace_keywords,
+            source_event_ids,
+            created_at,
+        });
+    }
+
+    if results.len() > top_k {
+        results.truncate(top_k);
+    }
+
+    Ok(results)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn search_hybrid_vectors(
+    conn: &Connection,
+    engine: &EncryptionEngine,
+    query_text: &str,
+    query_vector: &[f32],
+    top_k: usize,
+    filter: &MetadataFilter,
+    dense_weight: f64,
+    sparse_weight: f64,
+) -> Result<Vec<VectorSearchResult>, rusqlite::Error> {
+    if !has_sqlite_vec(conn) {
+        tracing::warn!(
+            "[DEGRADED MODE] sqlite-vec (vec0) unavailable; executing pure FTS5 BM25 fallback search"
+        );
+        return search_fts5_fallback(conn, engine, query_text, top_k, filter);
+    }
+    // In hybrid search, we want to fetch a larger pool for fusion, top_k * 3
+    let fusion_limit = top_k * 3;
+    let dense_results = search_similar_vectors(conn, engine, query_vector, fusion_limit, filter)?;
+    let sparse_results = search_fts_vectors(conn, query_text, fusion_limit, filter)?;
+
+    let mut results: Vec<VectorSearchResult> = Vec::new();
+    const K: f64 = 60.0;
+
+    // 1. Incorporate Dense Ranks
+    for (index, item) in dense_results.into_iter().enumerate() {
+        let rank = (index + 1) as f64;
+        let score = dense_weight * (1.0 / (K + rank));
+        results.push(VectorSearchResult { score, ..item });
+    }
+
+    // 2. Incorporate Sparse Ranks
+    for (index, item) in sparse_results.into_iter().enumerate() {
+        let rank = (index + 1) as f64;
+        let score = sparse_weight * (1.0 / (K + rank));
+
+        if let Some(existing) = results.iter_mut().find(|r| r.vec_id == item.vec_id) {
+            existing.score += score;
+        } else {
+            results.push(VectorSearchResult {
+                id: item.id,
+                vec_id: item.vec_id.clone(),
+                content: item.content,
+                r#type: item.r#type,
+                domain: item.domain,
+                category: item.category,
+                distance: 999.0, // Sentinel value for FTS-only matches
+                score,
+                trace_keywords: item.trace_keywords,
+                source_event_ids: item.source_event_ids,
+                created_at: item.created_at,
+            });
+        }
+    }
+
+    // 3. Sort by aggregated score descending (stable sort)
+    results.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    results.truncate(top_k);
+
+    Ok(results)
+}
+
+/// Reinforces memory access counts and updates last_accessed_at timestamp in SQLite vectors_meta table.
+pub fn reinforce_memory_access(
+    conn: &Connection,
+    vec_ids: &[&str],
+    now_ms: i64,
+) -> Result<usize, rusqlite::Error> {
+    if vec_ids.is_empty() {
+        return Ok(0);
+    }
+    let mut updated = 0;
+    let mut stmt = conn.prepare(
+        "UPDATE vectors_meta SET last_accessed_at = ?1, access_count = access_count + 1 WHERE vec_id = ?2",
+    )?;
+    for vec_id in vec_ids {
+        updated += stmt.execute(rusqlite::params![now_ms, vec_id])?;
+    }
+    Ok(updated)
+}
+
+/// Inserts or updates an L3 knowledge graph node into SQLite and updates the In-Memory CSR Cache.
+pub fn insert_l3_node_sync(
+    pool: &DatabasePool,
+    id: &str,
+    label: &str,
+    properties: &str,
+) -> Result<(), rusqlite::Error> {
+    let id_owned = id.to_string();
+    let label_owned = label.to_string();
+    let properties_owned = properties.to_string();
+
+    pool.writer_actor
+        .blocking_execute(move |conn| {
+            conn.execute(
+                "INSERT INTO l3_nodes (id, label, properties) VALUES (?1, ?2, ?3)
+                 ON CONFLICT(id) DO UPDATE SET label = excluded.label, properties = excluded.properties",
+                rusqlite::params![id_owned, label_owned, properties_owned],
+            )
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+        })
+        .map_err(|e| {
+            rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::other(format!(
+                "DbActor insert_l3_node_sync failed: {e}"
+            ))))
+        })?;
+
+    if let Ok(mut graph) = pool.csr_graph.write() {
+        graph.add_node(id.to_string(), label.to_string(), properties.to_string());
+        graph.compile_csr();
+    }
+
+    Ok(())
+}
+
+/// Inserts or updates an L3 knowledge graph edge into SQLite and updates the In-Memory CSR Cache.
+pub fn insert_l3_edge_sync(
+    pool: &DatabasePool,
+    source: &str,
+    target: &str,
+    relation: &str,
+    weight: f32,
+) -> Result<(), rusqlite::Error> {
+    let source_owned = source.to_string();
+    let target_owned = target.to_string();
+    let relation_owned = relation.to_string();
+
+    pool.writer_actor
+        .blocking_execute(move |conn| {
+            conn.execute(
+                "INSERT INTO l3_edges (source, target, relation, weight, obsolete) VALUES (?1, ?2, ?3, ?4, 0)
+                 ON CONFLICT(source, target, relation) DO UPDATE SET weight = excluded.weight, obsolete = 0",
+                rusqlite::params![source_owned, target_owned, relation_owned, weight as f64],
+            )
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+        })
+        .map_err(|e| {
+            rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::other(format!(
+                "DbActor insert_l3_edge_sync failed: {e}"
+            ))))
+        })?;
+
+    if let Ok(mut graph) = pool.csr_graph.write() {
+        graph.add_edge(source, target, relation, weight, true);
+        graph.compile_csr();
+    }
+
+    Ok(())
+}
+
+// ── Cognitive Runtime v1: Idempotency and Audit Ledger DB Accessors ──
+
+pub fn record_action_audit(
+    conn: &Connection,
+    record: &crate::cognitive::ActionAuditRecord,
+) -> Result<i64, rusqlite::Error> {
+    crate::cognitive::RedactedAuditLedger::record_action(conn, record)
+}
+
+pub fn get_action_audit(
+    conn: &Connection,
+    action_id: &str,
+) -> Result<Option<crate::cognitive::ActionAuditRecord>, rusqlite::Error> {
+    crate::cognitive::RedactedAuditLedger::query_by_action_id(conn, action_id)
+}
+
+pub fn get_recent_action_audits(
+    conn: &Connection,
+    limit: usize,
+) -> Result<Vec<crate::cognitive::ActionAuditRecord>, rusqlite::Error> {
+    crate::cognitive::RedactedAuditLedger::query_recent(conn, limit)
+}
+
+pub fn get_idempotency_record(
+    conn: &Connection,
+    key: &str,
+) -> Result<Option<crate::cognitive::IdempotencyRecord>, rusqlite::Error> {
+    crate::cognitive::IdempotencyManager::db_get(conn, key)
+}
+
+pub fn set_idempotency_record(
+    conn: &Connection,
+    record: &crate::cognitive::IdempotencyRecord,
+) -> Result<(), rusqlite::Error> {
+    crate::cognitive::IdempotencyManager::db_upsert(conn, record)
+}
+
+// ── Cognitive Memory Architecture (Milestone 2) DB Accessors ──
+
+pub use crate::cognitive::memory::{
+    CognitiveFact, CognitiveMemoryCoordinator, ConflictResolutionAction, FactDeletionCounts,
+    FactHistoryRecord, FactUpsertOutcome, MemoryConflictRecord, MemoryDeleteCoordinator,
+    MemoryProvenance,
+};
+
+pub fn upsert_cognitive_fact(
+    conn: &Connection,
+    engine: &EncryptionEngine,
+    fact: &CognitiveFact,
+    auto_archive_on_supersede: bool,
+) -> Result<FactUpsertOutcome, rusqlite::Error> {
+    CognitiveMemoryCoordinator::upsert_cognitive_fact(conn, engine, fact, auto_archive_on_supersede)
+}
+
+pub fn stage_memory_conflict(
+    conn: &Connection,
+    engine: &EncryptionEngine,
+    conflict: &MemoryConflictRecord,
+) -> Result<(), rusqlite::Error> {
+    CognitiveMemoryCoordinator::stage_conflict(conn, engine, conflict)
+}
+
+pub fn get_pending_conflicts(
+    conn: &Connection,
+    engine: &EncryptionEngine,
+    domain: &str,
+) -> Result<Vec<MemoryConflictRecord>, rusqlite::Error> {
+    CognitiveMemoryCoordinator::get_pending_conflicts(conn, engine, domain)
+}
+
+pub fn resolve_memory_conflict(
+    conn: &Connection,
+    engine: &EncryptionEngine,
+    conflict_id: &str,
+    action: ConflictResolutionAction,
+) -> Result<bool, rusqlite::Error> {
+    CognitiveMemoryCoordinator::resolve_conflict(conn, engine, conflict_id, action)
+}
+
+pub fn get_fact_history(
+    conn: &Connection,
+    engine: &EncryptionEngine,
+    key: &str,
+    domain: &str,
+) -> Result<Vec<FactHistoryRecord>, rusqlite::Error> {
+    CognitiveMemoryCoordinator::get_fact_history(conn, engine, key, domain)
+}
+
+pub fn delete_fact_cascade(
+    conn: &Connection,
+    key: &str,
+    domain: &str,
+) -> Result<FactDeletionCounts, rusqlite::Error> {
+    MemoryDeleteCoordinator::delete_fact_cascade(conn, key, domain)
+}
+
+// ─── Turn Telemetry Ledger (U21) ─────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TurnTelemetryRecord {
+    pub id: Option<i64>,
+    pub event_id: Option<String>,
+    pub ts: i64,
+    pub entry_path: String,
+    pub model_id: String,
+    pub prompt_tokens: i64,
+    pub completion_tokens: i64,
+    pub latency_ms: i64,
+    pub outcome: String,
+    pub err_kind: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct TelemetrySummary {
+    pub total_turns: i64,
+    pub ok_turns: i64,
+    pub err_turns: i64,
+    pub avg_latency_ms: f64,
+    pub p50_latency_ms: i64,
+    pub p95_latency_ms: i64,
+    pub total_prompt_tokens: i64,
+    pub total_completion_tokens: i64,
+    pub models: std::collections::HashMap<String, i64>,
+    pub entry_paths: std::collections::HashMap<String, i64>,
+}
+
+pub fn record_turn_telemetry(
+    conn: &Connection,
+    record: &TurnTelemetryRecord,
+) -> Result<i64, rusqlite::Error> {
+    conn.execute(
+        "INSERT INTO turn_telemetry (
+            event_id, ts, entry_path, model_id, prompt_tokens, completion_tokens, latency_ms, outcome, err_kind
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        rusqlite::params![
+            record.event_id,
+            record.ts,
+            record.entry_path,
+            record.model_id,
+            record.prompt_tokens,
+            record.completion_tokens,
+            record.latency_ms,
+            record.outcome,
+            record.err_kind,
+        ],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+pub fn get_telemetry_summary(
+    conn: &Connection,
+    since_ts: Option<i64>,
+) -> Result<TelemetrySummary, rusqlite::Error> {
+    // 1. Latencies for p50 and p95
+    let mut lat_stmt = conn.prepare(
+        "SELECT latency_ms FROM turn_telemetry 
+         WHERE (?1 IS NULL OR ts >= ?1) 
+         ORDER BY latency_ms ASC",
+    )?;
+    let latencies: Vec<i64> = lat_stmt
+        .query_map([since_ts], |row| row.get(0))?
+        .filter_map(Result::ok)
+        .collect();
+
+    let total_turns = latencies.len() as i64;
+    if total_turns == 0 {
+        return Ok(TelemetrySummary::default());
+    }
+
+    let p50_idx = ((total_turns as f64) * 0.50).floor() as usize;
+    let p95_idx = ((total_turns as f64) * 0.95).floor() as usize;
+    let p50_latency_ms = latencies[p50_idx.min(latencies.len() - 1)];
+    let p95_latency_ms = latencies[p95_idx.min(latencies.len() - 1)];
+
+    // 2. Aggregate stats
+    let (ok_turns, err_turns, avg_latency_ms, total_prompt_tokens, total_completion_tokens): (
+        i64,
+        i64,
+        f64,
+        i64,
+        i64,
+    ) = conn.query_row(
+        "SELECT 
+            COALESCE(SUM(CASE WHEN outcome = 'ok' THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN outcome = 'err' THEN 1 ELSE 0 END), 0),
+            COALESCE(AVG(latency_ms), 0.0),
+            COALESCE(SUM(prompt_tokens), 0),
+            COALESCE(SUM(completion_tokens), 0)
+         FROM turn_telemetry
+         WHERE (?1 IS NULL OR ts >= ?1)",
+        [since_ts],
+        |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+            ))
+        },
+    )?;
+
+    // 3. Group by model
+    let mut models = std::collections::HashMap::new();
+    let mut model_stmt = conn.prepare(
+        "SELECT model_id, COUNT(*) FROM turn_telemetry 
+         WHERE (?1 IS NULL OR ts >= ?1) 
+         GROUP BY model_id",
+    )?;
+    let model_rows = model_stmt.query_map([since_ts], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+    })?;
+    for row in model_rows.flatten() {
+        models.insert(row.0, row.1);
+    }
+
+    // 4. Group by entry_path
+    let mut entry_paths = std::collections::HashMap::new();
+    let mut path_stmt = conn.prepare(
+        "SELECT entry_path, COUNT(*) FROM turn_telemetry 
+         WHERE (?1 IS NULL OR ts >= ?1) 
+         GROUP BY entry_path",
+    )?;
+    let path_rows = path_stmt.query_map([since_ts], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+    })?;
+    for row in path_rows.flatten() {
+        entry_paths.insert(row.0, row.1);
+    }
+
+    Ok(TelemetrySummary {
+        total_turns,
+        ok_turns,
+        err_turns,
+        avg_latency_ms: (avg_latency_ms * 100.0).round() / 100.0,
+        p50_latency_ms,
+        p95_latency_ms,
+        total_prompt_tokens,
+        total_completion_tokens,
+        models,
+        entry_paths,
+    })
+}
+
+#[cfg(test)]
+#[path = "db/tests.rs"]
+mod db_tests;
+
+#[cfg(test)]
+#[path = "db/encryption_tests.rs"]
+mod db_encryption_tests;

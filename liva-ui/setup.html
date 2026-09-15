@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <title>LIVA — Chuẩn bị lần đầu</title>
+    <link rel="stylesheet" href="/setup.css" />
+  </head>
+  <body>
+    <h1>Chuẩn bị LIVA</h1>
+    <p class="sub" id="mota">Đang kiểm tra…</p>
+
+    <div id="danhsach"></div>
+
+    <div id="khoitai" hidden>
+      <progress id="thanh" max="100" value="0"></progress>
+      <div class="trangthai" id="tiendo"></div>
+    </div>
+
+    <div class="hang">
+      <button id="tai" disabled>Tải model</button>
+      <button id="bo" class="phu">Bỏ qua, dùng luôn</button>
+      <span class="trangthai" id="ghichu"></span>
+    </div>
+
+    <details>
+      <summary>Model được lưu ở đâu?</summary>
+      <pre id="duongdan">…</pre>
+      <p class="trangthai">
+        Các thư mục này nằm ngoài thư mục cài, nên chúng KHÔNG mất khi bạn gỡ
+        hoặc nâng cấp LIVA. Muốn để sang ổ khác thì đặt biến môi trường
+        <code>LIVA_HOME</code> trước khi mở LIVA.
+      </p>
+    </details>
+
+    <script type="module" src="/src/setup-main.ts"></script>
+  </body>
+</html>

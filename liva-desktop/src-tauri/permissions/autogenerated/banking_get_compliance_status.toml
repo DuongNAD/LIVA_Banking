@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-banking-get-compliance-status"
+description = "Enables the banking_get_compliance_status command without any pre-configured scope."
+commands.allow = ["banking_get_compliance_status"]
+
+[[permission]]
+identifier = "deny-banking-get-compliance-status"
+description = "Denies the banking_get_compliance_status command without any pre-configured scope."
+commands.deny = ["banking_get_compliance_status"]

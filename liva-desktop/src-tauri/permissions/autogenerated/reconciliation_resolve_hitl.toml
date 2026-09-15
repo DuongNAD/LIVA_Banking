@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-reconciliation-resolve-hitl"
+description = "Enables the reconciliation_resolve_hitl command without any pre-configured scope."
+commands.allow = ["reconciliation_resolve_hitl"]
+
+[[permission]]
+identifier = "deny-reconciliation-resolve-hitl"
+description = "Denies the reconciliation_resolve_hitl command without any pre-configured scope."
+commands.deny = ["reconciliation_resolve_hitl"]

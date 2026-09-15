@@ -1,0 +1,72 @@
+[package]
+name = "liva-desktop"
+version = "1.0.0"
+publish = false
+description = "LIVA Cognitive OS — Tauri v2 Desktop Shell"
+authors = ["DuongNAD"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "liva_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[features]
+# GPU acceleration for the embedded core (dashboard vision:ask + in-process LLM).
+# Build with `cargo build --release --features cuda` (or `tauri build -- --features cuda`).
+# Needs the CUDA toolkit; RTX 5060 Ti / Blackwell needs CUDA 12.8+.
+#
+# ⚠️ CUDAARCHS=120a-real IS A DEV-BOX SHORTCUT — NEVER SHIP A BUILD MADE WITH IT.
+# The default arch list llama-cpp-sys-2 passes to CMake is
+#   50-virtual;61-virtual;70-virtual;75-virtual;80-virtual;86-real;89-real;90-virtual;120a-real
+# and it is mostly `-virtual`, i.e. PTX the driver JIT-compiles at load time.
+# That PTX is exactly what makes one binary work on cards it was never compiled
+# for. Pinning `120a-real` throws all of it away, leaving SASS for Blackwell
+# only: on an RTX 30xx (sm_86) or 40xx (sm_89) the CUDA kernels then fail to
+# load at all. It cuts the binary 202 MB -> 74.5 MB and the build 20 min -> 6 min
+# with no speed loss *on this machine*, which is why it is worth using while
+# iterating locally — and why the measurement is easy to mistake for a release
+# decision. Release builds leave CUDAARCHS unset.
+cuda = ["liva-native-core/cuda"]
+vulkan = ["liva-native-core/vulkan"]
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api"] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri-plugin-stronghold = "2"
+tauri-plugin-process = "2"
+rust-argon2 = "2.1.0"
+liva-native-core = { path = "../../liva-native-core" }
+rodio = "0.17.3"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+# `env-filter` không phải default feature — xem ghi chú cùng chỗ trong
+# liva-native-core/Cargo.toml.
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[lints.clippy]
+chunks_exact_to_as_chunks = "allow"
+result_large_err = "allow"
+collapsible_if = "allow"
+cloned_ref_to_slice_refs = "allow"
+needless_borrows_for_generic_args = "allow"
+too_many_arguments = "allow"
+doc_lazy_continuation = "allow"
+manual_is_multiple_of = "allow"
+io_other_error = "allow"
+if_same_then_else = "allow"
+manual_flatten = "allow"
+manual_pattern_char_comparison = "allow"
+unnecessary_map_or = "allow"
+len_zero = "allow"
+useless_vec = "allow"

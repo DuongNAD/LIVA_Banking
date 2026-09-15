@@ -1,0 +1,20 @@
+interface:
+  display_name: "LIVA Banking Orchestrator"
+  short_description: "Coordinate end-to-end multi-agent banking DAG workflows and Maker-Checker gates"
+  default_prompt: "Use $liva-banking-orchestrator to execute end-to-end banking workflows coordinating reconciliation, risk, compliance, and treasury."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "banking_reconcile"
+      description: "Reconcile bank statements with ERP ledger."
+    - type: "mcp"
+      value: "treasury_payment_order"
+      description: "Manage payment orders and Maker-Checker authorization."
+    - type: "mcp"
+      value: "compliance_aml_screen"
+      description: "Screen transactions for AML red flags and redact PII."
+    - type: "mcp"
+      value: "credit_risk_scoring"
+      description: "Assess corporate creditworthiness and liquidity ratios."
+policy:
+  allow_implicit_invocation: true

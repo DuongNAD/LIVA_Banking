@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LivaTechDebtLedger",
+  "type": "object",
+  "required": [
+    "version",
+    "project",
+    "generated_at",
+    "milestone",
+    "summary",
+    "core_resolved_debt",
+    "intentional_residual_debt",
+    "monitored_secondary_debt"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string" },
+    "project": { "type": "string" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "milestone": { "type": "string" },
+    "commit_baseline": { "type": "string" },
+    "summary": {
+      "type": "object",
+      "required": [
+        "total_cataloged_items",
+        "core_items_resolved",
+        "core_items_total",
+        "intentional_residual_debts",
+        "monitored_secondary_debts",
+        "health_score",
+        "audit_status"
+      ],
+      "properties": {
+        "total_cataloged_items": { "type": "integer" },
+        "core_items_resolved": { "type": "integer" },
+        "core_items_total": { "type": "integer" },
+        "intentional_residual_debts": { "type": "integer" },
+        "monitored_secondary_debts": { "type": "integer" },
+        "health_score": { "type": "integer" },
+        "audit_status": { "type": "string" }
+      }
+    },
+    "core_resolved_debt": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "subsystems",
+          "milestone",
+          "status",
+          "root_cause",
+          "resolution",
+          "source_evidence",
+          "test_evidence"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "subsystems": { "type": "array", "items": { "type": "string" } },
+          "milestone": { "type": "string" },
+          "status": { "type": "string", "enum": ["RESOLVED"] },
+          "root_cause": { "type": "string" },
+          "resolution": { "type": "string" },
+          "source_evidence": { "type": "array", "items": { "type": "string" } },
+          "test_evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["file", "function"],
+              "properties": {
+                "file": { "type": "string" },
+                "function": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "intentional_residual_debt": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "severity",
+          "status",
+          "risk_note",
+          "planned_remediation"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "severity": { "type": "string" },
+          "status": { "type": "string" },
+          "risk_note": { "type": "string" },
+          "planned_remediation": { "type": "string" }
+        }
+      }
+    },
+    "monitored_secondary_debt": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "severity",
+          "status",
+          "risk_note"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "severity": { "type": "string" },
+          "status": { "type": "string" },
+          "risk_note": { "type": "string" },
+          "planned_remediation": { "type": "string" }
+        }
+      }
+    }
+  }
+}

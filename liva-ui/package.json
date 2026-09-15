@@ -1,0 +1,36 @@
+{
+  "name": "liva-ui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "liva-common": "*",
+    "msgpackr": "^2.0.2",
+    "pinia": "^4.0.3",
+    "unocss": "^66.6.8",
+    "vue": "^3.5.32",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "@vue/test-utils": "2.2.7",
+    "@vue/tsconfig": "^0.9.1",
+    "jsdom": "^29.0.2",
+    "prettier": "^3.8.2",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.5",
+    "vue-tsc": "^3.2.6"
+  }
+}

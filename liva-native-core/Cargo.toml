@@ -1,0 +1,273 @@
+[package]
+name = "liva-native-core"
+version = "0.1.0"
+publish = false
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = "0.21.0"
+# Bề mặt tương thích OpenAI (`openai_api.rs`). hyper 0.14 ĐÃ nằm trong cây phụ
+# thuộc từ trước qua `reqwest` — bật thêm feature server không kéo về crate mới
+# nào: httparse/http/http-body/tower-service/want/h2 đều đã có trong Cargo.lock.
+# Đó là lý do chọn hyper thay vì axum ở đây; axum sẽ là một cây mới hoàn toàn
+# trong khi crate này chỉ cần định tuyến ba đường dẫn.
+# `stream` là thứ cho `Body::wrap_stream` — cần cho SSE ở /v1/chat/completions.
+hyper = { version = "0.14", features = ["server", "http1", "tcp", "stream"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+schemars = "0.8"
+tracing = "0.1"
+# `env-filter` KHÔNG nằm trong default features của tracing-subscriber 0.3.
+# Thiếu nó thì chỉ còn `.with_max_level(...)` cố định, và đó chính là lý do mọi
+# `debug!` trong crate này từng là code chết: RUST_LOG bị bỏ qua hoàn toàn.
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+rusqlite = { version = "0.31.0", features = ["backup", "bundled", "modern_sqlite", "load_extension"] }
+r2d2 = "0.8.10"
+r2d2_sqlite = "0.24.0"
+aes-gcm = "0.10"
+hex = "0.4"
+bytemuck = "1.16"
+bytes = "1.5.0"
+rand = "0.8"
+uuid = { version = "1.0", features = ["v4"] }
+teloxide = { version = "0.17", features = ["macros"] }
+reqwest = { version = "0.12", features = ["stream", "multipart"] }
+windows-sys = { version = "0.52.0", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_System_LibraryLoader", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_ProcessStatus", "Win32_Security_Cryptography", "Win32_System_Memory", "Win32_Storage_FileSystem"] }
+
+# ONNX Runtime Rust Bindings for fast CPU-only model execution
+ort = { version = "2.0.0-rc.9", features = ["ndarray"] }
+
+# Multi-dimensional tensor handling required by ort
+ndarray = "0.15.6"
+
+# Load VieNeu-TTS tied embedding/head weights from the .npz bundle
+ndarray-npy = "0.8"
+
+# High-Performance FFT for STT Mel Spectrogram generation
+rustfft = "6.2.0"
+
+# Tokenizers for BPE/character decoding and vocabs. 0.21 is needed for VieNeu's
+# tokenizer.json (array-format merges + `ignore_merges`, transformers 4.56);
+# STT only uses from_file/encode/id_to_token, which are unchanged across the bump.
+tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
+
+# Native Audio Output and playback mixing
+rodio = "0.17.3"
+
+# Hardware and loopback audio capture for AEC3 echo cancellation
+cpal = "0.15"
+
+# Fast text normalization and string processing
+regex = "1.10.3"
+unicode-normalization = "0.1"
+flate2 = "1.0"
+
+# Base64 decoding for audio chunks
+base64 = "0.22.1"
+
+# Safe llama.cpp bindings. `mtmd` enables multimodal (vision) — the Qwen3-VL
+# unified-core PoC; the bundled llama.cpp already has the QWEN3VL arch + clip.
+llama-cpp-2 = { version = "0.1.154", default-features = false, features = ["mtmd"] }
+encoding_rs = "0.8"
+# `image` đã nằm sẵn trong cây phụ thuộc qua `xcap` (và kéo theo codec `png`),
+# nên khai báo trực tiếp ở đây KHÔNG thêm crate nào phải biên dịch. Dùng cho
+# `vision:capture` để trả PNG thay vì base64 pixel thô (~11 MB ở 1080p).
+image = { version = "0.25", default-features = false, features = ["png"] }
+xcap = { version = "0.9.6", default-features = false, features = ["wgc"] }
+
+# Pure-Rust WebRTC AEC3 (acoustic echo cancellation) — cancels LIVA's own
+# TTS voice bleeding back into the mic during barge-in.
+sonora = "0.1"
+
+# Đọc tải GPU cho governor (trụ "sống chung với mọi workload nặng"). Nạp
+# nvml.dll ĐỘNG lúc chạy — build không cần CUDA, máy không có NVIDIA thì
+# Nvml::init() fail và governor chỉ mất nhánh GPU, CPU/fullscreen vẫn chạy.
+nvml-wrapper = "0.12.1"
+
+# KDF cho mã hoá `facts` (crypto.rs, định dạng v2). HKDF-SHA256: dẫn xuất khoá
+# 32 byte từ passphrase + salt ngẫu nhiên mỗi ciphertext — thay cho kiểu cũ
+# lấy thẳng bytes key rồi pad 0x00. Nhanh (không phải password-hash chậm như
+# Argon2), phù hợp mã hoá theo từng bản ghi facts.
+hkdf = "0.13.0"
+sha2 = "0.11.0"
+
+# Banking statement parsing & tabular extraction
+calamine = "0.26"
+csv = "1.3"
+lopdf = "0.32"
+
+[features]
+default = []
+# Ba module chưa nối dây vào bất kỳ đường chạy nào (0 call site ngoài chính
+# chúng và test của chúng): evolution/ (self-correction sandbox), passive/
+# (hook bàn phím/chuột), agent/dispatcher.rs (swarm). Giữ code lại nhưng LOẠI
+# KHỎI BUILD MẶC ĐỊNH — xem docs/03-danh-gia/03-lo-trinh-sua-loi-va-nang-cap.md
+# mục 3.2 (quyết định) và docs/02-van-hanh/04-kiem-thu-va-ci.md mục 2.1 (ảnh
+# hưởng lên CI).
+#
+# Với passive/ đây còn là quyết định an toàn: nó là keylogger đầy đủ chức năng,
+# không nên nằm trong binary giao cho người dùng khi chưa có cổng đồng ý.
+#
+# Bật để phát triển tiếp: cargo test --features experimental
+experimental = []
+cuda = ["llama-cpp-2/cuda"]
+vulkan = ["llama-cpp-2/vulkan"]
+openblas = []
+
+[[bin]]
+name = "verify_duplex"
+path = "src/bin/verify_duplex.rs"
+test = false
+
+[[bin]]
+name = "verify_round2"
+path = "src/bin/verify_round2.rs"
+test = false
+
+[[bin]]
+name = "voice_profile"
+path = "src/bin/voice_profile.rs"
+test = false
+
+[[bin]]
+name = "voice_stress"
+path = "src/bin/voice_stress.rs"
+test = false
+
+[[bin]]
+name = "router_stress"
+path = "src/bin/router_stress.rs"
+test = false
+
+[[bin]]
+name = "screen_vision_bench"
+path = "src/bin/screen_vision_bench.rs"
+test = false
+
+[[bin]]
+name = "stt_lang_probe"
+path = "src/bin/stt_lang_probe.rs"
+test = false
+
+[[bin]]
+name = "tts_piper_probe"
+path = "src/bin/tts_piper_probe.rs"
+test = false
+
+[[bin]]
+name = "onnx_probe"
+path = "src/bin/onnx_probe.rs"
+test = false
+
+[[bin]]
+name = "gtcrn_probe"
+path = "src/bin/gtcrn_probe.rs"
+test = false
+
+[[bin]]
+name = "wakeword_probe"
+path = "src/bin/wakeword_probe.rs"
+test = false
+
+[[bin]]
+name = "parakeet_probe"
+path = "src/bin/parakeet_probe.rs"
+test = false
+
+[[bin]]
+name = "wer_bench"
+path = "src/bin/wer_bench.rs"
+test = false
+
+[[bin]]
+name = "debug_audio"
+path = "src/bin/debug_audio.rs"
+test = false
+
+[[bin]]
+name = "gemma4_probe"
+path = "src/bin/gemma4_probe.rs"
+test = false
+
+[[bin]]
+name = "model_compare"
+path = "src/bin/model_compare.rs"
+test = false
+
+[[bin]]
+name = "ttft_bench"
+path = "src/bin/ttft_bench.rs"
+test = false
+
+[[bin]]
+name = "verify_voice"
+path = "src/bin/verify_voice.rs"
+test = false
+
+[[bin]]
+name = "wakeword_benchmark"
+path = "src/bin/wakeword_benchmark.rs"
+test = false
+
+[[bin]]
+name = "vieneu_probe"
+path = "src/bin/vieneu_probe.rs"
+test = false
+
+[[bin]]
+name = "qwen3vl_probe"
+path = "src/bin/qwen3vl_probe.rs"
+test = false
+
+# Cổng nghiệm thu G1: đường keyword và đường LLM có khớp nhau trên corpus
+# smart-home không. Là probe chứ không phải `#[test]` vì cần cả model embedding
+# (470 MB) lẫn một model LLM (2–4 GB) — cả hai bị gitignore.
+[[bin]]
+name = "tool_calling_probe"
+path = "src/bin/tool_calling_probe.rs"
+test = false
+
+# Cổng nghiệm thu U19: hai tool OS (âm lượng, phát nhạc) có được truy hồi và
+# chọn đúng khi nói tiếng Việt tự nhiên không, VÀ việc thêm chúng có làm hỏng
+# cổng smart-home của G1 không. Tách khỏi `tool_calling_probe` vì trả lời một
+# câu hỏi khác — trộn vào thì không đọc được cái nào hỏng khi số tụt.
+[[bin]]
+name = "os_control_probe"
+path = "src/bin/os_control_probe.rs"
+test = false
+
+[[bin]]
+name = "parakeet_microbench"
+path = "src/bin/parakeet_microbench.rs"
+test = false
+
+[[bin]]
+name = "liva_eval"
+path = "src/bin/liva_eval.rs"
+test = false
+
+[[bin]]
+name = "router_gate_probe"
+path = "src/bin/router_gate_probe.rs"
+test = false
+
+[lints.clippy]
+chunks_exact_to_as_chunks = "allow"
+result_large_err = "allow"
+collapsible_if = "allow"
+cloned_ref_to_slice_refs = "allow"
+needless_borrows_for_generic_args = "allow"
+too_many_arguments = "allow"
+doc_lazy_continuation = "allow"
+manual_is_multiple_of = "allow"
+io_other_error = "allow"
+if_same_then_else = "allow"
+manual_flatten = "allow"
+manual_pattern_char_comparison = "allow"
+unnecessary_map_or = "allow"
+len_zero = "allow"
+useless_vec = "allow"
+
+

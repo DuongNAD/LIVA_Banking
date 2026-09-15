@@ -1,0 +1,102 @@
+[workspace]
+members = [
+    "liva-desktop/src-tauri",
+    "liva-native-core",
+    "crates/liva-money",
+    "crates/liva-ledger"
+]
+resolver = "2"
+
+# Cargo links test binaries under a fresh hash every `cargo test` run and never collects the old
+# ones, so full debug info grows target/debug without bound — it reached 149 GB here, 26 GB of that
+# .pdb files. Line tables keep the file and line numbers a backtrace needs.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package.llama-cpp-2]
+opt-level = 3
+
+[profile.dev.package.llama-cpp-sys-2]
+opt-level = 3
+
+[profile.dev.package.rust-argon2]
+opt-level = 3
+
+# `rust-argon2` delegates its compression primitive to this crate. Optimizing
+# only the wrapper leaves the password KDF effectively at debug speed.
+[profile.dev.package.blake2b_simd]
+opt-level = 3
+
+[profile.dev.package.aes-gcm]
+opt-level = 3
+
+[profile.dev.package.aes]
+opt-level = 3
+
+# `artifact_trust` băm SHA-256 TOÀN BỘ file model trước khi cho nạp. Với router
+# 4,2 GB (gemma-4-E4B từ 02/08/2026) `sha2` không tối ưu chậm tới mức lõi debug
+# KHÔNG nạp xong model trong 400 giây — mọi câu chat trong cửa sổ đó trả về
+# "No model loaded", và UI hiện "đã xảy ra lỗi" nên trông y như hỏng thật.
+# Đối chiếu: `sha256sum` (C, tối ưu) băm đúng file đó hết 10 giây.
+# Cùng lớp vấn đề với `rust-argon2`/`blake2b_simd` ngay trên, chỉ khác là nó
+# không lộ ra cho tới khi model đủ to.
+[profile.dev.package.sha2]
+opt-level = 3
+
+[profile.dev.package.regex]
+opt-level = 3
+
+[profile.dev.package.regex-syntax]
+opt-level = 3
+
+[profile.dev.package.iota-crypto]
+opt-level = 3
+
+[profile.dev.package.iota_stronghold]
+opt-level = 3
+
+[profile.dev.package.stronghold_engine]
+opt-level = 3
+
+[profile.test.package.llama-cpp-2]
+opt-level = 3
+
+[profile.test.package.llama-cpp-sys-2]
+opt-level = 3
+
+[profile.test.package.rust-argon2]
+opt-level = 3
+
+[profile.test.package.regex]
+opt-level = 3
+
+[profile.test.package.regex-syntax]
+opt-level = 3
+
+[profile.test.package.blake2b_simd]
+opt-level = 3
+
+[profile.test.package.aes-gcm]
+opt-level = 3
+
+[profile.test.package.aes]
+opt-level = 3
+
+[profile.test.package.sha2]
+opt-level = 3
+
+[profile.test.package.iota-crypto]
+opt-level = 3
+
+[profile.test.package.iota_stronghold]
+opt-level = 3
+
+[profile.test.package.stronghold_engine]
+opt-level = 3
+
+
+[patch.crates-io]
+# xcb 1.7.0 on crates.io still pins vulnerable quick-xml 0.30. Upstream
+# migrated its build parser to quick-xml 0.41 in this signed-off commit.
+# Remove this pin after xcb publishes a release containing ae3b2cd.
+xcb = { git = "https://github.com/rust-x-bindings/rust-xcb", rev = "ae3b2cd080e78173223038ccbebdc644eaf4a9ad" }

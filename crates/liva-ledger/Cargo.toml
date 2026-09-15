@@ -1,0 +1,16 @@
+[package]
+name = "liva-ledger"
+version = "0.1.0"
+edition = "2021"
+authors = ["LIVA Banking Core Team"]
+description = "Deterministic double-entry accounting state machine and event store for LIVA Banking"
+license = "Proprietary"
+
+[dependencies]
+liva-money = { path = "../liva-money" }
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "1.0"
+
+[dev-dependencies]
+proptest = "1.4"
+serde_json = "1.0"

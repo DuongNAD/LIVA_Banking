@@ -1,0 +1,11 @@
+interface:
+  display_name: "LIVA Banking Treasury"
+  short_description: "Manage corporate treasury and enforce Circular 09 Maker-Checker payment orders"
+  default_prompt: "Use $liva-banking-treasury to draft, review, and authorize corporate payment orders under Circular 09 Dual Control."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "treasury_payment_order"
+      description: "Manage payment order lifecycle, propose vouchers, and execute Maker-Checker authorizations."
+policy:
+  allow_implicit_invocation: true

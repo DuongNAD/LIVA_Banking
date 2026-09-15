@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-banking-get-reconciliation-matrix"
+description = "Enables the banking_get_reconciliation_matrix command without any pre-configured scope."
+commands.allow = ["banking_get_reconciliation_matrix"]
+
+[[permission]]
+identifier = "deny-banking-get-reconciliation-matrix"
+description = "Denies the banking_get_reconciliation_matrix command without any pre-configured scope."
+commands.deny = ["banking_get_reconciliation_matrix"]

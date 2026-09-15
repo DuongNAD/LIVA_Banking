@@ -1,0 +1,85 @@
+{
+  "name": "liva-workspace",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/liva-common",
+    "liva-ui",
+    "liva-desktop"
+  ],
+  "scripts": {
+    "setup": "npm install && npm run build:ui",
+    "setup:models": "node scripts/models.mjs fetch",
+    "doctor": "node scripts/models.mjs doctor",
+    "test:models": "node --test scripts/models.test.mjs",
+    "test:e2e": "node scripts/e2e-test-suite.mjs",
+    "e2e:gateway": "node scripts/e2e-gateway-ci.mjs",
+    "e2e:gateway:release": "node scripts/e2e-gateway-ci.mjs --release",
+    "dev": "powershell -ExecutionPolicy Bypass -File scripts/start_all.ps1",
+    "build:ui": "npm run build -w liva-ui",
+    "build:desktop": "npm run build:ui && npm run build -w liva-desktop",
+    "check:installer": "node scripts/check-installer-config.mjs",
+    "test:installer": "node --test scripts/check-installer-config.test.mjs",
+    "installer:windows": "npm run check:installer && npm run build:ui && cd liva-desktop && npx tauri build",
+    "installer:windows:cuda": "npm run check:installer && node scripts/stage-cuda-redist.mjs && npm run build:ui && cd liva-desktop && npx tauri build -- --features cuda",
+    "cuda:stage": "node scripts/stage-cuda-redist.mjs",
+    "cuda:check": "node scripts/stage-cuda-redist.mjs --check",
+    "docs:check": "node --test scripts/docs-capabilities.test.mjs scripts/docs-inventory.test.mjs scripts/docs-citations.test.mjs scripts/license-policy.test.mjs scripts/wake-ux-copy.test.mjs scripts/wake-training.test.mjs scripts/wake-enrollment.test.mjs && node scripts/docs-capabilities.mjs --check && node scripts/docs-inventory.mjs --check && node scripts/docs-check.mjs",
+    "docs:capabilities": "node scripts/docs-capabilities.mjs",
+    "docs:capabilities:check": "node scripts/docs-capabilities.mjs --check",
+    "test:docs-capabilities": "node --test scripts/docs-capabilities.test.mjs",
+    "docs:inventory": "node scripts/docs-inventory.mjs",
+    "docs:inventory:check": "node scripts/docs-inventory.mjs --check",
+    "test:docs-inventory": "node --test scripts/docs-inventory.test.mjs",
+    "docs:cite": "node scripts/docs-citations.mjs --max-unchecked=207",
+    "docs:cite:suggest": "node scripts/docs-citations.mjs --suggest",
+    "docs:map": "node scripts/docs-check.mjs --map",
+    "test:wake-ux": "node --test scripts/wake-ux-copy.test.mjs",
+    "test:wake-training": "node --test scripts/wake-training.test.mjs",
+    "test:wake-enrollment": "node --test scripts/wake-enrollment.test.mjs",
+    "wake:train:check": "node scripts/wake-training-check.mjs",
+    "wake:train": "powershell -ExecutionPolicy Bypass -File scripts/train-wakeword.ps1 -Action Train",
+    "wake:benchmark": "cargo run -p liva-native-core --bin wakeword_benchmark --",
+    "devkit:lint": "ai-devkit lint && npm run lint:workflows",
+    "lint:workflows": "node scripts/actionlint.mjs",
+    "test:actionlint": "node --test scripts/actionlint.test.mjs",
+    "skills:audit": "node scripts/audit-liva-skills.mjs",
+    "test:skills": "node --test scripts/audit-liva-skills.test.mjs",
+    "gitnexus:index": "node .gitnexus/run.cjs analyze --force --pdg --embeddings",
+    "prepare": "husky",
+    "test:citations": "node --test scripts/docs-citations.test.mjs",
+    "test:license-policy": "node --test scripts/license-policy.test.mjs"
+  },
+  "dependencies": {
+    "sqlite-vec": "^0.1.9"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "ai-devkit": "0.47.0",
+    "eslint": "^10.4.0",
+    "eslint-plugin-vue": "^10.10.0",
+    "gitnexus": "1.6.9",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "playwright": "^1.60.0",
+    "tsx": "^4.22.3",
+    "typescript-eslint": "^8.59.4",
+    "vue-eslint-parser": "^10.4.1"
+  },
+  "optionalDependencies": {
+    "lightningcss-win32-x64-msvc": "^1.32.0"
+  },
+  "overrides": {
+    "@hono/node-server": "2.0.11",
+    "adm-zip": "0.6.0",
+    "esbuild": "0.28.1",
+    "gh-pages": "6.3.0",
+    "nanoid": "^3.3.18",
+    "sharp": "0.35.3",
+    "tar": "7.5.22"
+  }
+}
+

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-statement-ingest-file"
+description = "Enables the statement_ingest_file command without any pre-configured scope."
+commands.allow = ["statement_ingest_file"]
+
+[[permission]]
+identifier = "deny-statement-ingest-file"
+description = "Denies the statement_ingest_file command without any pre-configured scope."
+commands.deny = ["statement_ingest_file"]

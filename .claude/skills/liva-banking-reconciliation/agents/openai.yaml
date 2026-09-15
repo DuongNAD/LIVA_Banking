@@ -1,0 +1,11 @@
+interface:
+  display_name: "LIVA Banking Reconciliation"
+  short_description: "Automated multi-bank statement parsing and 3-tier ledger reconciliation"
+  default_prompt: "Use $liva-banking-reconciliation to parse bank statements, reconcile ledger transactions, and audit fee discrepancies."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "banking_reconcile"
+      description: "Parse bank statements and execute 3-tier deterministic reconciliation against ERP ledger."
+policy:
+  allow_implicit_invocation: true

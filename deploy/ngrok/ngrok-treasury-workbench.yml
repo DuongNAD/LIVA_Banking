@@ -1,0 +1,45 @@
+# ==============================================================================
+# LIVA Banking Harness — ngrok Remote Access Tunnel Configuration
+# Deployment Target: Treasury & Reconciliation Workbench (Remote Ingress)
+# ==============================================================================
+# Account: duong.na.2719@aptechlearning.edu.vn
+# Domain: rd_3JHcwHJK1iUTdwx1D22XRMeUA5K.ngrok-free.app
+# Upstream Service: Treasury Workbench (Default: 5173 [Vite Dev], 4173 [Preview], 8080 [Prod])
+# Compliance: Decree 13/2023/ND-CP (DPIA) & Circular 09/2020/TT-NHNN
+# ==============================================================================
+
+version: "3"
+
+agent:
+  authtoken: 31tkcGzS8HjU6flkQnMhuqJYMZM_3R8LtfJScAEbRpSZdEPnf
+  metadata: "LIVA Banking Treasury Workbench - Operator: duong.na.2719@aptechlearning.edu.vn"
+
+tunnels:
+  treasury-workbench:
+    proto: http
+    addr: 5173
+    domain: rd_3JHcwHJK1iUTdwx1D22XRMeUA5K
+    inspect: true
+    metadata: '{"app": "liva-banking", "component": "treasury-workbench", "env": "remote-preview", "domain_id": "rd_3JHcwHJK1iUTdwx1D22XRMeUA5K"}'
+    traffic_policy:
+      on_http_response:
+        - actions:
+            - type: add-headers
+              config:
+                headers:
+                  # Enforce strict HTTPS for 1 year with all subdomains preloaded
+                  Strict-Transport-Security: "max-age=31536000; includeSubDomains; preload"
+                  # Anti-Clickjacking: prevent framing by malicious origin
+                  X-Frame-Options: "DENY"
+                  # MIME sniffing mitigation
+                  X-Content-Type-Options: "nosniff"
+                  # Legacy XSS protection filter activation
+                  X-XSS-Protection: "1; mode=block"
+                  # Referrer control to protect internal treasury path structures
+                  Referrer-Policy: "strict-origin-when-cross-origin"
+                  # Strict Content Security Policy for Banking Workbench UI
+                  Content-Security-Policy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: asset:; connect-src 'self' wss:; object-src 'none'; frame-ancestors 'none';"
+                  # Disable sensitive device hardware access across remote sessions
+                  Permissions-Policy: "camera=(), microphone=(), geolocation=(), payment=()"
+                  # Cache control for banking dashboard views
+                  Cache-Control: "no-store, no-cache, must-revalidate, proxy-revalidate"

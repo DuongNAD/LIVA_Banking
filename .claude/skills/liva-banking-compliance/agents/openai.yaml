@@ -1,0 +1,11 @@
+interface:
+  display_name: "LIVA Banking Compliance"
+  short_description: "Decree 13 PII sanitization, Zero-Egress audit, and statutory AML/STR screening"
+  default_prompt: "Use $liva-banking-compliance to screen transactions for AML red flags, redact Decree 13 PII, and verify zero data egress."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "compliance_aml_screen"
+      description: "Screen transactions for AML red flags and redact Decree 13 PII with zero egress."
+policy:
+  allow_implicit_invocation: true

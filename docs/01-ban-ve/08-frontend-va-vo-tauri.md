@@ -1,0 +1,1015 @@
+---
+title: "Frontend và vỏ Tauri"
+updated: 2026-08-05
+commit: 3688b5f
+status: frozen
+owns: []
+superseded_by:
+  - docs/03-he-thong-con/frontend.md
+  - docs/03-he-thong-con/desktop-tauri.md
+covers:
+  - Cargo.toml
+  - package.json
+  - data/*
+  - liva-desktop/src-tauri/Cargo.toml
+  - liva-desktop/src-tauri/tauri.conf.json
+  - liva-desktop/src-tauri/src/lib.rs
+  - liva-native-core/Cargo.toml
+  - liva-native-core/src/lib.rs
+  - liva-native-core/src/main.rs
+  - liva-native-core/src/webrtc/frame.rs
+  - liva-native-core/src/webrtc/pipeline.rs
+  - liva-ui/package.json
+  - liva-ui/vite.config.ts
+  - liva-ui/src/*
+  - liva-ui/src/components/*
+  - liva-ui/src/components/dashboard/*
+  - liva-ui/src/composables/*
+  - liva-ui/src/platform/*
+  - liva-ui/src/utils/*
+  - liva-ui/src/workers/*
+  - packages/liva-common/package.json
+  - packages/liva-common/src/index.ts
+  - packages/liva-common/src/types/config.ts
+  - packages/liva-common/src/types/websocket.ts
+  - scripts/start_all.ps1
+---
+# Frontend `liva-ui` và vỏ Tauri `liva-desktop`
+
+> **Runtime delta 23/07/2026:** thu mic dùng AudioWorklet 512 mẫu/32 ms, không còn
+> `ScriptProcessorNode`. Tauri bind WebSocket transport thật, chỉ emit `gateway-ready`
+> sau khi bind thành công, và dùng chung `AppState`/voice runtime với transport đó.
+> Widget tự reconnect gateway với exponential backoff, voice startup có lifecycle
+> generation để không sống lại sau `stopPipeline`, và nội dung AI trước `v-html` được
+> escape toàn bộ; chỉ `<br>` cùng ba nút kênh whitelist được sinh bởi UI.
+> Phần khảo sát lịch sử bên dưới chưa được viết lại toàn bộ.
+
+[⬆ Mục lục](../README.md) · [◀ Threat model](../05-chat-luong/threat-model.md) · [Tích hợp ngoài ▶](09-tich-hop-ngoai.md)
+
+---
+
+> Nhãn trạng thái dùng xuyên suốt: **[OK]** đang chạy thật · **[MỘT PHẦN]** có code nhưng tắt/opt-in/chưa nối dây · **[THIẾU]** chưa có/stub.
+
+Tài liệu này mô tả toàn bộ tầng hiển thị của LIVA: ứng dụng Vue 3 đa entry (`liva-ui`), lớp adapter nền tảng, đường truyền xuống lõi Rust, avatar 3D + lip-sync, và vỏ Tauri v2 (`liva-desktop/src-tauri`) — cửa sổ, quyền, CSP, cách nhúng core in-process và tình trạng đóng gói.
+
+---
+
+## 1. Bản đồ nhanh
+
+```mermaid
+flowchart TB
+    subgraph UI["liva-ui (Vue 3 + Vite, port 5173)"]
+        W["widget.html<br/>widget-main.ts → WidgetApp.vue"]
+        D["dashboard.html<br/>dashboard-main.ts → DashboardApp.vue"]
+        I["index.html<br/>main.ts → App.vue<br/>THIẾU: không trong build"]
+    end
+
+    subgraph TAURI["liva-desktop/src-tauri (Rust, 3 file)"]
+        WW["Cửa sổ 'widget'<br/>transparent + alwaysOnTop<br/>decorations: false"]
+        WD["Cửa sổ 'dashboard'<br/>1200x800, decorations: false"]
+        CMD["8 lệnh tauri::generate_handler!"]
+        HT["Luồng hit-test 30ms<br/>set_ignore_cursor_events"]
+    end
+
+    CORE["liva-native-core<br/>Arc&lt;AppState&gt; nhúng in-process<br/>handle_command(...)"]
+
+    W --> WW
+    D --> WD
+    WW --> CMD
+    WD --> CMD
+    CMD -->|native_ipc_call| CORE
+    CMD --> HT
+    HT --> WW
+    I -.->|chỉ chạy ở vite dev| UI
+```
+
+| Thành phần | Đường dẫn | Vai trò | Trạng thái |
+|---|---|---|---|
+| `liva-ui` | `E:\Project\LIVA\liva-ui` | SPA đa entry Vue 3 + Vite, `frontendDist` của Tauri | **[OK]** |
+| `liva-desktop/src-tauri` | `src/main.rs` (6 dòng), `src/lib.rs` (593 dòng), `build.rs` (3 dòng) | Toàn bộ logic vỏ nằm trong `lib.rs` | **[OK]** |
+| `packages/liva-common` | `src/index.ts`, `src/types/config.ts`, `src/types/websocket.ts` | Type dùng chung UI ↔ (gateway cũ) | **[MỘT PHẦN]** — hợp đồng đã trôi khỏi core |
+| `liva-desktop/package.json` + `liva-desktop/src` | app Vite riêng | Vestigial, Tauri **không** nạp nó | **[THIẾU]** |
+
+`main.rs:2` — `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`; `main()` chỉ gọi `liva_desktop_lib::run()`.
+
+Bảng trên chỉ liệt kê phần **tầng hiển thị**; bản đồ workspace đầy đủ (mọi crate/package, số dòng, chỉ số dự án) nằm ở tài liệu tổng quan.
+
+> 📌 Nguồn đầy đủ: [Tổng quan hệ thống](00-tong-quan-he-thong.md)
+
+---
+
+## 2. Ba entry point Vite, chỉ hai được build
+
+| HTML | Entry TS | Root component | Trong build? |
+|---|---|---|---|
+| `liva-ui/widget.html` | `src/widget-main.ts` | `WidgetApp.vue` | ✅ `vite.config.ts:19` |
+| `liva-ui/dashboard.html` | `src/dashboard-main.ts` | `DashboardApp.vue` | ✅ `vite.config.ts:20` |
+| `liva-ui/index.html` | `src/main.ts` | `App.vue` | ❌ **không** trong `rollupOptions.input` |
+
+```ts
+// liva-ui/vite.config.ts:18-21
+input: {
+  widget:    resolve(__dirname, 'widget.html'),
+  dashboard: resolve(__dirname, 'dashboard.html'),
+},
+```
+
+Khi khai báo `rollupOptions.input` tường minh, Vite bỏ `index.html` mặc định. Kiểm chứng bằng output thật: `liva-ui/dist/` chỉ có `dashboard.html`, `widget.html`, `wake-word-test.html` — **không có `index.html`**.
+
+⇒ **`App.vue` + `main.ts` + `index.html` là [THIẾU]**: chỉ chạy khi mở `http://localhost:5173/` ở chế độ `vite dev` (dev server vẫn phục vụ `index.html` ở root), không bao giờ vào bundle production, Tauri không trỏ tới nó.
+
+### 2.1 Bootstrap giống hệt nhau ở cả 3 entry
+
+`main.ts:8-13`, `dashboard-main.ts:8-10`, `widget-main.ts:8-10` — cùng một pattern:
+
+```ts
+const app = createApp(<Root>);
+app.provide('platform', detectPlatform());
+app.mount("#app");
+```
+
+Khác nhau ở CSS: `main.ts` / `widget-main.ts` nạp `./style.css`, `dashboard-main.ts` nạp `./dashboard.css`. Cả ba đều nạp `virtual:uno.css` (UnoCSS).
+
+### 2.2 Build config đáng chú ý
+
+- `vite.config.ts:12` — `base: './'` (đường dẫn tương đối, bắt buộc cho `frontendDist`).
+- `vite.config.ts:17` — `external: ['fs','path','os','crypto','child_process']`, comment ghi "[Phase 5.1] Fail-fast: Cắt đứt mọi liên kết vô tình với Node.js API trong Frontend".
+- `vite.config.ts:23-39` — `manualChunks`: `vendor-three` (three + @pixiv), `vendor-pixi` (pixi.js + pixi-live2d-display), `vendor-ai` (@mediapipe), `vendor-vue`, `vendor`.
+- `vite.config.ts:43-47` — `server.host: true`, `port: 5173`, `strictPort: true` — mở cho LAN để mobile client truy cập.
+- `chunkSizeWarningLimit: 1000` (`:14`).
+- Không có plugin Tauri chính thức; `liva-ui/package.json` chỉ có `dev/build/preview/test` (`build` = `vue-tsc -b && vite build`).
+- `vitest.config.ts`: jsdom, `setupFiles: ./tests/setup.ts`, coverage istanbul; loại trừ `src/main.ts`, `src/App.vue`, `src/components/VisionSensor.vue` (file này **0 byte**) — tức là hai entry chết bị gỡ khỏi phép đo phủ.
+
+> 📌 Nguồn đầy đủ (ngưỡng coverage, bảng test, CI): [Kiểm thử và CI](../02-van-hanh/04-kiem-thu-va-ci.md)
+
+### 2.3 Thư viện đồ hoạ đã cài
+
+`liva-ui/package.json:12-26`: `pixi.js@^6.5.10` + `pixi-live2d-display@^0.4.0` (2D), `three@^0.184.0` + `@pixiv/three-vrm@^3.5.2` (3D), `@mediapipe/tasks-vision@^0.10.34` (face tracking), `msgpackr` (giải mã khung WS nhị phân).
+
+---
+
+## 3. `useGateway.ts` — dual transport, module-level singleton
+
+File: `liva-ui/src/composables/useGateway.ts` (618 dòng). Toàn bộ state (`ws`, `configData`, `userProfile`, …) khai báo **ngoài** hàm `useGateway()` (dòng 18-140) ⇒ mọi component share chung một socket/store. `export function useGateway()` ở `:484` trả về ~30 field.
+
+### 3.1 Rẽ nhánh Tauri vs Web
+
+```ts
+// useGateway.ts:210
+const isTauri = typeof window !== "undefined"
+  && (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ !== undefined;
+```
+
+> ⚠️ `isTauri` được tính **một lần lúc load module**. Nếu `__TAURI_INTERNALS__` chưa được inject kịp, **toàn phiên** rơi về WebSocket.
+
+```mermaid
+flowchart LR
+    S["sendMsg(event, payload)<br/>useGateway.ts:213-272"]
+    S -->|isTauri && payload.stream === true| ST["invoke('native_ipc_call_stream')<br/>+ listen('ipc-stream:{req_id}')<br/>:219-250"]
+    S -->|isTauri| IPC["invoke('native_ipc_call')<br/>:253"]
+    S -->|web/dev| WS["ws.send(JSON.stringify({event, payload}))<br/>:267 — JSON text, KHÔNG msgpack"]
+    IPC --> MAP["mapTauriResponse(event, res, payload)<br/>:143-208"]
+    ST --> MAP
+    MAP --> STATE["state singleton"]
+    WS --> ONMSG["socket.onmessage :334-458"]
+    ONMSG --> STATE
+```
+
+`connect()` (`:274-482`):
+- Trong Tauri: chỉ set `isConnected = true` rồi bắn 10 lệnh init (`:278-287`).
+- Ngoài Tauri: mở `ws://${wsHost}:8002/ws` (`:296`) với `socket.binaryType = "arraybuffer"` (`:298`); `wsHost` = `127.0.0.1` nếu hostname rỗng/localhost, ngược lại dùng chính hostname (`:294-295`) — hỗ trợ truy cập LAN.
+- Reconnect: `onclose` → `setTimeout(connect, 3000)` (`:460-473`), có guard clear timer. `onerror` → `socket.close()` (`:476-479`).
+
+**Bộ init 10 op** (`:278-287` Tauri, `:313-322` WS): `get_config`, `get_ai_config`, `get_voice_status`, `get_voice_profiles`, `get_system_status`, `get_skills_list`, `get_user_profile`, `get_tasks`, `get_avatar_models`, `get_memory_data`.
+
+### 3.2 Giải mã khung nhị phân
+
+`onmessage` (`:334-458`): nếu là `ArrayBuffer` → đọc `view.getUint8(0)`; **chỉ chấp nhận `type === 0x02` → `unpack(new Uint8Array(arrayBuffer, 1))` (msgpackr)**, byte khác thì `return` (bỏ luôn audio). Nếu là `string` → `JSON.parse`.
+
+> **Core KHÔNG hiểu msgpack:** grep `rmp|msgpack|MessagePack` trong `liva-native-core/src/` và `liva-desktop/src-tauri/src/` → **0 kết quả**. Nhánh binary của core (`liva-native-core/src/websocket.rs:555-567-…`, `VoiceFrame::decode` ở `liva-native-core/src/websocket.rs:555-567`) chỉ decode `VoiceFrame`.
+
+### 3.3 Đối chiếu op gửi với core
+
+Tóm tắt: 10 op `get_*` của bộ init được `liva-native-core/src/websocket.rs:829-1087` trả về bằng event riêng (`get_config` → `config_data`, `get_tasks` → `tasks_list`, …); `user_voice_command` đi luồng riêng (`ai_thinking_start` → `ai_stream_start` → n× `ai_stream_chunk` → `ai_spoken_response` → `ai_thinking_end`, `:888-1010`); **mọi event khác** rơi vào fallback `handle_command(event)` rồi trả `"{event}_response"` khi `Ok` và `"{event}_error"` khi `Err` (`websocket.rs#handle_ws_connection`).
+
+> 📌 Nguồn đầy đủ (bảng event vào/ra từng dòng, Lớp A/B): [Giao thức IPC và WebSocket](02-giao-thuc-ipc-va-websocket.md)
+
+Đây là lý do `vision:ask_response` tồn tại: client gửi `vision:ask`, core rơi vào nhánh fallback → trả `vision:ask_response` (khớp `useGateway.ts:444`). Cùng cơ chế đó, `update_config` → core trả `update_config_response`, **không phải** `config_updated` ⇒ client **không** cập nhật `configData` từ phản hồi này (chỉ khớp `config_data`/`config_updated`, `:391-392`).
+
+**10 nhánh `onmessage` KHÔNG có nguồn phát trong core** — [THIẾU]: `config_updated`, `profile_updated_success`, `fact_deleted`, `task_plan_reply`, `skill_check_result`, `all_skills_check_complete`, `env_config_data`, `memory_reset_result`, `memory_updated`, `gpu_setup_progress`. Đây là di sản của gateway Node đã xoá, hoặc chỉ sống qua đường Tauri IPC (`mapTauriResponse`).
+
+`gpu_setup_progress` có xử lý riêng: `gpuSetupStatus = payload.status`, tự xoá sau 4 s khi chuỗi chứa `Hoàn tất`/`thất bại`/`Complete`/`Failed` (`:447-451`).
+
+**`update_user_profile` không có handler** trong `handle_command` (`lib.rs` chỉ có `get_user_profile` ở `:617`) ⇒ fallback trả `Err`, không có response. Onboarding trong web mode dựa vào `profileTimeout` 2.5 s (`useGateway.ts:325-331`) để tự nhả UI.
+
+### 3.4 API công khai đáng chú ý
+
+| Hàm | Dòng | Ghi chú |
+|---|---|---|
+| `sendMsg(event: WSClientEvent \| string, payload)` | `:213` | Nhận cả `string` ⇒ union type **không ràng buộc gì** |
+| `updateConfig()` | `:501` | ✅ có handler (`lib.rs:488`) |
+| `saveUserProfile()` | `:505` | ⚠️ optimistic, core không có handler |
+| `askVision()` | `:524-533` | payload `{question?}`, timeout client 120 s (`:529`); doc-comment `:517-523` ghi rõ **yêu cầu core build RELEASE** |
+
+---
+
+## 4. `useVoicePipeline.ts` — ScriptProcessorNode, không AudioWorklet
+
+Chương này chỉ nói về **nửa trình duyệt** của đường thoại (thu mic, wake word, đẩy PCM lên). Nửa lõi Rust — VAD Silero, GTCRN denoise, AEC, smart-turn, backend TTS/STT — nằm ở tài liệu đường ống thoại; mọi ngưỡng nêu dưới đây là ngưỡng **phía client**, không phải ngưỡng VAD của core.
+
+> 📌 Nguồn đầy đủ: [Voice runtime](../03-he-thong-con/voice.md)
+
+State machine: `'OFF' | 'PASSIVE' | 'ACTIVE' | 'PROCESSING'`. Timeout không hoạt động **15 s** đẩy `ACTIVE|PROCESSING → PASSIVE` (`resetActiveTimeout()` `:274-282`).
+
+Chữ ký trả về (`useVoicePipeline.ts:6-27`):
+
+```ts
+export interface UseVoicePipelineReturn {
+  state: Ref<'OFF' | 'PASSIVE' | 'ACTIVE' | 'PROCESSING'>;
+  volumeLevel: Ref<number>;
+  isReady: Ref<boolean>;
+  startPipeline: (ws: WebSocket) => Promise<void>;
+  stopPipeline: () => Promise<void>;
+  toggleVoice: () => void;
+  onWakeWordDetected: (cb: () => void) => void;
+  setProcessing: () => void; setPassive: () => void; keepAlive: () => void;
+  wakeWordThreshold: Ref<number>;
+  diagnosticsPanelRef: Ref<HTMLElement | null>;
+  setWakeWordThreshold: (threshold: number) => void;
+  pipelineError: Ref<string>;
+  activateWebSpeechFallback: () => void; deactivateWebSpeechFallback: () => void;
+  webSpeechFallbackActive: Ref<boolean>;
+}
+```
+
+`startPipeline` (`:284-408`):
+- `getUserMedia({audio:{channelCount:1, sampleRate:{ideal:16000}, echoCancellation:true, noiseSuppression:true, autoGainControl:true}})` (`:306-314`).
+- `new AudioCtx({ sampleRate: 16000 })` (`:317`).
+- `analyser` fftSize 256 (`:320-322`) cho VU meter (`monitorVolume` chạy `requestAnimationFrame`, `:410-432`).
+- **`audioContext.createScriptProcessor(2048, 1, 1)`** (`:325`) — comment "[v31] Nemotron streaming: 128ms chunks (2048 samples @ 16kHz)". **Không có file AudioWorklet nào trong repo** (`src/workers/` chỉ có `LivaWakeWorker.ts`, `audio-worker.ts`, `hey_liva_weights.json`).
+- Chuỗi node: `source → analyser → processor → destination` (`:362-364`).
+- Interaction guard: bắt `click`/`keydown` để `audioContext.resume()` (`:375-393`).
+
+### 4.1 "Valve" hai chiều trong `onaudioprocess` (`:327-360`)
+
+```ts
+// PASSIVE + rms > 0.002  → gửi cho wake worker (chống tự đánh thức, tiết kiệm CPU)
+if (state.value === 'PASSIVE' && rms > 0.002) sendToWorker('audio', { audio: Array.from(inputData) });
+
+// ACTIVE|PROCESSING → đẩy PCM lên WS, đúng hợp đồng VoiceFrame 9 byte
+const buffer = new Float32Array(inputData.length);
+buffer.set(inputData);
+wsRef.send(serializeVoiceFrame(OP_MIC_IN, micSeqId, new Uint8Array(buffer.buffer)));   // :353
+micSeqId = (micSeqId + 1) >>> 0;                                                       // :354
+```
+
+`SILENCE_THRESHOLD = 0.02` (`:254`) — vượt ngưỡng thì `resetActiveTimeout()`.
+
+### 4.2 Hợp đồng khung mic — [OK] (đã sửa 22/07/2026)
+
+`useVoicePipeline.ts:4` import `serializeVoiceFrame, OP_MIC_IN` từ `../utils/voiceFrame`, và đường ACTIVE|PROCESSING gửi bằng `serializeVoiceFrame(...)` (`:353`) ⇒ khung mic **có đủ** header 9 byte `[op u8][seq u32 LE][payload_size u32 LE]`, khớp `VoiceFrame::decode` (`liva-native-core/src/webrtc/frame.rs:32-56`). `seqId` quấn vòng u32 bằng `>>> 0` (`:354`), đúng `u32` bên Rust.
+
+`liva-ui/src/utils/voiceFrame.ts` (58 dòng) là bản đối xứng client→core của `speakerFrame.ts`: `VOICE_FRAME_HEADER_SIZE = 9` (`:17`), `OP_AUTH_HANDSHAKE = 0x00` (`:20`), `OP_MIC_IN = 0x01` (`:22`), `MAX_PAYLOAD_BYTES = 1 MiB` (`:25`); `serializeVoiceFrame` ghi `setUint8(0,…)` / `setUint32(1, seqId, true)` / `setUint32(5, len, true)` (`:50-53`) và **ném `RangeError`** nếu payload vượt 1 MiB (`:42-46`) — dễ chẩn đoán hơn việc core lặng lẽ đóng kết nối.
+
+> 📌 Nguồn đầy đủ (sơ đồ header 9 byte, bảng opcode, đối chiếu client): [Giao thức IPC và WebSocket](02-giao-thuc-ipc-va-websocket.md)
+
+> **Lịch sử (đã khắc phục, giữ lại để hiểu bối cảnh):** ~~Client gửi `[0x01][8192 byte f32 LE]` — thiếu 9 byte header. Byte 5..9 là bit-pattern của một mẫu f32 mic; ví dụ mẫu `1e-5` → `0x3727C5AC` ≈ 925 MB > 1 MB ⇒ `VoiceFrame::decode` trả `Err("Payload exceeds 1MB limit")` và core `break` vòng decode.~~ Comment ngay tại chỗ trong `useVoicePipeline.ts:348-352` mô tả đúng lỗi cũ này và lý do phải bọc header. Hệ quả thực tế của lỗi cũ: barge-in từ trình duyệt không thể hoạt động.
+
+Vẫn còn lệch ở **hai khung msgpack** `wake_word_triggered` (`:264-268`) và `web_speech_transcription` (`:194-198`) — prefix 1 byte `0x02` trùng `OP_SPEAKER_OUT`, core không có nhánh match nào ⇒ im lặng bỏ qua. Chú thích đầu `voiceFrame.ts:11-13` cảnh báo rõ đây là giao thức khác, đừng nhầm với khung 9 byte.
+
+Ngược lại `WidgetApp.vue:329-333` dùng `sendMsg` = **JSON text** ⇒ đường này khớp `liva-native-core/src/websocket.rs:829-1520+` và chạy thật.
+
+### 4.3 Wake word chạy 100% phía client — và không phải ONNX
+
+`src/workers/LivaWakeWorker.ts` (332 dòng), Web Worker `{type:'module'}`, khởi tạo tại `useVoicePipeline.ts:46-49`.
+
+- Header file vẫn ghi "ONNX Runtime Web Worker", nhưng `loadModel()` (`:64-79`) **không nạp ONNX gì cả** — chỉ log rồi `isReady = true`. Comment `:67-69`: bypass WASM, nạp trọng số trực tiếp từ JSON để tránh "Emscripten 8524768 memory crash" và lỗi cache Vite. `config.modelPath = '/models/hey_liva.onnx'` (`:41`) là **field chết** (`public/models/hey_liva.onnx` vẫn tồn tại nhưng không được đọc).
+- Mạng nơ-ron viết tay bằng JS thuần, trọng số từ `import weights from './hey_liva_weights.json'` (`:19`, file 24 KB): MLP 16→32 (ReLU) →16 (ReLU) →1 (**Sigmoid**, comment `:163` "Fixes Softmax bug") — `runInference` `:133-173`.
+- Đặc trưng: **RMS energy** 16 frame, `frameSizeMs 80 / hopSizeMs 20 @ 16 kHz`, scale `min(1, rms*3)` (`extractFeatures` `:93-119`).
+- Sliding window `Float32Array(8192)`, cần `REQUIRED_SAMPLES = 6080` (`:179-210`), cooldown 1500 ms, threshold mặc định `0.15` (`:40-49`), persist trong `localStorage['liva_wake_threshold']` (`useVoicePipeline.ts:34`, ghi lại ở `:534-538`).
+- Giao thức worker: nhận `init | audio | features | pause | resume | reset | setThreshold | terminate`; phát `loaded | ready | detection{detected,confidence} | thresholdChanged | paused | resumed | reset | terminated | __log{level,args}` (kênh `__log` bắc cầu về `logger`, `useVoicePipeline.ts:54-58`).
+- **Pre-warm:** `initWorker()` được gọi ở module scope (`useVoicePipeline.ts:572-576`) ngay khi import ⇒ worker khởi động trước cả khi user bấm mic.
+
+Phía core cũng có wake gate riêng (`liva-native-core/src/websocket.rs:540-543`, `wake::WakeGate::from_env()`, mode `trained_model`/`asr_prefix`/`hybrid`) ⇒ **hai hệ wake word song song**; cái phía client là cái đang chạy trong widget.
+
+### 4.4 Web Speech fallback — [MỘT PHẦN]
+
+`activateWebSpeechFallback()` (`:137-150`) dùng `SpeechRecognition | webkitSpeechRecognition`, `lang='vi-VN'`, `continuous=true`, `interimResults=false` (`:178-180`); transcript final gửi bằng msgpack `web_speech_transcription` (khung không khớp core, xem §4.2). Bật/tắt bởi event `stt_fallback_activated` / `stt_fallback_deactivated` từ WS (`WidgetApp.vue:763-766`).
+
+> Web Speech API là **dịch vụ online của trình duyệt** — mâu thuẫn với định hướng offline của LIVA.
+
+### 4.5 `audio-worker.ts` — [THIẾU], code chết
+
+`src/workers/audio-worker.ts` (66 dòng): nhận `{type:'DECODE_AUDIO', id, base64}`, decode MP3 bằng `OfflineAudioContext`, tính envelope lip-sync RMS 60 fps, trả `AUDIO_READY` với transferable buffers.
+
+Grep toàn `src/`: **không nơi nào `new Worker(... audio-worker ...)`**. Chỉ `tests/workers/audio-worker.test.ts:45,73` import ⇒ tồn tại để lấy coverage.
+
+---
+
+## 5. `useSpeakerPlayback.ts` + `speakerFrame.ts` — [OK]
+
+### 5.1 Hợp đồng khung loa
+
+```ts
+// liva-ui/src/utils/speakerFrame.ts
+export const VOICE_FRAME_HEADER_SIZE = 9;   // opcode u8 + seqId u32 LE + payloadSize u32 LE
+export const OP_SPEAKER_OUT = 0x02;
+export const OP_FLUSH       = 0x03;
+export interface SpeakerChunk { turnEpoch: number; sampleRate: number; samples: Float32Array<ArrayBuffer>; }
+export function parseSpeakerPayload(payload: ArrayBuffer | Uint8Array): SpeakerChunk | null
+export class SpeakerEpochGate { observeFlush(epoch: number): void; accepts(epoch: number): boolean; }
+```
+
+Payload `OP_SPEAKER_OUT` = `[u32 LE turn_epoch][u32 LE sample_rate][f32 LE mono PCM…]`. Validate: đủ ≥ 12 byte, `(len-8) % 4 === 0`, `8000 ≤ sampleRate ≤ 96000`. WebSocket handler bỏ fail-closed khi parser trả `null`; payload không có epoch không được phép lách qua legacy decoder sau barge-in.
+
+**Xử lý alignment rất cẩn thận**: payload bắt đầu ở byte 9 của khung WS nên **không** căn 4 byte; PCM bắt đầu thêm 8 byte metadata nhưng vẫn không căn hàng. Parser dùng `DataView.getFloat32(..., true)` khi cần và luôn tôn trọng `bytes.byteOffset`.
+
+Ba hằng số này **khớp 100%** với bảng opcode của core (`webrtc/frame.rs:3-10` — 5 opcode, `OP_ACK_PLAYING` ở `:10` kèm doc-comment "đặt chỗ trong giao thức"; encode header 9 byte tại `frame.rs:25-27`); payload PCM sinh ở `webrtc/pipeline.rs:384-391`, FLUSH ở `pipeline.rs:462`. Từ 22/07/2026 đây **không còn là đường nhị phân duy nhất** làm đúng hợp đồng: `liva-ui/src/utils/voiceFrame.ts` là bản đối xứng chiều client→core và đã được `useVoicePipeline.ts` dùng thật cho `OP_MIC_IN` (§4.2). Hằng `VOICE_FRAME_HEADER_SIZE = 9` nay tồn tại ở **cả hai** file (`speakerFrame.ts:14`, `voiceFrame.ts:17`).
+
+> 📌 Nguồn đầy đủ (5 opcode, sơ đồ header 9 byte, giới hạn 1 MiB): [Giao thức IPC và WebSocket](02-giao-thuc-ipc-va-websocket.md)
+
+### 5.2 Hàng đợi gapless
+
+`useSpeakerPlayback(options: UseSpeakerPlaybackOptions = {}): UseSpeakerPlaybackReturn` (`:65-67`). Options (`:18-31`): `channel`, `useMasterGain`, `onPlaybackStarted`, `onPlaybackFinished`, `onSourceStarted(ctx, source)`, `onQueueDrained`.
+
+- **Con trỏ lịch `nextStartTime`** (`:73`): `scheduleBuffer` (`:111-131`) đặt `source.start(nextStartTime)` rồi `nextStartTime += audioBuffer.duration - overlap`. Nếu con trỏ tụt sau `ctx.currentTime` thì kéo lên hiện tại (`:117-119`) ⇒ phát liền mạch, không hở.
+- `LEGACY_MP3_OVERLAP_S = 0.1` chỉ áp dụng cho audio nén nhận qua JSON `ai_audio_chunk` (padding encoder ~100 ms); **PCM thì overlap = 0** vì sample-exact.
+- `App.vue` và `WidgetApp.vue` đọc `turnEpoch` qua `parseSpeakerPayload`; `SpeakerEpochGate` bỏ chunk thấp hơn watermark của FLUSH trước khi gọi `enqueueSpeakerPayload`.
+- `enqueueSpeakerPayload` chỉ nhận PCM có epoch. Payload binary sai hợp đồng bị bỏ fail-closed, không chuyển sang decoder MP3. `enqueueEncodedAudio` vẫn là đường riêng cho JSON `ai_audio_chunk`. Đường PCM: `ctx.createBuffer(1, n, sampleRate)` + `copyToChannel`.
+- **`queueEpoch`** (`:77`): tăng mỗi lần `stop()` ⇒ decode bất đồng bộ đang bay tự bỏ chunk cũ (`:153`, `:173`).
+
+### 5.3 Barge-in: `flush()` vs `stop()` — khác biệt then chốt
+
+```ts
+function stop(blockIncomingChunks = true)  // :180
+function flush() { stop(false); }          // :207-209
+```
+
+- `stop(true)`: đặt `blocked = true` ⇒ **chặn mọi chunk mới** cho tới `unblock()`. Dùng khi user gõ tin nhắn mới (`App.vue:107`, `WidgetApp.vue:586`), khi nhận `ai_thinking_start`, khi nhận text `[INTERRUPT]`.
+- `flush()` = `stop(false)`: dừng hết source đã lên lịch + reset con trỏ nhưng vẫn nhận chunk mới. Trước khi gọi `flush()`, handler nâng watermark bằng `OP_FLUSH.seq_id`; frame đến sau nhưng mang `turn_epoch` cũ bị bỏ.
+- `unblock()` được gọi ở `ai_stream_start` và `ai_spoken_response` (`App.vue:210,228`; `WidgetApp.vue:780,864`).
+- `stop()` cũng reset `masterGain.gain.value = 1.0` (`:198`) — huỷ ducking.
+
+### 5.4 Phân biệt 0x02 nhập nhằng
+
+Cả `App.vue:137-159` và `WidgetApp.vue:677-696` dùng cùng heuristic: byte 0 = `0x02` có thể là **VoiceFrame OP_SPEAKER_OUT** hoặc **msgpack event legacy**:
+
+```ts
+const payloadSize = view.getUint32(5, true);
+if (payloadSize === arrayBuffer.byteLength - 9 && payloadSize > 0) { /* PCM */ }
+else { unpack(new Uint8Array(arrayBuffer, 1)); }
+```
+
+### 5.5 Audio ducking (chỉ Widget)
+
+`WidgetApp.vue:340-342` bật `useMasterGain: true`; event `audio_ducking` (`:925-928`) → `speaker.setMasterVolume(payload.volume)` → `masterGain.gain.setTargetAtTime(v, now, 0.05)` (`useSpeakerPlayback.ts:215-219`). `App.vue` **không** bật masterGain ⇒ `setMasterVolume` là no-op ở đó.
+
+---
+
+## 6. `platform/` — adapter nền tảng
+
+`src/platform/IPlatformAdapter.ts` (15 dòng), đúng 8 method:
+
+```ts
+export interface IPlatformAdapter {
+  readonly platformName: 'tauri' | 'web';
+  getWindowSize(): Promise<{ width: number; height: number }>;
+  toggleGhostMode(enabled: boolean): Promise<void>;
+  minimizeToTray(): Promise<void>;
+  quitApp(): Promise<void>;
+  readVaultKey(key: string): Promise<string | null>;
+  writeVaultKey(key: string, value: string): Promise<void>;
+  onGatewayReady(callback: (port: number, token: string | null) => void): void;
+  invokeBackend(command: string, args?: Record<string, unknown>): Promise<unknown>;
+}
+```
+
+`src/platform/index.ts:6-16` `detectPlatform(): IPlatformAdapter` — nhận diện bằng `window.__TAURI_INTERNALS__`, fallback `MockWebAdapter`.
+
+**`TauriAdapter`** (`src/platform/TauriAdapter.ts`): mọi API Tauri đều **dynamic import trong try/catch** để không vỡ khi chạy trình duyệt.
+
+| Method | Tauri call | Có trong `invoke_handler`? |
+|---|---|---|
+| `toggleGhostMode` `:15` | `invoke('toggle_ghost_mode', {enabled})` | ✅ `lib.rs:76,582` |
+| `minimizeToTray` `:23-25` | `Window.getCurrent().hide()` | — (API window) |
+| `quitApp` `:33` | `plugin-process` `exit(0)` | — |
+| `readVaultKey` `:43` | `invoke('read_vault_key',{key})` | ✅ `lib.rs:152,586` |
+| `writeVaultKey` `:53` | `invoke('write_vault_key',{key,value})` | ✅ `lib.rs:189,587` |
+| `onGatewayReady` `:60-63` | `listen('gateway-ready')` → `payload.{port,token}` | ✅ emit tại `lib.rs:477-480` |
+| `invokeBackend` `:72` | `invoke(command, args)` | dùng cho `update_interactive_zones` (`lib.rs:92,584`) và `open_dashboard` (`lib.rs:102,585`) |
+
+**`MockWebAdapter`** (`src/platform/MockWebAdapter.ts`): thêm class `web-mock-mode` vào `document.body` (`:9`), vault → `localStorage['liva_vault_{key}']` (`:31,35`), `onGatewayReady` giả lập `callback(8002, null)` sau 1 s (`:42-44`), `invokeBackend` chỉ log rồi `return null`.
+
+**Dùng ở đâu:** `provide('platform', …)` ở cả 3 entry; `inject<IPlatformAdapter>('platform')` tại `App.vue:13` và `WidgetApp.vue:21`. **`DashboardApp.vue` KHÔNG inject platform** — dashboard đi qua `useGateway` (Tauri IPC hoặc WS). Có test riêng `tests/platform/PlatformAdapter.test.ts`.
+
+`native_ipc_call` / `native_ipc_call_stream` được `useGateway` gọi **trực tiếp**, không đi qua adapter.
+
+---
+
+## 7. Ghost Mode — click-through và "Phantom Bounding Box Fix"
+
+Cửa sổ `widget` phủ toàn màn hình (1920×1080 maximized, trong suốt, always-on-top). Nếu để nguyên, nó sẽ nuốt mọi cú click của người dùng lên game/app phía dưới. Giải pháp: **UI đo vùng bấm được → Rust hit-test con trỏ 30 ms → bật/tắt `set_ignore_cursor_events`**.
+
+```mermaid
+sequenceDiagram
+    participant V as WidgetApp.vue
+    participant A as TauriAdapter
+    participant R as lib.rs (luồng D)
+    participant W as Cửa sổ widget (OS)
+
+    Note over V: setInterval(150ms) + watch<br/>[isCollapsed, isDragging, messages.length]
+    V->>V: updateInteractiveZones() :379-419<br/>getBoundingClientRect() của<br/>chat capsule / khung tin nhắn / mini icon
+    V->>A: invokeBackend("update_interactive_zones", {zones})
+    A->>R: invoke → InteractiveZones{Mutex<Vec<Rect>>}
+    loop mỗi 30ms (eco: 100/300/1000/2000ms)
+        R->>W: cursor_position() - inner_position()<br/>chia scale_factor (cache TTL 1000ms)
+        R->>R: check_cursor_in_zones(rx, ry, &zones) :42-73
+        alt giá trị đổi so với last_ignore
+            R->>W: set_ignore_cursor_events(!is_inside)
+        end
+    end
+    Note over R: zones rỗng ⇒ ép ignore = true
+```
+
+- Luồng hit-test: `std::thread::spawn` tại `lib.rs:484-576`. Poll thích ứng 30/100/500 ms (eco: 100/300/1000/2000 ms), cache `scale_factor` + `inner_position` TTL 1000 ms (eco 2000 ms).
+- `check_cursor_in_zones(rx, ry, &[Rect]) -> (bool, f64)` (`lib.rs:42-73`) trả `(is_inside, min_distance)` bằng khoảng cách Euclid tới cạnh gần nhất.
+- Lệnh `toggle_ghost_mode` (`lib.rs:75-79`) là đường thủ công song song, gọi thẳng `window.set_ignore_cursor_events(enabled)`.
+- `App.vue:15-21` dùng ghost mode theo hover (`@mouseenter`/`@mouseleave` trên canvas Live2D) — cách cũ, khác hẳn cơ chế zones, và nằm trong entry **không được build**.
+
+> **[MỘT PHẦN] Eco Mode**: `set_eco_mode` có handler (`lib.rs:81-89`, ghi `AtomicBool` với `Ordering::Relaxed`) nhưng grep toàn repo chỉ ra 2 hit duy nhất là chính định nghĩa `lib.rs:82` và đăng ký `lib.rs:583`. `WidgetApp.vue:735` chỉ xử lý *sự kiện* `eco_mode_changed` đến từ WS, **không hề gọi** `invoke('set_eco_mode')` ⇒ `EcoModeState` luôn `false`, nhánh eco trong luồng hit-test không bao giờ chạy.
+
+---
+
+## 8. Avatar — VRM/Three.js đang chạy, nhưng model thật là FBX
+
+### 8.1 Bộ chọn engine
+
+- `WidgetApp.vue:32-37`: cả hai engine đều `defineAsyncComponent` (lazy, 0 byte khi không dùng).
+- `resolveEngineFromConfig(config)` (`WidgetApp.vue:44-56`): ưu tiên `ui.avatarMode` → `avatar.engineMode` → suy từ `activeModel.type/format` → mặc định `'3D'`.
+
+> **`onMounted` ép cứng 3D** (`WidgetApp.vue:625-630`):
+> ```ts
+> engineMode.value = '3D';
+> activeModelConfig.value = DEFAULT_WIDGET_MODEL;
+> activeEngine.value = VRMEngine;
+> engineStatus.value = 'forced-3d-bootstrap';
+> logger.info('[Widget]', 'Initial engine forced to 3D for diagnostics');
+> ```
+> Chỉ khi WS trả `config_data`/`config_updated` (`WidgetApp.vue:726-728`) → `applyWidgetConfig()` (`:78-91`) mới đổi được sang 2D. ⇒ `HardwareDetector` ở Widget là **[MỘT PHẦN] chỉ chạy để log**; ở Dashboard (`AvatarGallery.vue:105`) là **[OK]**.
+
+### 8.2 `VRMEngine.vue` — engine đang dùng thật [OK]
+
+- Stack: `three` + `@pixiv/three-vrm` (`GLTFLoader` + `VRMLoaderPlugin`) và `FBXLoader` (`use3DModel.ts:9-12`).
+- `use3DModel(): Use3DModelReturn` (`use3DModel.ts:178`), interface đầy đủ ở `:122-142`.
+- Có: renderer trong suốt (`alpha:true`, `setClearColor(0x000000,0)`), 4 nguồn sáng, auto-blink theo máy trạng thái `'idle'|'closing'|'opening'|'closed'` với `easeOutQuad` + 20% double-blink (`:603-665`), idle breathing + OpenSimplex micro-sway (`:565-590`), micro-expression ngẫu nhiên có trọng số (`:848-897`), spring-damped lookAt (`:978-992`), **Deep Dispose** giải phóng VRAM gồm `renderer.forceContextLoss()` (`:1074-1102`).
+- `defineExpose` (`VRMEngine.vue:365-376`): `triggerMotion, startLipSync, stopLipSync, startAudioLipSync, stopAudioLipSync, setExpression, toggleCamera, isCameraOn, captureFrameForAI, currentModelFormat`.
+- **Throttle thích ứng** trong render loop (`use3DModel.ts:494-503`): đọc `globalThis.LIVA_AVATAR_DEMOTE_LEVEL` (`'freeze'|'preempted'` → bỏ hẳn frame) và `globalThis.LIVA_ECO_MODE` (200 ms/frame ≈ 5 fps); cửa sổ bị ẩn → 66 ms (~15 fps). Clamp `delta ≤ 1/30` chống nổ spring bone.
+
+> **Thực tế chạy FBX, không phải VRM.** `liva-ui/public/models/vrm/` chỉ chứa `default_avatar/*.fbx` và `little+Chinese+girl/*.fbx` — **không có file `.vrm` nào**. `DEFAULT_WIDGET_MODEL` (`WidgetApp.vue:23-27`) trỏ thẳng `models/vrm/default_avatar/tripo_convert_648e…fbx`, `format:'fbx'`. Với FBX: `loadFBX` auto-scale/center bằng `Box3` + xoay `rotation.y = -PI/2` vì Tripo3D xuất quay ngang (`use3DModel.ts:433-436`), chạy `AnimationMixer` nếu có clip nhúng.
+>
+> **Toàn bộ blink / lipsync / expression / lookAt đều bọc trong `if (vrm.value)` (`use3DModel.ts:513`) ⇒ với model FBX, avatar KHÔNG nháy mắt, KHÔNG nhép miệng, KHÔNG biểu cảm** — chỉ có mixer clip và render.
+
+Còn sót `debugProbe` — khối lập phương xanh cạnh 0.45, xoay liên tục, thêm vào scene (`use3DModel.ts:253-267`, xoay ở `:545-548`), chỉ bị gỡ khi `disposePreviousModel()` chạy.
+
+### 8.3 `Live2DEngine.vue` — lipsync là giả [MỘT PHẦN]
+
+- `PIXI.Application` + `pixi-live2d-display/cubism2`, dynamic import để né hoisting error (`Live2DEngine.vue:25-35`). Model mặc định `/assets/models/pio/index.json` (asset có thật trong `public/assets/models/pio/`).
+- `startLipSync()` chỉ gọi `startRandomMotion("tap_body")` (`:79-83`); `stopLipSync()` là hàm rỗng (`:85-87`); `lipSyncLoop()` (`:122-127`) **bỏ qua giá trị biên độ** và gọi `startLipSync()` khi `Math.random() > 0.95`, kèm comment thừa nhận trong tương lai sẽ map `currentLipSyncData[index]` vào `ParamMouthOpenY`.
+- **Không expose `startAudioLipSync`** — chỉ expose `playPrecalculatedLipSync(lipSyncData, startTime, audioCtx)` (`:138`). Mà `WidgetApp` chỉ gọi `startAudioLipSync`/`stopAudioLipSync` (`:346-353`) ⇒ **ở chế độ 2D avatar hoàn toàn không nhép miệng theo TTS**; `playPrecalculatedLipSync` là code chết.
+
+### 8.4 Lip-sync thật: audio-driven qua `AnalyserNode`
+
+```mermaid
+flowchart LR
+    C["Core: OP_SPEAKER_OUT<br/>header 9 byte + PCM f32"] --> P["useSpeakerPlayback<br/>WidgetApp.vue:340-358"]
+    P -->|onSourceStarted ctx, source| E["VRMEngine.startAudioLipSync :69-71"]
+    E --> A["startAudioDrivenLipSync<br/>use3DModel.ts:760-783<br/>AnalyserNode fftSize=256"]
+    A --> U["updateAudioLipSync :789-818<br/>getByteFrequencyData → RMS 5 dải"]
+    U --> V["5 viseme VRM<br/>['aa','oh','ee','ih','ou']<br/>sensitivity [1.2,0.8,0.6,0.5,0.4]<br/>dead-zone 0.05, lerp 0.3"]
+    P -->|onQueueDrained| S["stopAudioLipSync :823-843<br/>zero toàn bộ viseme"]
+```
+
+1. Core đẩy khung nhị phân `OP_SPEAKER_OUT` (`utils/speakerFrame.ts`, header 9 byte) qua WS.
+2. `useSpeakerPlayback({channel, useMasterGain, onPlaybackStarted, onPlaybackFinished, onSourceStarted, onQueueDrained})` (`WidgetApp.vue:340-358`) phát PCM gapless.
+3. `onSourceStarted: (ctx, source) => engineRef.value?.startAudioLipSync(ctx, source)` (`:346-348`) → `use3DModel.startAudioDrivenLipSync(audioCtx, source)` (`:760-783`): tạo `AnalyserNode` `fftSize=256`, nối `source → analyser → destination`.
+4. Mỗi frame render, `updateAudioLipSync()` (`:789-818`) đọc `getByteFrequencyData`, tính RMS 5 dải tần → 5 viseme VRM: `BAND_RANGES` (`:738-744`), `BAND_EXPRESSIONS = ['aa','oh','ee','ih','ou']` (`:749`), `BAND_SENSITIVITY = [1.2,0.8,0.6,0.5,0.4]` (`:747`), dead-zone `0.05`, lerp `0.3`.
+5. `onQueueDrained` → `stopAudioLipSync()` (`:823-843`) zero toàn bộ viseme **và** `voice.setPassive()` nếu đang `PROCESSING` — chống mic nghe lại chính giọng LIVA.
+6. Fallback thủ tục `updateProceduralLipSync` (`:677-707`) — dao động sin ~8 âm tiết/giây, chỉ dùng khi `audioAnalyserActive === false`.
+
+> **Ánh xạ cảm xúc LLM → avatar là giả [THIẾU]:** core gửi tag `[happy]/[sad]/…` trong stream, `WidgetApp.vue:852-853` gọi `engineRef.value.setExpression(emotion)`, nhưng `VRMEngine.setExpression` (`:123-145`) validate xong **chỉ gọi `triggerMotion()` — hàm chọn biểu cảm NGẪU NHIÊN có trọng số** (`use3DModel.ts:914-916`); tham số `emotion` bị vứt bỏ ngoài việc set `currentEmotion` (biến chỉ ghi, không đọc).
+
+### 8.5 `avatarSync.ts` — vai trò thật
+
+Chỉ là helper **SSOT config Dashboard ↔ Widget**, KHÔNG liên quan lipsync (trái với suy đoán từ tên file). Xuất:
+- `type EnginePreference = 'auto'|'2D'|'3D'`, `type ModelFormat = 'vrm'|'fbx'|'live2d'`, `interface AvatarModelInfo { name; filename; size; isActive; type:'2d'|'3d'; format? }` (`:5-15`)
+- `normalizeEngineMode(raw: unknown): EnginePreference` (`:17`)
+- `getActiveModelKey(config): string | null` (`:29`) — thứ tự ưu tiên `ui.activeModel.filename` → `avatar.vrmModel` → `avatar.live2dModel` → `avatar.activeModel`
+- `isModelActive(model, config): boolean` (`:51`)
+- `buildAvatarConfigPatch(model, engine): Record<string, unknown>` (`:65`) — sinh patch **ghi kép** vào cả `avatar.*` lẫn `ui.*`
+- `applyActiveFlags(models, config): AvatarModelInfo[]` (`:92`)
+
+Chỉ `AvatarGallery.vue:10-16` import. Mâu thuẫn nội tại: `buildAvatarConfigPatch` mặc định `format` cho 3D là `'fbx'` (`:86`) trong khi đường dẫn cơ sở luôn là `models/vrm/...` (`:69`).
+
+### 8.6 Webcam & face tracking
+
+**`VisionSensor.vue` là file 0 byte**, `grep -rn "VisionSensor" liva-ui/src` → **0 kết quả** ⇒ **[THIẾU]**, placeholder chưa bao giờ viết.
+
+Chức năng webcam thật nằm ở `composables/useFaceTracking.ts`:
+- `useFaceTracking(): UseFaceTrackingReturn` (`:183`) — MediaPipe `FaceLandmarker`, `runningMode:"VIDEO"`, `numFaces:1`, `outputFaceBlendshapes:true`, `delegate:"GPU"` (`:204-213`). Asset local có thật: `public/assets/wasm/vision_wasm_internal.{js,wasm}` và `public/assets/models/face_landmarker.task`.
+- `estimateHeadPose(landmarks): HeadPose` (`:87`) — ước lượng hình học từ landmark 1/33/263/152/10, clamp yaw ±45°, pitch ±35°, roll ±30°.
+- `extractExpressions(blendshapes): FaceExpressions` (`:130`) — map ARKit blendshape → `{happy,sad,surprised,angry,blink,blinkLeft,blinkRight,mouthOpen,browUpLeft,browUpRight}`.
+- `captureFrame(): string | null` (`:353`) — canvas ẩn 320×240 → `toDataURL("image/webp", 0.5)`.
+- Nút bật/tắt camera ở `VRMEngine.vue:397-404` (nút tròn góc phải), `toggleCamera()` (`:169-187`) → `startTracking(webcamVideo)` + `setFaceTrackingActive(true)` + `faceTrackingLoop()` (`:152-164`) bơm `updateLookAt(-yaw, pitch)` và `updateExpressions(...)` vào VRM mỗi frame. Video `<video ref="webcamVideo">` ẩn 1×1 px, `opacity:0` (`VRMEngine.vue:389-394`, CSS `:438-445`).
+- Frame gửi lên AI: `WidgetApp.vue:509-514` gọi `captureFrameForAI()` rồi `sendMsg("camera_frame", {image, timestamp})` — **`camera_frame` không có handler nào trong core** ⇒ rơi vào `_ =>` và trả `Unknown command`.
+
+> Mâu thuẫn: face tracking chỉ tác động khi model là **VRM** (mọi lệnh trong `updateExpressions`/`updateBlink` gate bởi `vrm.value`), nhưng repo chỉ có model FBX ⇒ **camera bật lên nhưng avatar không phản ứng**.
+
+---
+
+## 9. Bảng đầy đủ màn hình Dashboard
+
+Điều hướng: `Sidebar.vue:22-35` (10 mục chính + `settings` ở footer) → `DashboardApp.vue:38-50` `pageMap`, bọc `<KeepAlive>` (`DashboardApp.vue:122-124`).
+
+**Điểm vào backend hiện hành:** dispatcher đã tách theo 11 miền và sở hữu 76 lệnh;
+catalog sống nằm ở [Giao thức IPC và WebSocket](02-giao-thuc-ipc-va-websocket.md).
+Lệnh ngoài catalog vẫn fail-closed với `Unknown command`; không dùng snapshot 44 arm
+ngày 22/07 làm contract.
+
+> Hai arm `mcp:list_tools` (`liva-native-core/src/lib.rs#handle_command`) và `mcp:call_tool` (`liva-native-core/src/lib.rs#handle_command`) được nối vào dispatcher ngày 22/07/2026 — chưa client UI nào gọi, nhưng **không còn** là code mồ côi.
+
+> **Lịch sử (đã khắc phục 22/07/2026):** ~~Lỗi bị nuốt bằng `if let Ok(res)` ⇒ UI không nhận phản hồi và cũng không báo lỗi.~~ Nhánh WS nay match cả `Ok`/`Err` và gửi trả `"{event}_error"` kèm `{command, error}` (`websocket.rs#handle_ws_connection`); comment tại chỗ (`websocket.rs#handle_ws_connection`) ghi rõ ví dụ `vision:ask` ở build debug từng bắt người dùng chờ 120 s để nhận một thông báo sai.
+
+> 📌 Nguồn đầy đủ (bảng lệnh: payload, giá trị trả, số dòng): [Giao thức IPC và WebSocket](02-giao-thuc-ipc-va-websocket.md)
+
+| Màn hình (file) | Chức năng | Op gửi xuống core | Trạng thái |
+|---|---|---|---|
+| **AvatarGallery.vue** (`avatar`) | Chọn engine auto/2D/3D, liệt kê model 2D/3D, kích hoạt model, import folder, xoá model | `get_avatar_models` (`:82`), `get_config` (`:83`), `update_config` (`:93` qua `pushConfig`), `import_avatar_folder {folderPath}` (`:130`), `delete_avatar_model {filename}` (`:158`) | **[MỘT PHẦN]** — `import_avatar_folder`, `delete_avatar_model` **không có handler** → no-op. Lệch schema: core trả `models2d`/`models3d` là mảng **chuỗi tên file** (`lib.rs:893-927`), UI `mapGatewayModels` đọc `m.name`/`m.filename` trên chuỗi (`:33-41`) ⇒ mọi thẻ hiện `name='Model'`, `filename=''`. `AvatarGallery.vue:286` hardcode tên file `tripo_convert_648e4371-….fbx` để chặn nút xoá |
+| **AISettings.vue** (`ai`) | Provider local/cloud, base URL/API key/model cloud, thư mục model local, router/expert GGUF, temperature/maxTokens/topP | `get_config` (`:143`), `update_config {ai:{…}}` (`:131`) | **[OK]** — `update_config` merge JSON + tự `load_configured_router_model` (`lib.rs:503-508`). Nhược: `saveConfig` chỉ `await setTimeout(500)` rồi báo "đã lưu" — **thông báo giả, không chờ ACK** (`:133-137`). File picker dùng `(file as any).path` (API Electron cũ, luôn `undefined` trên Tauri/WebView2) → fallback `file.name` (`:67-85`) |
+| **ApiManagementView.vue** (`api`) | Đọc/ghi text thô `.env` + vault cho AI cloud & tích hợp | `get_env_config` (`:136`), `save_env_config {content}` (`:186`) | **[THIẾU]** — cả hai **không có handler** ⇒ `onEnvConfigData` không bao giờ chạy, form luôn rỗng; nút "Lưu cấu hình & Khởi động lại" hiện `envMessage` lạc quan (`:188`) nhưng không có gì xảy ra; `isRestarting` (`:192`) chỉ dùng để disable nút, không ai set |
+| **VoiceManagementView.vue** (`voice`) | Xem/đổi voice profile, provider, ngôn ngữ, sample rate, bật/tắt training | `update_config {voice:{…}}` (`:32`), `get_voice_profiles` (`:47`), `get_voice_status` (`:48`), `start_voice_training` (`:53`), `stop_voice_training` (`:63`), `select_voice_profile {profile}` (`:69`,`:79`) | **[MỘT PHẦN]** — `update_config`/`get_voice_*` thật (core quét thư mục `data/voices`, `lib.rs:557-571`, trả mảng chuỗi). 3 op cuối **không có handler** → chỉ đổi text `statusMessage`. `testVoice` (`:77`) gắn `// @ts-ignore` và đặt chuỗi trạng thái — **không phát âm thanh** |
+| **TaskManager.vue** (`tasks`) | CRUD task trên SQLite + chat lập kế hoạch AI inline | `get_tasks` (`:75`,`:180`,`:181`), `add_task` (`:123`,`:151`), `update_task {id,updates}` (`:164`,`:168`), `delete_task {id}` (`:173`), `task_plan_chat {taskId,message}` (`:99`,`:163`) | **[OK]** — cả 5 op có handler (`lib.rs:639/674/710/732/792`). Callback stream `gateway.onTaskPlanReply` (`:64`). Điểm yếu: sau `add_task` dùng `setTimeout(500)` rồi đoán `tasks.value[0]` là task vừa tạo (`:138-147`) |
+| **MemoryViewer.vue** (`memory`) | Xem turns/facts/events/vectors, tìm kiếm, xoá fact, chạy validation projection | `get_memory_data`, `consolidate_memory {batchSize?}`, `delete_memory_fact {key}` | **[OK ở contract hiện tại]** — cả ba có handler. Backend trả cả `id` và `vecId`; nút được ghi đúng nghĩa “Kiểm tra projection”, không quảng cáo semantic consolidation |
+| **SkillsView.vue** (`skills`) | Liệt kê/lọc skill, bật-tắt, self-test từng skill và toàn bộ | `get_skills_list` (`:107`,`:141`), `test_skill {name}` (`:121`), `test_all_skills` (`:135`), `toggle_skill {name,enabled}` (`:140`), `toggle_all_skills {enabled}` (`:145`,`:146`) | **[THIẾU]** gần như mock — `get_skills_list` có handler nhưng trả **đúng 1 phần tử** `integrations::smart_home::get_metadata()` (`lib.rs:612-616`); 4 op còn lại không có handler → toggle/test không làm gì, spinner treo tới khi rời tab |
+| **SystemView.vue** (`system`) | Health/uptime/RSS và trạng thái service | `get_system_status` (poll 3 s) | **[OK theo payload có thể đo]** — khối bốn nút quản trị giả đã bị gỡ; không còn gửi `force_gc`/GitNexus/reload/reset từ màn hình này |
+| **VisionView.vue** (`vision`) | Ô nhập câu hỏi → LIVA chụp & mô tả màn hình | `vision:ask {question?}` qua `gateway.askVision()` (`useGateway.ts:524-533`) | **[MỘT PHẦN]** — đường nối chỉn chu nhất; core `liva-native-core/src/commands/vision.rs#ask` gọi `vision::capture::capture_for_vision()` + `llm_manager.answer_with_image(...)`; timeout UI 120 s; phản hồi qua WS `vision:ask_response` (`:444`) hoặc IPC case `'vision:ask'` (`:204`). **Yêu cầu core build RELEASE** (ghi rõ ở `VisionView.vue:7`, `useGateway.ts:517-523`) |
+| **UserProfile.vue** (`profile`) | Sửa hồ sơ: tên, năm sinh, quốc tịch, ngôn ngữ, sở thích, tone | `get_user_profile` (`:25`), `update_user_profile` qua `gateway.saveUserProfile()` (`:39`,`:53`) | **[MỘT PHẦN]** — `get_user_profile` thật (đọc `data/user_profile.json`, có fallback hardcode danh tính, `lib.rs:617-638`). `update_user_profile` **không có handler** → không lưu xuống đĩa; UI vẫn cập nhật optimistic (`useGateway.ts:506`) và báo "đã lưu" sau `setTimeout(600)` |
+| **SettingsView.vue** (`settings`) | Cấu hình system và modal xóa subject local | `get_config`, `update_config`, `memory:delete_subject {dryRun:false}` | **[OK ở contract xóa]** — destructive request chỉ gửi sau modal; core local-only, transaction/audit, trả `success` khi cả logic delete và WAL truncate hoàn tất |
+| **OnboardingForm.vue** (overlay) | Form bắt buộc khi `userProfile` rỗng (`DashboardApp.vue:82-85,145-147`) | `update_user_profile` (`:47`,`:69`) | **[THIẾU]** — cùng lý do với UserProfile. Có auto-detect locale trình duyệt `normalizeLocale()` (`:25-29`) |
+| **TitleBar.vue** | Titlebar frameless, drag, minimize/maximize/close, toggle theme sáng/tối lưu `localStorage` | Không có op; dùng `@tauri-apps/api/window` `getCurrentWindow()` (`:15`,`:22`,`:34`) — `close()` thực chất là `hide()` (`:35`) | **[OK]** — no-op êm khi chạy browser dev |
+| **StatusBar.vue** | Trạng thái WS, tên model AI, engine mode, latency có màu | Không gửi op; đọc `gateway.isConnected/systemStatus/configData` | **[MỘT PHẦN]** — `systemStatus.latencyMs` **không tồn tại** trong payload `get_system_status` ⇒ luôn hiện `0ms` (`:33-37`) |
+| **Sidebar.vue** | Điều hướng icon SVG inline + i18n tooltip | Không có op | **[OK]** |
+
+`DashboardApp.vue:63-77` tính `activeServicesOnline/Total` (7 dịch vụ) nhưng badge hiển thị bị ẩn cứng `v-show="false"` (`:131`) — UI chết.
+
+### 9.1 `ApiManagementView.vue` — bảng biến env (dù chưa nối backend)
+
+Cơ chế: đọc/ghi **text thô của `.env`** bằng regex (`parseEnvField` `:73-76`, `setEnvField` `:78-85`), merge thêm `payload.vault` khi đọc (`onEnvConfigData` `:87-133`). Layout 2 cột.
+
+Form phơi ra **hai nhóm biến, đều là biến do UI quản lý chứ Rust không đọc**: cột 1 "Hạ tầng AI & Tìm kiếm" (`AI_PROVIDER`/`AI_BASE_URL`/`AI_API_KEY`/`AI_MODEL` theo chuẩn **generic OpenAI-compatible**, `WHISPER_CLOUD_URL`, `TAVILY_API_KEY`, `WEATHER_API_KEY`), cột 2 "Tích hợp cá nhân & xã hội" (`TELEGRAM_*`, `ZALO_*`, `EMAIL_*`, `GOOGLE_CLIENT_SECRET`).
+
+Chi tiết riêng của **màn hình** này: placeholder gợi ý Gemini OpenAI-compat (`:240`,`:251`) và Groq cho Whisper (`:269`); khi lưu Telegram, form ghi lặp giá trị sang `TELEGRAM_CHAT_ID` + `TELEGRAM_ADMIN_ID` (`:167-168`); `EMAIL_PORT` mặc định 993; Zalo có auto-detect `ZALO_USER_ID`.
+
+> 📌 Nguồn đầy đủ (bảng biến môi trường, nơi nào đọc, lệch `.env.example` ↔ code): [Cấu hình và biến môi trường](../02-van-hanh/01-cau-hinh-va-bien-moi-truong.md)
+
+Chú thích ở `:440` vẫn yêu cầu đặt `credentials.json` vào "thư mục gốc của LIVA Gateway (liva-gateway)" — dịch vụ Python đã bị xoá ⇒ **văn bản lỗi thời**.
+
+> **Hai màn hình cấu hình AI song song, hai nơi lưu khác nhau, không đồng bộ:** `AISettings.vue` ghi vào `liva-config.json` qua `update_config` (chạy thật), `ApiManagementView.vue` ghi vào `.env` (đường chết).
+
+---
+
+## 10. i18n, logger, safeFetch, HardwareDetector
+
+### 10.1 `useI18n.ts` (566 dòng) — hand-rolled
+
+- **Không dùng `vue-i18n`** (không có trong `package.json`). Đúng 2 ngôn ngữ: `en-US` (`:4-271`), `vi-VN` (`:273-538`), gom trong `dictionaries: Record<string, Record<string,string>>`.
+- **Nguồn ngôn ngữ = `userProfile.language` từ gateway**, không phải `navigator.language`:
+```ts
+const currentLang = computed<string>(() => {
+  const lang = gateway.userProfile.value?.language;
+  return typeof lang === 'string' ? lang : 'vi-VN';   // :548-551
+});
+```
+⇒ mặc định `vi-VN`; đổi ngôn ngữ trong `UserProfile.vue`/Onboarding lan toả reactive tức thì (Widget chủ động đồng bộ: `WidgetApp.vue:729-734`).
+- `t(key, params?)` (`:553-563`): tra dict → fallback `dictionaries['vi-VN']` → fallback cuối trả **chính key**; interpolation `{name}` bằng `String.replace` — **chỉ thay lần xuất hiện đầu tiên** của mỗi placeholder.
+- Có key `lang_code` (`:97`, `:366`) chứa chính `'en-US'`/`'vi-VN'`. Bao phủ ~200 key: `nav_*`, `sys_*`, `tm_*`, `sk_*`, `av_*`, `ai_*`, `pr_*`, `set_*`, `wg_*`, `ob_*`.
+- Dịch chưa hoàn chỉnh: bản `vi-VN` để nguyên tiếng Anh ở `pr_title: 'User Profile'` (`:481`) và `set_title: 'System Settings'` (`:503`).
+- Một số chuỗi hard-code tiếng Việt ngoài i18n: `DashboardApp.vue:141` "Đang tải dữ liệu hồ sơ...", `App.vue:408` placeholder input, `useGateway.ts:449` so khớp `'Hoàn tất'`/`'thất bại'`.
+
+### 10.2 `utils/fetch.ts` — `safeFetch`
+
+```ts
+export async function safeFetch(input: RequestInfo | URL, init?: RequestInit, timeoutMs = 5000): Promise<Response>
+```
+Wrapper mỏng quanh `fetch` + `AbortController`, `clearTimeout` trong `finally`. Doc ghi rõ **không throw trên 4xx/5xx** — caller phải tự check `response.ok`. Dòng `:16` có `// eslint-disable-next-line no-restricted-syntax` — **điểm duy nhất được phép gọi `fetch` native**, khớp quy ước ESLint.
+
+Nơi dùng thật: `App.vue:96,313`, `WidgetApp.vue:539` (`sensory-capture` + preload filler WAV).
+
+### 10.3 `utils/logger.ts` (25 dòng)
+
+Dòng 1 là `/* eslint-disable no-console */` — **file duy nhất được đụng `console`**. Format `[LIVA][LEVEL][channel]`, chọn `console[level] ?? console.log`.
+
+```ts
+export const logger = { debug/info/warn/error: (channel: string, ...args: unknown[]) => void }
+```
+
+Quy ước là `logger.info('[Widget]', 'msg', …)` nhưng **rất nhiều chỗ gọi sai contract**, truyền message vào tham số `channel`: `useGateway.ts:214`, `useVoicePipeline.ts:139,192,205`, `DashboardApp.vue:15`. Hệ quả chỉ là prefix log xấu (`[LIVA][DEBUG][[useGateway] Sending event:]`), không lỗi runtime.
+
+### 10.4 `utils/HardwareDetector.ts` (144 dòng)
+
+```ts
+export type EngineMode = '2D' | '3D';
+export type EnginePreference = 'auto' | '2D' | '3D';
+export interface HardwareProfile { gpu, ram, cores, isWeakGPU, recommendedEngine, os, browser, resolution, webglVersion, maxTextureSize }
+export function profileHardware(): HardwareProfile
+export function detectOptimalEngine(preference: EnginePreference = 'auto'): EngineMode
+```
+
+**Mục đích duy nhất: quyết định render avatar bằng Live2D (2D/PIXI) hay VRM (3D/three.js).** Không liên quan tới GPU layer của LLM (cái đó là `LIVA_LLM_N_GPU_LAYERS` phía Rust).
+
+- `profileHardware` (`:90-132`): tạo canvas ẩn, thử `webgl2` → `webgl`/`experimental-webgl`; đọc `MAX_TEXTURE_SIZE`; lấy tên GPU qua `WEBGL_debug_renderer_info` → `UNMASKED_RENDERER_WEBGL`; **chủ động giải phóng bằng `WEBGL_lose_context.loseContext()`** (`:111-112`) tránh rò context.
+- `cleanGPUName` (`:66-88`) bóc wrapper ANGLE rồi strip `Direct3D…/OpenGL…/Vulkan…/Metal…/vs_…/ps_…`.
+- `isIntegratedGPU` (`:48-64`) khớp danh sách: `intel, uhd, hd graphics, iris, radeon graphics, radeon vega, microsoft basic, swiftshader, llvmpipe, vmware, virtualbox`.
+- `navigator.deviceMemory` (mặc định 4 GB nếu API vắng), `navigator.hardwareConcurrency` (mặc định 4).
+- **Luật quyết định** (`:126-129`): `ram < 8 || cores < 6 || isWeakGPU` → `'2D'`, ngược lại `'3D'`.
+
+Nơi dùng: `WidgetApp.vue:619-621` (chỉ log, badge bị `v-if="false"` ở `:996` và `:1000`), `SystemView.vue:11` (bảng phần cứng), `AvatarGallery.vue:17,105` (`detectOptimalEngine`).
+
+---
+
+## 11. Vỏ Tauri — tám lệnh
+
+Đăng ký tại `liva-desktop/src-tauri/src/lib.rs:581-590` trong `tauri::generate_handler![...]`.
+
+| # | Tên | Chữ ký (`lib.rs`:dòng) | Công dụng | Nối dây |
+|---|---|---|---|---|
+| 1 | `toggle_ghost_mode` | `fn toggle_ghost_mode(window: tauri::Window, enabled: bool) -> Result<(), String>` — `:75-79` | `window.set_ignore_cursor_events(enabled)` | `TauriAdapter.ts:15` **[OK]** |
+| 2 | `set_eco_mode` | `fn set_eco_mode(eco_state: tauri::State<'_, EcoModeState>, enabled: bool) -> Result<(), String>` — `:81-89` | Ghi `AtomicBool` (`Ordering::Relaxed`); luồng hit-test đọc để giãn nhịp poll | **[THIẾU]** — UI không bao giờ gọi |
+| 3 | `update_interactive_zones` | `fn update_interactive_zones(zones_state: tauri::State<'_, InteractiveZones>, zones: Vec<Rect>) -> Result<(), String>` — `:91-99` | UI đẩy danh sách vùng bấm được | `WidgetApp.vue:416` **[OK]** |
+| 4 | `open_dashboard` | `fn open_dashboard(handle: tauri::AppHandle) -> Result<(), String>` — `:101-121` | `get_webview_window("dashboard")` → `show()` + `set_focus()`; nếu đã destroy thì dựng lại bằng `WebviewWindowBuilder::new(&handle, "dashboard", WebviewUrl::App("dashboard.html".into()))` `.inner_size(1200,800).resizable(true).center()` | `WidgetApp.vue:605` **[OK]** — ⚠️ cửa sổ dựng lại có `decorations` mặc định `true`, khác config gốc (`false`) |
+| 5 | `read_vault_key` | `fn read_vault_key(app: tauri::AppHandle, key: String) -> Result<Option<String>, String>` — `:151-186` | Mở snapshot Stronghold tại `app_local_data_dir()/liva_vault.app`, client `"liva_client"`, `client.store().get(key)`; `Ok(None)` nếu chưa có snapshot | `TauriAdapter.ts:43` **[MỘT PHẦN]** — không component nào gọi |
+| 6 | `write_vault_key` | `fn write_vault_key(app: tauri::AppHandle, key: String, value: String) -> Result<(), String>` — `:188-226` | Tạo dir cha, mở/tạo Stronghold, `create_client` nếu chưa có, `store().insert(...)`, `stronghold.save()` | `TauriAdapter.ts:53` **[MỘT PHẦN]** |
+| 7 | `native_ipc_call` | `async fn native_ipc_call(state: tauri::State<'_, NativeCoreState>, command: String, payload: serde_json::Value) -> Result<serde_json::Value, String>` — `:228-235` | **Cầu chính UI↔core**: `handle_command(state.0.clone(), &command, payload, None, None).await` | `useGateway.ts:253` **[OK]** |
+| 8 | `native_ipc_call_stream` | `async fn native_ipc_call_stream(window: tauri::Window, state: tauri::State<'_, NativeCoreState>, command: String, payload: serde_json::Value, req_id: String) -> Result<serde_json::Value, String>` — `:237-258` | `tokio::sync::mpsc::channel::<String>(100)` + spawn task đọc `rx` → `window.emit("ipc-stream:{req_id}", resp)`, rồi `handle_command(..., Some(tx), Some(req_id))` | `useGateway.ts:242` **[OK]** — kích hoạt khi `payload.stream === true` |
+
+**Helper không phải command:**
+- `fn check_cursor_in_zones(rx: f64, ry: f64, zones: &[Rect]) -> (bool, f64)` — `:42-73`.
+- `fn get_stronghold_credentials() -> (String, Vec<u8>)` — `:123-129`.
+- `fn get_vault_key(app: &tauri::AppHandle) -> Result<Vec<u8>, String>` — `:131-149`, Argon2id 32 byte, cache trong `StrongholdKey`.
+
+**State được `manage`** (`:393-396`):
+
+```rust
+struct NativeCoreState(Arc<AppState>);                                   // lib.rs:8
+#[derive(Default)] struct InteractiveZones { zones: Mutex<Vec<Rect>> }   // lib.rs:22-25
+#[derive(Default)] struct EcoModeState { enabled: AtomicBool }           // lib.rs:27-30
+struct StrongholdKey(Mutex<Option<Vec<u8>>>);                            // lib.rs:32
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+struct Rect { x: f64, y: f64, width: f64, height: f64 }                  // lib.rs:34-40
+```
+
+---
+
+## 12. `tauri.conf.json` — hai cửa sổ, CSP
+
+`tauri.conf.json:1-9`: `productName: "LIVA"`, `version: "25.0.0"`, `identifier: "com.liva.cognitive-os"`, `build.devUrl: "http://localhost:5173"`, `build.frontendDist: "../liva-ui/dist"`.
+
+> **Không có `beforeDevCommand`/`beforeBuildCommand`** ⇒ Vite phải được khởi động thủ công (xem §14).
+
+`app.macOSPrivateApi: true`, **`app.withGlobalTauri: true`** (`:11-12`) — `withGlobalTauri` phơi `window.__TAURI__` ra mọi trang, mở rộng bề mặt tấn công nếu có XSS.
+
+| Cửa sổ | Cấu hình (`tauri.conf.json`) | Vai trò |
+|---|---|---|
+| `widget` (`:14-27`) | `url: "/widget.html"`, `width 1920`, `height 1080`, `maximized: true`, **`transparent: true`**, **`decorations: false`**, **`alwaysOnTop: true`**, **`skipTaskbar: true`**, `resizable: true`, `shadow: false` | Ghost/overlay mode — luôn nổi trên game/app, ẩn khỏi taskbar |
+| `dashboard` (`:28-42`) | `url: "/dashboard.html"`, `width 1200`, `height 800`, `center: true`, `transparent: false`, `decorations: false`, `alwaysOnTop: false`, `visible: true`, `resizable: true`, `minWidth: 900`, `minHeight: 600` | Bảng điều khiển; `decorations:false` + `visible:true` ⇒ mở ngay khi khởi động, UI phải tự vẽ titlebar (khớp quyền `allow-minimize/maximize/close`) |
+
+### 12.1 CSP (`tauri.conf.json:45`)
+
+```
+default-src 'self';
+connect-src 'self' ipc: http://localhost:5173 ws://localhost:5173 ws://localhost:8002 ws://127.0.0.1:8002;
+script-src 'self' 'unsafe-inline';
+style-src 'self' 'unsafe-inline';
+img-src 'self' asset: data:;
+font-src 'self';
+```
+
+- **Điểm mạnh:** `connect-src` khoá chặt localhost — trong bản đóng gói, WebView **không thể** fetch/WS ra bất kỳ host ngoài nào; không có `wss:`/domain ngoài ⇒ mọi cloud API phải đi vòng qua Rust core (`reqwest`). `font-src 'self'` chặn cả Google Fonts.
+- **Điểm yếu:** `script-src 'unsafe-inline'` làm CSP gần như vô hiệu trước XSS.
+- **Hệ quả cụ thể:** `http://127.0.0.1:3000/api/sensory-capture` (`App.vue:96`, `WidgetApp.vue:539`) **không nằm trong CSP** ⇒ bị chặn cứng trong Tauri. Port 3000 cũng không tồn tại trong workspace hiện tại.
+
+---
+
+## 13. `capabilities/default.json` — quyền và bề mặt tấn công
+
+File `capabilities/default.json` (26 dòng, không có newline cuối file), áp cho **cả 2 cửa sổ** `["widget","dashboard"]`:
+
+```
+core:default, opener:default, stronghold:default, dialog:default,
+core:window:default,
+core:window:allow-set-ignore-cursor-events,
+allow-minimize, allow-maximize, allow-unmaximize, allow-close,
+allow-hide, allow-show, allow-is-maximized, allow-set-focus,
+process:default
+```
+
+File sinh `gen/schemas/capabilities.json` khớp 100% (thêm `"local": true`). Bung ra từ `gen/schemas/acl-manifests.json`:
+
+| Permission set | Bung thành |
+|---|---|
+| `core:default` | `core:path:default` + `core:event:default` + `core:window:default` + `core:webview:default` + `core:app:default` + `core:image:default` + `core:resources:default` + `core:menu:default` + `core:tray:default` |
+| `core:event:default` | `allow-listen, allow-unlisten, allow-emit, allow-emit-to` |
+| `core:webview:default` | `allow-get-all-webviews, allow-webview-position, allow-webview-size,` **`allow-internal-toggle-devtools`** |
+| `core:image:default` | gồm **`allow-from-path`** (đọc file ảnh theo đường dẫn tuỳ ý từ JS) |
+| `dialog:default` | `allow-message, allow-save, allow-open` |
+| `opener:default` | `allow-open-url, allow-reveal-item-in-dir, allow-default-urls` |
+| `process:default` | `allow-exit, allow-restart` |
+| `stronghold:default` | `allow-create-client, allow-get-store-record, allow-initialize,` **`allow-execute-procedure`**`, allow-load-client, allow-save-secret, allow-save-store-record, allow-save` |
+
+**Đánh giá:**
+
+1. Capability đã tách thành `widget.json`, `dashboard.json`, `setup.json`; setup không
+   kế thừa command surface của dashboard/widget.
+2. `native_ipc_call` và `native_ipc_call_stream` không còn passthrough vô điều kiện:
+   window label được ánh xạ sang `CommandPrincipal`, rồi `authorize_command` fail-closed
+   trước `handle_command_as` (`liva-desktop/src-tauri/src/lib.rs:506-579`).
+3. Chỉ widget/dashboard được cấp WebSocket session ticket; setup và label lạ bị từ chối
+   (`liva-desktop/src-tauri/src/lib.rs:523-543`). Ticket 256-bit, TTL ngắn và single-use.
+4. CSP production là self-only; capability/permission policy có test âm khóa setup,
+   label lạ và command vượt quyền.
+5. Secret lưu qua Stronghold/DPAPI-backed key flow; config public bị từ chối nếu chứa
+   credential. Residual permissions/plugin risk được theo dõi trong threat model.
+
+   > 📌 Nguồn đầy đủ (mã hóa, keystore, ranh giới tin cậy): [Threat model](../05-chat-luong/threat-model.md)
+
+---
+
+## 14. Nhúng core in-process
+
+`liva-desktop/src-tauri/Cargo.toml` nhúng `liva-native-core` in-process. Desktop dựng
+`AppState` qua cùng `boot::build_app_state` với gateway, rồi gọi
+`boot::spawn_background_services`; vì vậy WebSocket, projection consumer, retention
+opt-in, model preload và Telegram opt-in dùng chung lifecycle
+(`liva-desktop/src-tauri/src/lib.rs:602-704`).
+
+**Thứ tự khởi tạo (đồng bộ, TRƯỚC khi `tauri::Builder` chạy):**
+
+1. `tracing_subscriber::fmt().with_max_level(Level::INFO).try_init()` — `:264-266` (không có subscriber thì mọi log của core bị nuốt).
+2. DB: `LIVA_DB_PATH` mặc định `"data/agents/liva_core/structured_memory.sqlite"`; `LIVA_DB_IN_MEMORY` (qua helper `liva_native_core::env_flag`, `:280`) bật `DatabasePool::new_in_memory()`; cả hai đều `.expect(...)` ⇒ **panic nếu lỗi** (`:268-284`).
+3. Audio: `rodio::OutputStream::try_default()` + `rodio::Sink::try_new` — lỗi thì chỉ `eprintln!` và đi tiếp với `None` (`:286-299`); `std::mem::forget(_stream)` ở `:388-390` để giữ stream sống mãi.
+4. Đường dẫn model resolve qua `liva_native_core::resolve_resource_path(rel) -> PathBuf` (`liva-native-core/src/lib.rs:170-182`, thử prefix `""`, `".."`, `"../.."`) — vì cwd của Tauri là `liva-desktop/src-tauri`. Áp cho `LIVA_STT_MODEL_DIR` (`models/nemotron-asr`), `LIVA_TTS_MODEL_PATH` (`models/kokoro-v1.0.onnx`), `LIVA_TTS_VOICE_PATH` (`node_modules/kokoro-js/voices/af_heart.bin`).
+5. `SttManager::new(&stt_model_dir)`; `TtsAudioPlayer::new(shared_sink.clone())`; `TtsManager::from_bin(...)` → lỗi thì `None` + eprintln (`:322-334`).
+6. `LlamaRouterManager::new(llm_n_ctx, llm_n_gpu_layers).expect(...)` — **panic nếu lỗi** (`:344-345`). `LIVA_LLM_N_CTX` mặc định 4096, `LIVA_LLM_N_GPU_LAYERS` mặc định 0.
+7. `NativeMcpServer::new(&vault_path)` với `LIVA_VAULT_PATH` mặc định **hardcode máy dev**: `"E:\\Project\\LIVA\\teamwork_projects\\obsidian_llm_wiki\\vault"` (`:347-349`).
+8. `NativeScreenCapturer::new(0)` + `VisionManager::new(capturer, VisionConfig::default())` (`:351-355`).
+9. **Embedder RAG** (`:357-368`): `llm::embedder::resolve_model_dir()` → `EmbeddingEngine::load(&dir)`; lỗi thì `tracing::warn!("Bo nho dai han TAT: {}")` và `None`. Comment tại chỗ giải thích vì sao vỏ Tauri **có** nạp embedder trong khi bỏ VAD/denoise: bộ nhớ dài hạn đi qua `chat:completion` nên có tác dụng ở đây, còn VAD/denoise chỉ đường WebSocket tiêu thụ. Vì `models/embedding/` chưa có trên máy, thực tế chạy là `None` ⇒ RAG im lặng bỏ qua kèm cảnh báo log.
+10. `Arc<AppState>` dựng nguyên khối tại `:370-384` — khớp `pub struct AppState` (`liva-native-core/src/lib.rs:33-52`, trường `embedder` ở `:51`). **Chú ý:** `vad`, `denoiser`, `turn_shadow`, `aec` đều `tokio::sync::Mutex::new(None)` ⇒ VAD/khử ồn/AEC **KHÔNG được khởi tạo trong vỏ desktop**; riêng `embedder` thì có (bước 9).
+
+Các mặc định `LIVA_*` nhắc ở trên chỉ nêu để hiểu thứ tự khởi tạo — giá trị chuẩn, nơi đọc và độ lệch với `.env.example` do tài liệu cấu hình quản.
+
+> 📌 Nguồn đầy đủ: [Cấu hình và biến môi trường](../02-van-hanh/01-cau-hinh-va-bien-moi-truong.md) · [Mô hình AI và tài nguyên](../02-van-hanh/02-mo-hinh-ai-va-tai-nguyen.md)
+
+**Hàm public của core được Tauri gọi:**
+
+| Hàm | Nơi gọi | Vai trò |
+|---|---|---|
+| `liva_native_core::AppState` | `lib.rs:6, 370-384` | dựng lại y hệt `main.rs` nhưng `vad/denoiser/turn_shadow/aec = None` |
+| `handle_command(...)` | `lib.rs:234, 257` | **cầu IPC chính** |
+| `resolve_resource_path(&str) -> PathBuf` | `lib.rs:303,309,315` | resolve model path vì cwd = `liva-desktop/src-tauri` |
+| `env_flag(key, default) -> bool` | `lib.rs:280` | đọc `LIVA_DB_IN_MEMORY` |
+| `db::DatabasePool::new / new_in_memory` | `lib.rs:281-283` | |
+| `stt::SttManager::new` | `lib.rs:322` | |
+| `tts::audio::TtsAudioPlayer::new`, `tts::TtsManager::from_bin` | `lib.rs:324-325` | |
+| `llm::LlamaRouterManager::new` | `lib.rs:344` | |
+| `llm::embedder::resolve_model_dir`, `llm::embedder::EmbeddingEngine::load` | `lib.rs:360-361` | model embedding 384 chiều riêng cho RAG |
+| `crypto::EncryptionEngine::new` | `lib.rs:372` | |
+| `mcp::server::NativeMcpServer::new` | `lib.rs:349` | |
+| `vision::capture::NativeScreenCapturer::new(0)`, `VisionManager::new` | `lib.rs:351-355` | |
+| `load_configured_router_model(state, false)` | `lib.rs:420` | autoload router LLM |
+| `reload_llm_gpu_layers(state, n) -> bool` | `lib.rs:449` | GPU downshift |
+| `governor::game_mode_active_now()` | `lib.rs:444` | |
+| `governor::Governor::from_env()` | `lib.rs:469` | |
+
+**Runtime:** không tạo `tokio::Runtime` thủ công; dùng runtime nội bộ của Tauri — `tauri::async_runtime::spawn` (`:419`, `:430`) và `tokio::spawn` trong command async (`:249`).
+
+**4 luồng nền spawn trong `.setup()`** (`lib.rs:413-580`):
+
+| Luồng | Kiểu | Vị trí | Việc | Trạng thái |
+|---|---|---|---|---|
+| A | `tauri::async_runtime::spawn` | `:419-421` | `load_configured_router_model(state, false).await` — tự nạp router LLM | **[OK]** |
+| B | `tauri::async_runtime::spawn` | `:430-455` | Vòng lặp 5 s game-aware GPU downshift: `governor::game_mode_active_now()` → `reload_llm_gpu_layers(state, target).await`. Env: `LIVA_LLM_N_GPU_LAYERS`, `LIVA_GAME_N_GPU_LAYERS` (mặc định 0). Latch chỉ khi reload trả `true` | **[MỘT PHẦN]** — **early-return** nếu `normal_layers == 0` (mặc định) hoặc `game_layers == normal_layers` (`:439-441`) |
+| C | `std::thread::spawn` | `:468-473` | `Governor::from_env()` gói `Arc`, gọi `game_mode_active()` mỗi 5 s → `SetPriorityClass` BELOW_NORMAL/NORMAL cho toàn process. Comment `:457-467` giải thích vì sao tách riêng khỏi luồng B | **[OK]** |
+
+Luồng B và C chỉ được mô tả ở đây ở mức "vỏ Tauri spawn cái gì"; ngưỡng phát hiện tải, luật hạ cấp và cảnh báo passive thuộc tài liệu governor.
+
+> 📌 Nguồn đầy đủ: [Resource governor](../05-chat-luong/resource-governor.md)
+| D | `std::thread::spawn` | `:484-576` | **Hit-test con trỏ toàn cục** cho widget (xem §7) | **[OK]** (nhánh eco không đạt tới) |
+
+> **Sự kiện `gateway-ready` là SAI LỆCH** (`lib.rs:477-480`): phát `{"port": 8002, "token": null}` tới mọi cửa sổ với comment "Gateway is already running on port 8002 (started by start_all.ps1)". Thực tế `scripts/start_all.ps1` **không** khởi động gateway nào (chỉ vite + tauri dev), và `lib.rs` không bind port. Server WS 8002 chỉ tồn tại trong binary riêng `liva-native-core/src/main.rs` (`LIVA_SERVER_PORT` mặc định 8002 đọc ở `liva-native-core/src/websocket.rs:286-405`, `TcpListener::bind` ở `liva-native-core/src/websocket.rs:333-375`) — binary này **không được chạy** trong luồng desktop. UI xử lý đúng vì `useGateway.ts:210` kiểm tra `window.__TAURI_INTERNALS__` và bỏ hẳn nhánh WebSocket khi ở Tauri.
+
+### 14.1 `scripts/start_all.ps1` — điều duy nhất frontend cần nhớ
+
+Script (91 dòng, gọi bởi `package.json:17` `"dev"`) giải phóng 6 cổng, bật `npm run dev -w liva-ui` (vite 5173) rồi chạy foreground `npx tauri dev --no-dev-server`.
+
+Ba hệ quả trực tiếp lên tầng hiển thị:
+
+- **`--no-dev-server`** là lý do Vite phải được khởi động thủ công trước, và cũng khớp với `tauri.conf.json` **không có `beforeDevCommand`** (§12). Vite chưa lên ⇒ cửa sổ trắng.
+- Script **không** khởi động server WS 8002 — nên nhánh WebSocket của `useGateway` (§3.1) không có đối tác trong luồng dev mặc định, và event `gateway-ready` là sai lệch (xem cảnh báo ở §14).
+- Chỉ `Start-Sleep 2` chờ Vite, **không health-check**.
+
+> 📌 Nguồn đầy đủ (bảng tiến trình, bảng cổng, cách chạy đúng, xử lý sự cố): [Triển khai và runtime](../02-van-hanh/03-trien-khai-va-runtime.md)
+
+---
+
+## 15. Cấu hình build và đóng gói
+
+### 15.1 Workspace gốc (`Cargo.toml`, 13 dòng)
+
+```toml
+[workspace]
+members = ["liva-desktop/src-tauri", "liva-native-core"]
+resolver = "2"
+
+[profile.dev.package.llama-cpp-2]     opt-level = 3
+[profile.dev.package.llama-cpp-sys-2] opt-level = 3
+```
+
+- **Không có `[profile.release]` tuỳ chỉnh** ⇒ release dùng mặc định Cargo (`opt-level=3`, `lto=false`, `codegen-units=16`, `panic=unwind`, `strip=none`, `debug=false`). **Không bật LTO** — còn dư địa tối ưu.
+- **Không có `.cargo/config.toml`** ⇒ target dir = **root `E:\Project\LIVA\target\`**. `liva-native-core\target\` là rác tiền-workspace.
+- Không có `[workspace.dependencies]` ⇒ `tokio`, `serde`, `serde_json`, `rodio 0.17.3`, `tracing*` bị trùng lặp thủ công giữa hai `Cargo.toml`.
+
+### 15.2 Crate vỏ (`liva-desktop/src-tauri/Cargo.toml`, 42 dòng)
+
+```toml
+[package] name = "liva-desktop"  version = "25.0.0"  edition = "2021"
+[lib] name = "liva_desktop_lib"  crate-type = ["staticlib", "cdylib", "rlib"]
+[build-dependencies] tauri-build = { version = "2", features = [] }
+
+[features]
+cuda   = ["liva-native-core/cuda"]     # :25 -> llama-cpp-2/cuda
+vulkan = ["liva-native-core/vulkan"]   # :26 -> llama-cpp-2/vulkan
+# LƯU Ý: không forward `openblas` (liva-native-core có feature này, Cargo.toml:80)
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api"] }
+tauri-plugin-opener = "2", tauri-plugin-dialog = "2",
+tauri-plugin-stronghold = "2", tauri-plugin-process = "2"
+serde = { version = "1", features = ["derive"] }, serde_json = "1"
+rust-argon2 = "2.1.0"
+liva-native-core = { path = "../../liva-native-core" }
+rodio = "0.17.3", tokio = { version = "1", features = ["full"] }
+tracing = "0.1", tracing-subscriber = "0.3"
+```
+
+Comment `Cargo.toml:20-24` ghi cách build GPU: `cargo build --release --features cuda` hoặc `tauri build -- --features cuda`. Điều kiện tiên quyết đầy đủ (CMake, LLVM/`LIBCLANG_PATH`, phiên bản CUDA, `CUDAARCHS`, RAM/VRAM cần cho từng model) không lặp lại ở đây.
+
+> 📌 Nguồn đầy đủ: [Mô hình AI và tài nguyên](../02-van-hanh/02-mo-hinh-ai-va-tai-nguyen.md)
+
+**Lệch phiên bản đáng chú ý:**
+
+| Hạng mục | Vỏ | Core / UI |
+|---|---|---|
+| Rust edition | `2021` (`src-tauri/Cargo.toml`) | `2024` (`liva-native-core/Cargo.toml:4`) |
+| Version | `src-tauri` = `25.0.0`, `tauri.conf.json` = `25.0.0` | `liva-desktop/package.json` = `0.1.0`, `liva-native-core` = `0.1.0` |
+| Toolchain JS | `liva-desktop` TS 5.6 / Vite 6 | `liva-ui` TS 6.0 / Vite 8 |
+
+### 15.3 Bundle (`tauri.conf.json:48-58`)
+
+`bundle.active: true`, `targets: "all"`, icon 5 định dạng (`32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.icns`, `icon.ico`).
+
+> **Không có `bundle.resources`** ⇒ thư mục `models/` **không** được đóng gói vào installer; bản cài đặt dựa vào `resolve_resource_path` dò `""`/`".."`/`"../.."` — chỉ hoạt động khi chạy từ cây repo ⇒ **installer chưa dùng được thật**. **[THIẾU]**
+
+> **Không có lệnh build production trong npm scripts:** `"build:desktop": "npm run build:ui && npm run build -w liva-desktop"` (`package.json:19`) build app Vite **vestigial** của `liva-desktop`, **không** chạy `tauri build`.
+
+Workspaces npm gốc (`package.json:8-14`): `packages/liva-common`, `liva-ui`, `liva-desktop`, `teamwork_projects/obsidian_llm_wiki`, `mobile_client`.
+
+---
+
+## 16. `packages/liva-common` — hợp đồng type mới bao phủ một phần command plane
+
+`packages/liva-common/package.json`: `name: "liva-common"`, `type: "module"`, `main`/`types` trỏ **thẳng vào `./src/index.ts`** (không build, không dist), exports `.`, `./config`, `./websocket`; `peerDependencies: { "zod": "^3.0.0 || ^4.0.0" }` — **zod không hề được dùng** (grep 0 hit) ⇒ peer dep chết.
+
+Ai dùng thật: `liva-ui/package.json:18` (`"liva-common": "*"`), `useGateway.ts:4-15`, `AISettings.vue:11`. **Vỏ Tauri (Rust) không dùng gì từ đây** — không có generation type Rust↔TS.
+
+```ts
+// packages/liva-common/src/types/websocket.ts
+export type WSClientEvent =
+    | 'get_config' | 'update_config' | 'get_ai_config' | 'update_ai_config' | 'test_ai_connection'
+    | 'get_voice_status' | 'get_voice_profiles' | 'select_voice_profile'
+    | 'start_voice_training' | 'stop_voice_training'
+    | 'get_avatar_models' | 'import_avatar_folder' | 'delete_avatar_model'
+    | 'get_skills_list' | 'toggle_skill' | 'toggle_all_skills'
+    | 'get_system_status'
+    | 'get_user_profile' | 'update_user_profile'
+    | 'get_tasks' | 'add_task' | 'update_task' | 'delete_task' | 'execute_task' | 'task_plan_chat'
+    | 'user_voice_command' | 'camera_frame' | 'wake_word_triggered'
+    | 'get_memory_data' | 'memory:set_fact' | 'memory:get_fact' | 'delete_memory_fact'
+    | 'memory:delete_conversation' | 'memory:delete_subject' | 'memory:sweep_retention'
+    | 'consolidate_memory' | 'reset_memory' | 'memory:search_hybrid' | 'memory:upsert_vector'
+    | 'explorer_ls' | 'explorer_cat'
+    | 'ping';
+```
+
+**Đối chiếu với tập lệnh `handle_command`** (danh sách arm đầy đủ: xem [Giao thức IPC và WebSocket](02-giao-thuc-ipc-va-websocket.md)):
+- `reset_memory` còn trong union legacy nhưng core cố ý trả lỗi; UI hiện dùng
+  `memory:delete_subject` có payload destructive tường minh.
+- Nhóm memory đã đồng bộ đủ 11 command hiện tại. Union shared vẫn chưa bao phủ toàn bộ catalog
+  76 lệnh; `sendMsg(event: WSClientEvent | string, ...)`
+  còn là escape hatch. Đây là debt type-generation riêng, không được dùng để suy rằng command không tồn tại.
+- Cơ chế thoát kiểu: `sendMsg(event: WSClientEvent | string, ...)` (`useGateway.ts:213`) chấp nhận `string` ⇒ type-safety của contract thực chất bị vô hiệu.
+- Test còn mock rỗng cả module: `liva-ui/tests/composables/useGateway.test.ts:27` — `vi.mock('liva-common', () => ({}))`.
+- Header `config.ts:5` vẫn ghi "Both liva-gateway and liva-ui import these types" — `liva-gateway` đã bị xoá ⇒ comment lỗi thời.
+
+Ngoài ra `WSServerEvent` khai báo `ai_response_start/chunk/end`, `thinking_start`, `tool_executing`… **không nơi nào dùng**; ngược lại `ai_stream_start`, `ai_stream_chunk`, `ai_spoken_response`, `audio_ducking`, `avatar_demote`, `eco_mode_changed` đang dùng thật lại **không có** trong union.
+
+---
+
+## 17. Danh mục code chết ở tầng UI/vỏ
+
+Bảng dưới **chỉ liệt kê phần TS/Vue/vỏ Tauri** — phần code mồ côi bên Rust và bảng rủi ro xếp hạng (CRITICAL→LOW) không nằm ở đây.
+
+> 📌 Nguồn đầy đủ (bảng rủi ro xếp hạng, bảng code mồ côi toàn dự án): [Nợ kỹ thuật và rủi ro](../03-danh-gia/02-no-ky-thuat-va-rui-ro.md)
+
+| Vị trí | Ghi chú | Nhãn |
+|---|---|---|
+| `index.html` + `src/main.ts` + `src/App.vue` | Không có trong build output | **[THIẾU]** |
+| `src/workers/audio-worker.ts` | Không `new Worker` ở đâu; chỉ test import | **[THIẾU]** |
+| `src/components/VisionSensor.vue` | File 0 byte, 0 reference, đã exclude ở `vitest.config.ts:29` | **[THIẾU]** |
+| `src/composables/useVRM.ts` (715 dòng) | Không component nào import; bị `use3DModel.ts` (superset) thay thế; chỉ `tests/composables/useVRM.test.ts` gọi helper `lerp/easeOutQuad/easeInQuad/randomBlinkInterval/weightedRandom` | **[THIẾU]** |
+| `src/components/HelloWorld.vue` | Scaffold Vite/Vue mặc định | **[THIẾU]** |
+| `LivaWakeWorker.config.modelPath` | Field vô dụng, không nạp ONNX | **[THIẾU]** |
+| `Live2DEngine.playPrecalculatedLipSync` / `stopAudioLipSync` | Expose nhưng WidgetApp chỉ gọi `startAudioLipSync` (không tồn tại trên Live2D) | **[THIẾU]** |
+| `use3DModel.debugProbe` (`:253-267, 545-548`) | Khối lập phương debug xoay trong scene | **[THIẾU]** |
+| `useGateway.ts:150` case `update_ai_config` | Không component nào gửi op này | **[THIẾU]** |
+| `DashboardApp.vue:131` badge sync | `v-show="false"` | **[THIẾU]** |
+| `WidgetApp.vue:996,1000` badge hardware/engine | `v-if="false"` | **[THIẾU]** |
+| `safeFetch("http://127.0.0.1:3000/api/sensory-capture")` (`App.vue:96`, `WidgetApp.vue:539`) | Port 3000 không tồn tại trong workspace, không nằm trong CSP ⇒ bị chặn cứng trong Tauri | **[THIẾU]** |
+| `liva-desktop/{index.html,src,vite.config.ts,dist}` + script `build:desktop` | App Vite riêng, Tauri không nạp | **[THIẾU]** |
+| `peerDependencies: zod` của `liva-common` | Không dùng | **[THIẾU]** |
+| `start_all.ps1` kill `llama-server`, guard port 8100/8101/8082/8000 | Kiến trúc cũ | **[THIẾU]** |
+| `gateway-ready` emit port 8002 (`lib.rs:477-480`) | Không server nào bind trong tiến trình desktop | **[THIẾU]** |
+| `LIVA_VAULT_PATH` mặc định hardcode `E:\Project\LIVA\…` | Chỉ đúng trên máy dev | **[THIẾU]** |
+
+### 17.1 Op UI gửi nhưng core không có handler (click là no-op im lặng)
+
+Hơn 20 op — trải khắp `ApiManagementView`, `AvatarGallery`, `VoiceManagementView`, `MemoryViewer`, `SkillsView`, `SystemView`, `UserProfile`/Onboarding, cộng nhóm sự kiện "thông báo" của widget (`camera_frame`, `user_typing*`, `audio_play_*`, `wake_word_triggered` — `WidgetApp.vue:113,120,317,343,344`). Cột "Op gửi xuống core" của bảng §9 đã đánh dấu từng op theo màn hình; danh sách hợp nhất và cách phân loại nằm ở tài liệu nợ kỹ thuật.
+
+> 📌 Nguồn đầy đủ: [Nợ kỹ thuật và rủi ro](../03-danh-gia/02-no-ky-thuat-va-rui-ro.md)
+
+### 17.2 Mock UX (giả lập độ trễ / thông báo lạc quan)
+
+`AISettings.vue:133-137` · `UserProfile.vue:41-45` · `SettingsView.vue:126-127` · `ApiManagementView.vue:188` · `AvatarGallery.vue:84-85` (`loadProgress` nhảy 30→100 không phản ánh tiến độ thật) · `VoiceManagementView.vue:42,58,64,72,81` · `SystemView.vue:105-135` (4 spinner theo `setTimeout`) · `MemoryViewer.vue:44-49` (spinner 12 s cố định).
+
+---
+
+## 18. Tổng hợp trạng thái
+
+**[OK] — đang chạy thật, nối dây đầy đủ**
+`widget.html`/`WidgetApp.vue` + `dashboard.html`/`DashboardApp.vue`; `useGateway` đường Tauri IPC (`native_ipc_call`, `native_ipc_call_stream`) và 11 op text WS khớp `main.rs`; `useSpeakerPlayback` + `speakerFrame` (PCM gapless, FLUSH barge-in, ducking) và `voiceFrame.ts` + khung mic `OP_MIC_IN` header 9 byte — cả hai chiều khớp `webrtc/frame.rs` + `webrtc/pipeline.rs`; `LivaWakeWorker` (MLP JS thuần trên RMS); `platform/*` + `update_interactive_zones` hit-test; `useI18n`, `logger`, `safeFetch`, `HardwareDetector` (ở Dashboard); `use3DModel` + `useFaceTracking` → `VRMEngine.vue`; 7/8 lệnh Tauri; 4 luồng nền A/B/C/D; 2 cửa sổ; CSP; capability set; `start_all.ps1`.
+
+**[MỘT PHẦN] — có nhưng bị tắt / opt-in / bị ghi đè**
+Web Speech fallback (chỉ bật khi core gửi `stt_fallback_activated`) · `HardwareDetector` trong Widget (bị `forced-3d-bootstrap` ghi đè) · `askVision`/`vision:ask` (yêu cầu core build RELEASE) · `sendMsg(..., {stream:true})` (chỉ dùng cho `task_plan_chat`) · Ghost-mode theo hover (`App.vue:15-21`, entry không được build) · Luồng B GPU downshift (early-return khi `LIVA_LLM_N_GPU_LAYERS=0` — mặc định) · feature `cuda`/`vulkan` opt-in · `vad`/`denoiser`/`turn_shadow`/`aec` = `None` cứng trong vỏ desktop · `read_vault_key`/`write_vault_key` (có adapter, không component nào gọi) · đường WebSocket trong `useGateway.ts:266-271` bị bỏ qua hoàn toàn khi chạy trong Tauri.
+
+**[THIẾU] — chưa có / stub / hợp đồng lệch**
+`set_eco_mode` (UI không gọi) · `App.vue`/`main.ts`/`index.html` · `audio-worker.ts` · `VisionSensor.vue` · `useVRM.ts` · ~~khung mic `[0x01][PCM]` thiếu 9-byte header~~ (đã sửa 22/07/2026, xem §4.2 — nay dùng `serializeVoiceFrame`) · khung msgpack `[0x02][…]` core không hiểu · 10 nhánh `onmessage` không có nguồn phát · một số `WSClientEvent` legacy chưa có handler · `update_user_profile` · `bundle.resources` (installer chưa dùng được) · lệnh `tauri build` trong npm scripts · ánh xạ cảm xúc LLM → avatar · lipsync ở chế độ 2D · blink/lipsync/expression với model FBX.
+
+---
+
+## Liên quan
+
+**Đọc tiếp theo mạch:** [◀ Threat model](../05-chat-luong/threat-model.md) · [Tích hợp ngoài ▶](09-tich-hop-ngoai.md) · [⬆ Mục lục](../README.md)
+
+**Tài liệu này dựa vào (nguồn sự thật ở nơi khác):**
+
+- [Tổng quan hệ thống](00-tong-quan-he-thong.md) — bản đồ workspace đầy đủ mà bảng §1 chỉ trích một lát cắt.
+- [Kiến trúc tổng thể](01-kien-truc-tong-the.md) — hai profile chạy (vỏ Tauri nhúng core vs binary gateway), khung để hiểu vì sao §14 không mở cổng nào.
+- [Giao thức IPC và WebSocket](02-giao-thuc-ipc-va-websocket.md) — bảng lệnh `handle_command` (44 arm có tên), header nhị phân 9 byte và bảng opcode dùng trong §3.3, §4.2, §5.1, §9, §16.
+- [Voice runtime](../03-he-thong-con/voice.md) — nửa lõi của đường thoại (VAD/denoise/AEC, backend TTS, engine STT) mà §4 chỉ nối vào từ phía trình duyệt.
+- [Resource governor](../05-chat-luong/resource-governor.md) — ngưỡng governor cho luồng B/C spawn ở §14.
+- [Threat model](../05-chat-luong/threat-model.md) — sơ đồ mã hóa/khóa và product-wiring Stronghold hiện hành, nền cho đánh giá §13.
+- [Cấu hình và biến môi trường](../02-van-hanh/01-cau-hinh-va-bien-moi-truong.md) — bảng `LIVA_*` và `AI_*` dùng ở §9.1 và §14.
+- [Mô hình AI và tài nguyên](../02-van-hanh/02-mo-hinh-ai-va-tai-nguyen.md) — điều kiện tiên quyết build GPU nhắc ở §15.2.
+- [Triển khai và runtime](../02-van-hanh/03-trien-khai-va-runtime.md) — bảng tiến trình/cổng và cách chạy đúng, chi tiết `start_all.ps1` ở §14.1.
+- [Kiểm thử và CI](../02-van-hanh/04-kiem-thu-va-ci.md) — ngưỡng coverage và pipeline CI nhắc ở §2.2.
+- [Nợ kỹ thuật và rủi ro](../03-danh-gia/02-no-ky-thuat-va-rui-ro.md) — bảng rủi ro xếp hạng và code mồ côi toàn dự án, mở rộng §17.
+
+**Tài liệu khác dựa vào tài liệu này:**
+
+- [Giao thức IPC và WebSocket](02-giao-thuc-ipc-va-websocket.md) — lấy phía client của hợp đồng khung (`voiceFrame.ts` chiều lên, `speakerFrame.ts` chiều xuống — cả hai đúng header 9 byte từ 22/07/2026) để chấm điểm từng opcode.
+- [Tích hợp ngoài](09-tich-hop-ngoai.md) — lấy màn hình `ApiManagementView.vue` làm nơi người dùng nhập khoá tích hợp (và lý do nó chưa nối backend).
+- [Phụ thuộc module và tra cứu file](10-phu-thuoc-module-va-tra-cuu.md) — lấy cây file `liva-ui/`, `liva-desktop/src-tauri/` và quan hệ với `packages/liva-common`.
+- [Triển khai và runtime](../02-van-hanh/03-trien-khai-va-runtime.md) — lấy cấu hình hai cửa sổ và `frontendDist` để mô tả tiến trình `LIVA.exe`.
+- [Đối chiếu tuyên bố và thực tế](../03-danh-gia/01-doi-chieu-tuyen-bo-vs-thuc-te.md) — lấy trạng thái từng màn hình dashboard (§9) làm bằng chứng cho các tuyên bố về tính năng.
+- [Nợ kỹ thuật và rủi ro](../03-danh-gia/02-no-ky-thuat-va-rui-ro.md) — lấy danh sách op no-op và code chết tầng UI (§17) đưa vào sổ nợ.
+- [Lộ trình sửa lỗi và nâng cấp](../03-danh-gia/03-lo-trinh-sua-loi-va-nang-cap.md) — lấy các lỗi F-* ở tầng UI (~~khung mic thiếu header~~ đã sửa, `bundle.resources`, ép cứng 3D) làm đầu việc.
+
+**Khi sửa code sau đây thì phải cập nhật tài liệu này:**
+
+- `liva-ui/src/composables/useGateway.ts` — §3 (dual transport, bộ init 10 op, giải mã khung, API công khai).
+- `liva-ui/src/composables/useVoicePipeline.ts` + `liva-ui/src/workers/` — §4 (máy trạng thái thoại, wake word, hợp đồng khung mic).
+- `liva-ui/src/utils/speakerFrame.ts` + `useSpeakerPlayback.ts` — §5 (hàng đợi gapless, barge-in `flush()`/`stop()`).
+- `liva-ui/src/platform/` — §6 (bảng 8 method adapter, `TauriAdapter` ↔ `invoke_handler`).
+- `liva-ui/src/components/dashboard/*` + `liva-ui/src/components/*` — §8 và §9 (bảng màn hình dashboard, engine avatar — **tài liệu này sở hữu**).
+- `liva-desktop/src-tauri/src/lib.rs` — §7, §11, §14 (hit-test ghost mode, bảng 8 lệnh Tauri, thứ tự khởi tạo core, 4 luồng nền — **tài liệu này sở hữu**).
+- `liva-desktop/src-tauri/tauri.conf.json` (+ `capabilities/default.json`) — §12, §13 (cấu hình hai cửa sổ, CSP, quyền — **tài liệu này sở hữu**).
+- `liva-ui/vite.config.ts` + `liva-ui/package.json` — §2 (entry point nào được build, manualChunks, thư viện đồ hoạ).
+- `packages/liva-common/src/types/websocket.ts` — §16 (độ lệch hợp đồng type ↔ tập lệnh core).

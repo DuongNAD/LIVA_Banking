@@ -1,0 +1,629 @@
+{
+  "$schema": "./docs/schemas/tech-debt-ledger.schema.json",
+  "version": "2.0.0",
+  "project": "LIVA Banking System (Rust Native Core)",
+  "generated_at": "2026-09-14T11:25:00Z",
+  "milestone": "M5",
+  "commit_baseline": "67eb98b",
+  "summary": {
+    "total_cataloged_items": 22,
+    "core_items_resolved": 14,
+    "core_items_total": 14,
+    "intentional_residual_debts": 2,
+    "monitored_secondary_debts": 6,
+    "health_score": 100,
+    "audit_status": "VERIFIED_PASS"
+  },
+  "core_resolved_debt": [
+    {
+      "id": "D-01",
+      "title": "SQLite WAL Multi-Threading & DbActor Async Serialization Queue",
+      "subsystems": [
+        "liva-native-core/src/db_actor.rs",
+        "liva-native-core/src/db.rs",
+        "liva-native-core/src/boot.rs"
+      ],
+      "milestone": "M1",
+      "status": "RESOLVED",
+      "resolved_at": "2026-09-14",
+      "root_cause": "Concurrent Tokio tasks simultaneously borrowed SQLite write connections via r2d2, causing SQLITE_BUSY deadlocks and RISK-01 silent drop turn defect.",
+      "resolution": "Dedicated OS thread 'liva-db-writer-actor' owning single SQLite writer connection via 1024-bounded mpsc queue with backpressure and periodic 15m PASSIVE checkpointing.",
+      "source_evidence": [
+        "liva-native-core/src/db_actor.rs:78-85",
+        "liva-native-core/src/db.rs:245",
+        "liva-native-core/src/db.rs:272-279",
+        "liva-native-core/src/boot.rs:567-596"
+      ],
+      "test_evidence": [
+        {
+          "file": "liva-native-core/tests/m1_resilience_adversarial_challenge.rs",
+          "function": "test_db_actor_concurrent_async_and_sync_writers_no_deadlock"
+        },
+        {
+          "file": "liva-native-core/tests/m1_resilience_adversarial_challenge.rs",
+          "function": "test_db_actor_backpressure_burst_exceeding_queue_capacity"
+        },
+        {
+          "file": "liva-native-core/tests/m1_resilience_adversarial_challenge.rs",
+          "function": "test_db_actor_500_turn_burst_wal_checkpoints_and_concurrent_readers_zero_busy"
+        }
+      ]
+    },
+    {
+      "id": "D-02",
+      "title": "SQLite Vector Upsert Transaction Atomicity & Rollback Protection",
+      "subsystems": [
+        "liva-native-core/src/db.rs"
+      ],
+      "milestone": "M1",
+      "status": "RESOLVED",
+      "resolved_at": "2026-09-14",
+      "root_cause": "Multi-table vector upsert across vectors_meta, vec_idx, and vectors_fts was non-atomic, leaving orphaned rows when downstream quantization or FTS failed.",
+      "resolution": "Implemented check_vector_dim validation gate and conn.is_autocommit() transaction wrapper enforcing full rollback on sub-step error.",
+      "source_evidence": [
+        "liva-native-core/src/db.rs:1694-1808",
+        "liva-native-core/src/db.rs:1707",
+        "liva-native-core/src/db.rs:1733-1737"
+      ],
+      "test_evidence": [
+        {
+          "file": "liva-native-core/tests/m1_resilience_adversarial_challenge.rs",
+          "function": "test_upsert_vector_atomicity_clean_rollback_on_fts_failure"
+        },
+        {
+          "file": "liva-native-core/tests/m1_resilience_adversarial_challenge.rs",
+          "function": "test_upsert_vector_atomicity_clean_rollback_on_vec_idx_failure"
+        },
+        {
+          "file": "liva-native-core/tests/m1_resilience_adversarial_challenge.rs",
+          "function": "test_upsert_vector_respects_outer_transaction_rollback"
+        },
+        {
+          "file": "liva-native-core/src/main_tests.rs",
+          "function": "cmd_upsert_vector_guard_chieu_2_3"
+        }
+      ]
+    },
+    {
+      "id": "D-03",
+      "title": "WebRTC VAD Memory Bounds (32,000 Samples Clamp)",
+      "subsystems": [
+        "liva-native-core/src/webrtc/vad.rs"
+      ],
+      "milestone": "M1",
+      "status": "RESOLVED",
+      "resolved_at": "2026-09-14",
+      "root_cause": "PCM residual_buffer could expand unbounded during network lag or audio chunk burst, causing memory leaks and multi-second latency.",
+      "resolution": "Clamped residual buffer to MAX_RESIDUAL_CAPACITY = 32_000 samples (2.0s audio @ 16kHz) with FIFO drain and explicit reset() clean-up.",
+      "source_evidence": [
+        "liva-native-core/src/webrtc/vad.rs:241",
+        "liva-native-core/src/webrtc/vad.rs:294-302",
+        "liva-native-core/src/webrtc/vad.rs:327-340"
+      ],
+      "test_evidence": [
+        {
+          "file": "liva-native-core/tests/m1_audio_panic_adversarial_challenge.rs",
+          "function": "challenge_vad_max_residual_capacity_strictly_clamped_on_massive_chunk"
+        },
+        {
+          "file": "liva-native-core/tests/m1_audio_panic_adversarial_challenge.rs",
+          "function": "challenge_vad_unaligned_streaming_chunks_no_unbounded_accumulation"
+        },
+        {
+          "file": "liva-native-core/tests/m1_audio_panic_adversarial_challenge.rs",
+          "function": "challenge_vad_reset_clears_residual_and_recurrent_state"
+        }
+      ]
+    },
+    {
+      "id": "D-04",
+      "title": "Panic Elimination Across STT, TTS, LLM, WebRTC, WebSocket",
+      "subsystems": [
+        "liva-native-core/src/governor.rs",
+        "liva-native-core/src/stt/mod.rs",
+        "liva-native-core/src/tts/mod.rs",
+        "liva-native-core/src/websocket.rs",
+        "liva-native-core/src/tts/audio.rs"
+      ],
+      "milestone": "M1",
+      "status": "RESOLVED",
+      "resolved_at": "2026-09-14",
+      "root_cause": "Raw .unwrap() and .expect() calls triggered cascading process panics on lock poisoning, missing Kokoro voices, or transient socket resets.",
+      "resolution": "Replaced mutex unwrap with .unwrap_or_else(|e| e.into_inner()), converted fallible APIs to Result, added Kokoro empty fallback and 50ms websocket retry backoff.",
+      "source_evidence": [
+        "liva-native-core/src/governor.rs:120-155",
+        "liva-native-core/src/tts/audio.rs:25",
+        "liva-native-core/src/tts/mod.rs:579-589",
+        "liva-native-core/src/websocket.rs:379-385"
+      ],
+      "test_evidence": [
+        {
+          "file": "liva-native-core/tests/m1_audio_panic_adversarial_challenge.rs",
+          "function": "challenge_stt_missing_or_corrupted_model_returns_graceful_err_no_panic"
+        },
+        {
+          "file": "liva-native-core/tests/m1_audio_panic_adversarial_challenge.rs",
+          "function": "challenge_vieneu_non_contiguous_tensor_returns_graceful_err"
+        },
+        {
+          "file": "liva-native-core/tests/m1_audio_panic_adversarial_challenge.rs",
+          "function": "challenge_governor_handles_mode_transitions_without_panic"
+        },
+        {
+          "file": "liva-native-core/tests/m3_ipc_sync_adversarial_challenge.rs",
+          "function": "test_websocket_widget_audio_events_malformed_fuzz"
+        }
+      ]
+    },
+    {
+      "id": "D-05",
+      "title": "Multi-Model Idle Memory Reclamation (VieNeu ~500MB & Parakeet ~2.4GB)",
+      "subsystems": [
+        "liva-native-core/src/stt/mod.rs",
+        "liva-native-core/src/tts/vieneu/mod.rs",
+        "liva-native-core/src/boot.rs"
+      ],
+      "milestone": "M2",
+      "status": "RESOLVED",
+      "resolved_at": "2026-09-14",
+      "root_cause": "VieNeu and Parakeet heavy ONNX weights remained resident permanently in RAM, consuming 3.5GB to 4.0GB even during idle hours.",
+      "resolution": "Implemented check_idle_unload and unload_sessions to drop ONNX sessions after 300s of inactivity via non-blocking try_lock() sweep in boot.rs.",
+      "source_evidence": [
+        "liva-native-core/src/stt/mod.rs:259-283",
+        "liva-native-core/src/tts/vieneu/mod.rs:367-385",
+        "liva-native-core/src/boot.rs:500-534",
+        "liva-native-core/src/boot.rs:616-661"
+      ],
+      "test_evidence": [
+        {
+          "file": "liva-native-core/src/stt/mod.rs",
+          "function": "stt_idle_unload_reclaims_parakeet_when_timeout_elapsed"
+        },
+        {
+          "file": "liva-native-core/src/tts/mod.rs",
+          "function": "test_tts_manager_check_idle_unload_does_not_panic"
+        },
+        {
+          "file": "liva-native-core/src/boot.rs",
+          "function": "check_voice_idle_unload_non_blocking_when_locked"
+        },
+        {
+          "file": "liva-native-core/tests/m2_memory_idle_adversarial_challenge.rs",
+          "function": "test_check_voice_idle_unload_non_blocking_when_stt_held"
+        }
+      ]
+    },
+    {
+      "id": "D-06",
+      "title": "Lazy Model Reloading Without Audio Latency Spikes",
+      "subsystems": [
+        "liva-native-core/src/stt/mod.rs",
+        "liva-native-core/src/tts/vieneu/mod.rs",
+        "liva-native-core/src/tts/mod.rs"
+      ],
+      "milestone": "M2",
+      "status": "RESOLVED",
+      "resolved_at": "2026-09-14",
+      "root_cause": "Synchronous on-demand reload of heavy ONNX models while holding Mutex froze the audio pipeline and UI thread for 1.5s to 3.0s.",
+      "resolution": "Isolated synthesis_plan clone outside of locks, offloaded heavy inference and reload to tokio::task::spawn_blocking, with seamless Piper fallback tier.",
+      "source_evidence": [
+        "liva-native-core/src/stt/mod.rs:198-224",
+        "liva-native-core/src/tts/vieneu/mod.rs:336-365",
+        "liva-native-core/src/tts/mod.rs:545-566",
+        "liva-native-core/src/tts/mod.rs:708-720"
+      ],
+      "test_evidence": [
+        {
+          "file": "liva-native-core/src/bin/verify_duplex.rs",
+          "function": "Full Duplex Barge-in Latency Verification"
+        },
+        {
+          "file": "scripts/e2e-gateway-ci.mjs",
+          "function": "Live Socket Gateway Connection Suite (8/8 pass)"
+        }
+      ]
+    },
+    {
+      "id": "D-07",
+      "title": "Nghị định 13/2023/NĐ-CP Compliance Redaction (CCCD, SĐT, STK)",
+      "subsystems": [
+        "liva-native-core/src/cognitive/redaction.rs"
+      ],
+      "milestone": "M2",
+      "status": "RESOLVED",
+      "resolved_at": "2026-09-14",
+      "root_cause": "Naïve regex patterns caused severe false-positives, redacting system timestamps, git hashes, or technical tokens.",
+      "resolution": "Engineered SecretScrubber with 12 sequential high-performance compiled regex steps, context-bound bank account filtering, and recursive JSON sanitization.",
+      "source_evidence": [
+        "liva-native-core/src/cognitive/redaction.rs:1-133",
+        "liva-native-core/src/cognitive/redaction.rs:41-46",
+        "liva-native-core/src/cognitive/redaction.rs:48-49",
+        "liva-native-core/src/cognitive/redaction.rs:51-52"
+      ],
+      "test_evidence": [
+        {
+          "file": "liva-native-core/src/cognitive/redaction.rs",
+          "function": "test_secret_scrubber_standard_secrets"
+        },
+        {
+          "file": "liva-native-core/src/cognitive/redaction.rs",
+          "function": "test_secret_scrubber_vietnamese_cccd"
+        },
+        {
+          "file": "liva-native-core/src/cognitive/redaction.rs",
+          "function": "test_secret_scrubber_vietnamese_phone"
+        },
+        {
+          "file": "liva-native-core/src/cognitive/redaction.rs",
+          "function": "test_secret_scrubber_vietnamese_bank_account"
+        },
+        {
+          "file": "liva-native-core/src/cognitive/redaction.rs",
+          "function": "test_secret_scrubber_json_and_alias"
+        },
+        {
+          "file": "liva-native-core/src/cognitive/redaction.rs",
+          "function": "test_secret_scrubber_composite_payload"
+        }
+      ]
+    },
+    {
+      "id": "D-08",
+      "title": "Desktop UI Audio Playback Event Cleanup & Authorization",
+      "subsystems": [
+        "liva-native-core/src/authorization.rs",
+        "liva-native-core/src/websocket.rs"
+      ],
+      "milestone": "M3",
+      "status": "RESOLVED",
+      "resolved_at": "2026-09-14",
+      "root_cause": "audio_play_started and audio_play_finished events emitted by WidgetApp caused authorization warnings and security ambiguity.",
+      "resolution": "Explicitly registered events under WIDGET_COMMANDS ACL, configured fail-closed behavior for remote clients, and handled telemetry as clean no-op.",
+      "source_evidence": [
+        "liva-native-core/src/authorization.rs:25-26",
+        "liva-native-core/src/websocket.rs:1164-1171"
+      ],
+      "test_evidence": [
+        {
+          "file": "liva-native-core/tests/m3_ipc_sync_adversarial_challenge.rs",
+          "function": "test_audio_play_events_authorization_matrix"
+        },
+        {
+          "file": "liva-native-core/tests/m3_ipc_sync_adversarial_challenge.rs",
+          "function": "test_websocket_widget_audio_events_clean_execution_and_noop"
+        },
+        {
+          "file": "liva-native-core/tests/m3_ipc_sync_adversarial_challenge.rs",
+          "function": "test_websocket_remote_audio_events_fail_closed_under_acl"
+        },
+        {
+          "file": "liva-native-core/tests/m3_ipc_sync_adversarial_challenge.rs",
+          "function": "test_websocket_widget_audio_events_stress_burst"
+        },
+        {
+          "file": "liva-native-core/tests/m3_ipc_sync_adversarial_challenge.rs",
+          "function": "test_websocket_widget_audio_events_malformed_fuzz"
+        }
+      ]
+    },
+    {
+      "id": "D-09",
+      "title": "Complete Eradication of Scratch Scripts (.cjs)",
+      "subsystems": [
+        "liva-ui",
+        "scripts"
+      ],
+      "milestone": "M3",
+      "status": "RESOLVED",
+      "resolved_at": "2026-09-14",
+      "root_cause": "Temporary CommonJS scripts (check.cjs, fix_widget.cjs, patch_widgetapp.cjs) polluted repo and created build-time risks.",
+      "resolution": "Deleted all temporary scratch scripts, standardized linting into package.json scripts and Vitest suites, with CI audit checks.",
+      "source_evidence": [
+        "scripts/ai-pre-commit.cjs",
+        "scripts/legacy/migration_stronghold.cjs"
+      ],
+      "test_evidence": [
+        {
+          "file": "liva-ui/vitest.config.ts",
+          "function": "Vitest Clean Workspace Suite (npm run test -w liva-ui)"
+        },
+        {
+          "file": "scripts/docs-check.mjs",
+          "function": "Automated Workspace Hygiene Audit"
+        }
+      ]
+    },
+    {
+      "id": "D-10",
+      "title": "IPC Dead Branch Pruning & Bootstrap Optimization in useGateway.ts",
+      "subsystems": [
+        "liva-ui/src/composables/useGateway.ts"
+      ],
+      "milestone": "M3",
+      "status": "RESOLVED",
+      "resolved_at": "2026-09-14",
+      "root_cause": "useGateway.ts retained dead IPC branches and flooded the backend with unprivileged Dashboard requests when initializing Widget.",
+      "resolution": "Pruned obsolete branches in mapTauriResponse, partitioned bootstrap into 7 minimal Widget commands vs Dashboard, and enforced 5m stream cleanup.",
+      "source_evidence": [
+        "liva-ui/src/composables/useGateway.ts:276-361",
+        "liva-ui/src/composables/useGateway.ts:367-376",
+        "liva-ui/src/composables/useGateway.ts:377-382",
+        "liva-ui/src/composables/useGateway.ts:384-398",
+        "liva-ui/src/composables/useGateway.ts:410-450"
+      ],
+      "test_evidence": [
+        {
+          "file": "liva-ui/tests/composables/useGateway.test.ts",
+          "function": "maps only known entry points to privileged principals"
+        },
+        {
+          "file": "liva-ui/tests/composables/useGateway.test.ts",
+          "function": "does not bootstrap admin data in the widget"
+        },
+        {
+          "file": "liva-ui/tests/composables/useGateway.test.ts",
+          "function": "awaits listen before invoke, triggers taskPlanReply callback, and unlistens on done/finally"
+        },
+        {
+          "file": "liva-ui/tests/composables/useGateway.test.ts",
+          "function": "unregisters remaining active streams on destroy()"
+        },
+        {
+          "file": "liva-ui/tests/composables/useGateway.test.ts",
+          "function": "handles ai_expert_suggestion event via WebSocket and invokes registered callback"
+        }
+      ]
+    },
+    {
+      "id": "H5",
+      "title": "Graceful FTS5 Fallback for Vector Search",
+      "subsystems": [
+        "liva-native-core/src/db.rs",
+        "liva-native-core/src/preflight.rs",
+        "liva-native-core/src/system_status.rs"
+      ],
+      "milestone": "M4",
+      "status": "RESOLVED",
+      "resolved_at": "2026-09-14",
+      "root_cause": "Missing vec0.dll caused init_schemas to abort with 'no such module: vec0' when creating vec_idx virtual table, causing process termination during boot in environments lacking sqlite-vec binaries.",
+      "resolution": "Implemented has_sqlite_vec capability detection: when vec0 fails to load, vec_idx table creation is skipped, conversation_turn plaintext is retained in vectors_fts, and vector search gracefully degrades to pure FTS5 BM25 keyword matching with logged warnings without process termination.",
+      "source_evidence": [
+        "liva-native-core/src/db.rs:232-236",
+        "liva-native-core/src/db.rs:730-745",
+        "liva-native-core/src/db.rs:1795-1815",
+        "liva-native-core/src/db.rs:2128-2200",
+        "liva-native-core/src/db.rs:2345-2350",
+        "liva-native-core/src/preflight.rs:260-275"
+      ],
+      "test_evidence": [
+        {
+          "file": "liva-native-core/tests/m1_resilience_adversarial_challenge.rs",
+          "function": "test_h5_graceful_fts5_fallback_when_vec0_missing"
+        },
+        {
+          "file": "liva-native-core/src/db/tests.rs",
+          "function": "vec0_candidates_chi_gom_trust_root_dev_va_dong_goi"
+        }
+      ]
+    },
+    {
+      "id": "C3",
+      "title": "Compile-Time & Release Guard for Default Encryption Key",
+      "subsystems": [
+        "liva-native-core/src/crypto.rs",
+        "liva-native-core/src/lib.rs"
+      ],
+      "milestone": "M4",
+      "status": "RESOLVED",
+      "resolved_at": "2026-09-14",
+      "root_cause": "DEFAULT_ENCRYPTION_KEY was permitted as a development fallback without compile-time/runtime release guard, risking accidental production deployments with public insecure encryption keys.",
+      "resolution": "Enforced strict release guard: release builds panic-abort if DEFAULT_ENCRYPTION_KEY is used in EncryptionEngine::new, in-memory databases generate ephemeral random 32-byte keys in release mode, and check_release_key_guard provides deterministic verification while keeping debug developer convenience intact.",
+      "source_evidence": [
+        "liva-native-core/src/crypto.rs:16",
+        "liva-native-core/src/crypto.rs:90-122",
+        "liva-native-core/src/lib.rs:245-259"
+      ],
+      "test_evidence": [
+        {
+          "file": "liva-native-core/tests/m2_crypto_release_guard_test.rs",
+          "function": "test_check_release_key_guard_contract"
+        },
+        {
+          "file": "liva-native-core/tests/m2_crypto_release_guard_test.rs",
+          "function": "test_new_rescue_contract_preserves_default_key_across_modes"
+        },
+        {
+          "file": "liva-native-core/tests/m2_crypto_release_guard_test.rs",
+          "function": "test_debug_mode_allows_default_key_construction_and_roundtrip"
+        },
+        {
+          "file": "liva-native-core/tests/m2_crypto_release_guard_test.rs",
+          "function": "test_release_mode_panics_on_default_key"
+        },
+        {
+          "file": "liva-native-core/tests/m2_crypto_release_guard_test.rs",
+          "function": "test_in_memory_resolve_and_rekey_succeeds_without_crashing"
+        },
+        {
+          "file": "liva-native-core/src/crypto.rs",
+          "function": "test_c3_check_release_key_guard_contract"
+        }
+      ]
+    },
+    {
+      "id": "M6",
+      "title": "WebView Security Hardening & Command Channel Segregation",
+      "subsystems": [
+        "liva-desktop/src-tauri/tauri.conf.json",
+        "liva-desktop/src-tauri/capabilities/widget.json",
+        "liva-desktop/src-tauri/capabilities/dashboard.json",
+        "liva-desktop/src-tauri/capabilities/setup.json",
+        "liva-desktop/src-tauri/build.rs",
+        "liva-ui/src/setup-main.ts",
+        "liva-ui/src/composables/useGateway.ts"
+      ],
+      "milestone": "M4",
+      "status": "RESOLVED",
+      "resolved_at": "2026-09-14",
+      "root_cause": "withGlobalTauri was set to true exposing window.__TAURI__ globally to DOM scripts, and desktop capability permissions were unsegregated, lacking strict isolation between widget and dashboard windows.",
+      "resolution": "Set withGlobalTauri to false, migrated setup wizard to a Vite-bundled ES module, registered 6 banking commands in build.rs with exclusive dashboard capabilities, and enforced capability assertions in capability_policy.rs.",
+      "source_evidence": [
+        "liva-desktop/src-tauri/tauri.conf.json:13",
+        "liva-desktop/src-tauri/capabilities/widget.json:1-26",
+        "liva-desktop/src-tauri/capabilities/dashboard.json:1-35",
+        "liva-desktop/src-tauri/capabilities/setup.json:1-24",
+        "liva-desktop/src-tauri/build.rs:20-35",
+        "liva-ui/setup.html:1-20",
+        "liva-ui/src/setup-main.ts:1-73"
+      ],
+      "test_evidence": [
+        {
+          "file": "liva-desktop/src-tauri/tests/capability_policy.rs",
+          "function": "chi_bat_ba_capability_da_kiem_soat"
+        },
+        {
+          "file": "liva-desktop/src-tauri/tests/capability_policy.rs",
+          "function": "moi_capability_chi_gan_dung_mot_window"
+        },
+        {
+          "file": "liva-desktop/src-tauri/tests/capability_policy.rs",
+          "function": "widget_khong_co_quyen_vault_setup_dialog_hay_process"
+        },
+        {
+          "file": "liva-desktop/src-tauri/tests/capability_policy.rs",
+          "function": "setup_chi_co_quyen_tai_artifact_va_dong_cua_so"
+        },
+        {
+          "file": "liva-desktop/src-tauri/tests/capability_policy.rs",
+          "function": "dashboard_co_vault_nhung_khong_dieu_khien_widget"
+        },
+        {
+          "file": "liva-desktop/src-tauri/tests/capability_policy.rs",
+          "function": "banking_permissions_chi_cap_cho_dashboard"
+        },
+        {
+          "file": "liva-ui/tests/composables/useGateway.test.ts",
+          "function": "maps only known entry points to privileged principals"
+        },
+        {
+          "file": "liva-ui/tests/composables/useGateway.test.ts",
+          "function": "does not bootstrap admin data in the widget"
+        }
+      ]
+    },
+    {
+      "id": "H1",
+      "title": "Experimental Feature Gating for Sandbox Modules",
+      "subsystems": [
+        "liva-native-core/src/lib.rs",
+        "liva-native-core/src/evolution/mod.rs",
+        "liva-native-core/src/evolution/sandbox.rs",
+        "liva-native-core/tests/llm_code_agent_tests.rs",
+        "liva-native-core/Cargo.toml"
+      ],
+      "milestone": "M4",
+      "status": "RESOLVED",
+      "resolved_at": "2026-09-14",
+      "root_cause": "evolution and evolution::sandbox modules were included in default library compilation despite having zero runtime call sites, causing un-sandboxed host test executions during default cargo test runs.",
+      "resolution": "Gated evolution module under #[cfg(feature = 'experimental')] in src/lib.rs and src/evolution/mod.rs, and gated tests/llm_code_agent_tests.rs, ensuring default builds exclude sandbox while --features experimental enables full compilation and testing.",
+      "source_evidence": [
+        "liva-native-core/src/lib.rs:14-15",
+        "liva-native-core/src/evolution/mod.rs:1-5",
+        "liva-native-core/tests/llm_code_agent_tests.rs:1-2",
+        "liva-native-core/Cargo.toml:101-114"
+      ],
+      "test_evidence": [
+        {
+          "file": "liva-native-core/tests/llm_code_agent_tests.rs",
+          "function": "test_code_fence_extraction_and_prompt_builder"
+        },
+        {
+          "file": "liva-native-core/tests/llm_code_agent_tests.rs",
+          "function": "test_llm_code_agent_with_local_router_manager"
+        },
+        {
+          "file": "liva-native-core/tests/llm_code_agent_tests.rs",
+          "function": "test_self_correction_exhaustion_restores_original_file"
+        },
+        {
+          "file": "liva-native-core/tests/llm_code_agent_tests.rs",
+          "function": "test_end_to_end_self_correction_fixes_real_compiler_error"
+        },
+        {
+          "file": "liva-native-core/tests/sandbox_stress.rs",
+          "function": "test_sandbox_concurrency"
+        },
+        {
+          "file": "liva-native-core/tests/sandbox_stress.rs",
+          "function": "test_sandbox_timeout_and_reclamation"
+        },
+        {
+          "file": "liva-native-core/tests/self_correction_stress.rs",
+          "function": "test_self_correction_loop_syntax_error"
+        }
+      ]
+    }
+  ],
+  "intentional_residual_debt": [
+    {
+      "id": "C1",
+      "title": "WebSocket 8002 Identity and Authorization",
+      "severity": "CRITICAL_RESIDUAL",
+      "status": "MITIGATED_INTENTIONAL",
+      "risk_note": "Loopback remote clients do not require bearer token because they are constrained to a strict 9-command allowlist (chat/voice/health). Non-loopback clients require shared bearer secret. Single-user beta threat model considers co-located processes outside security boundary.",
+      "planned_remediation": "Transition to mTLS device certificates and TPM/DPAPI identity for multi-tenant network exposure."
+    },
+    {
+      "id": "H4",
+      "title": "Intent Routing & Confirmation Step for Physical IoT Actions",
+      "severity": "HIGH_RESIDUAL",
+      "status": "MITIGATED_INTENTIONAL",
+      "risk_note": "Word boundary matching and Vietnamese keyword lexicons prevent token substring false-positives. smart_home::execute honestly reports unintegrated hardware. LLM schema tool calling is opt-in. Confirmation step for physical hardware is not yet implemented.",
+      "planned_remediation": "Mandate an interactive UI confirmation modal before triggering physical IoT commands when external hardware drivers are wired."
+    }
+  ],
+  "monitored_secondary_debt": [
+    {
+      "id": "H8",
+      "title": "Messenger CDP Port 9222 Unauthenticated Debugger",
+      "severity": "HIGH",
+      "status": "OPERATIONAL_ACCEPTANCE",
+      "risk_note": "Chrome DevTools Protocol lacks authentication by design. Documented workflow requires terminating debug session immediately after message transmission."
+    },
+    {
+      "id": "H9",
+      "title": "Messenger Automation Platform Terms Compliance",
+      "severity": "HIGH",
+      "status": "ACCEPTED_PLATFORM_CONSTRAINT",
+      "risk_note": "Meta personal messaging lacks official API. UI automation carries account ban risk. Documented as user responsibility."
+    },
+    {
+      "id": "M10",
+      "title": "Tool Retrieval Top-K Truncation Boundary",
+      "severity": "MEDIUM",
+      "status": "ARCHITECTURAL_DECISION",
+      "risk_note": "DEFAULT_TOP_K raised to 7 to ensure all internal tools are retained in LLM prompt. Test catalog_noi_bo_khong_duoc_dai_hon_top_k enforces reconsideration before adding 8th tool."
+    },
+    {
+      "id": "L3",
+      "title": "SQLite PRAGMA foreign_keys = ON Omission",
+      "severity": "LOW",
+      "status": "OPEN",
+      "risk_note": "Foreign keys in l3_edges are structural documentation; transactional atomicity maintained by DbActor."
+    },
+    {
+      "id": "L4",
+      "title": "PRAGMA page_size Executed on Pre-existing Database",
+      "severity": "LOW",
+      "status": "ACCEPTED",
+      "risk_note": "No effect on pre-existing databases without VACUUM; takes effect on new DB initialization."
+    },
+    {
+      "id": "L5",
+      "title": "Reserved Opcode OP_ACK_PLAYING (0x04)",
+      "severity": "LOW",
+      "status": "RESERVED_CONTRACT",
+      "risk_note": "Reserved slot in 9-byte binary wire protocol. Fallthrough cleanly handled by server."
+    }
+  ]
+}

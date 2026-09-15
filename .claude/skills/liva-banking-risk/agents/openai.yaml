@@ -1,0 +1,11 @@
+interface:
+  display_name: "LIVA Banking Risk"
+  short_description: "Calculate solvency ratios (DSCR, Quick Ratio) and model cashflow deficits"
+  default_prompt: "Use $liva-banking-risk to compute corporate DSCR, analyze liquidity ratios, and forecast cash shortfalls."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "credit_risk_scoring"
+      description: "Compute solvency and liquidity metrics and model rolling cashflow deficits."
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,3867 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LIVA Banking Harness — InnoStart 2026 Presentation Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Montserrat:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+
+/* ==========================================================================
+   LIVA BANKING HARNESS — INNOSTART 2026 PRESENTATION SYSTEM
+   EXECUTIVE CORPORATE BLUE & ULTRA-CLEAN WHITE PALETTE
+   SLIDEMASON PRIMITIVES: SplitHero, CompareGrid, StepChevron, FeatureCards, StatBox, DonutChart
+   ========================================================================== */
+
+:root {
+  --bg-canvas: #FFFFFF;
+  --bg-subtle: #F8FAFC;
+  --bg-card: #F8FAFC;
+  --bg-card-hover: #FFFFFF;
+  --border-card: #E2E8F0;
+  --border-card-hover: #CBD5E1;
+  --border-divider: #E2E8F0;
+
+  --brand-blue: #0284C7;
+  --brand-blue-sky: #0EA5E9;
+  --brand-navy: #1E3A8A;
+  --brand-slate-dark: #0F172A;
+  --brand-emerald: #10B981;
+  --brand-emerald-dark: #059669;
+
+  --badge-sky-bg: #F0F9FF;
+  --badge-sky-border: #BAE6FD;
+  --badge-sky-text: #0284C7;
+
+  --badge-navy-bg: #EFF6FF;
+  --badge-navy-border: #BFDBFE;
+  --badge-navy-text: #1E3A8A;
+
+  --badge-emerald-bg: #ECFDF5;
+  --badge-emerald-border: #A7F3D0;
+  --badge-emerald-text: #065F46;
+
+  --badge-amber-bg: #FFFBEB;
+  --badge-amber-border: #FDE68A;
+  --badge-amber-text: #92400E;
+
+  --badge-red-bg: #FEF2F2;
+  --badge-red-border: #FECACA;
+  --badge-red-text: #991B1B;
+
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  --text-light: #94A3B8;
+
+  --alert-red: #DC2626;
+  --alert-red-bg: #FEF2F2;
+  --alert-red-border: #FECACA;
+  --alert-red-text: #991B1B;
+
+  --alert-amber: #D97706;
+  --alert-amber-bg: #FFFBEB;
+  --alert-amber-border: #FDE68A;
+  --alert-amber-text: #92400E;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", Helvetica, Arial, sans-serif;
+  --font-mono: "SF Mono", "Segoe UI Mono", "JetBrains Mono", Consolas, Menlo, monospace;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background-color: #0B1325;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* DECK WRAPPER & 16:9 VIEWPORT */
+.deck-wrapper {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: radial-gradient(circle at center, #1E293B 0%, #0F172A 100%);
+  padding: 16px;
+}
+
+.deck-viewport {
+  width: min(96vw, calc(90vh * 16 / 9));
+  height: min(90vh, calc(96vw * 9 / 16));
+  aspect-ratio: 16 / 9;
+  background-color: var(--bg-canvas);
+  border-radius: 14px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* SLIDE CONTAINER */
+.slide {
+  display: none;
+  width: 100%;
+  height: 100%;
+  padding: 24px 42px 18px 42px;
+  flex-direction: column;
+  justify-content: space-between;
+  background-color: var(--bg-canvas);
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  user-select: text;
+}
+
+/* Signature 4-Corner Accents */
+.slide::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 60px;
+  height: 4px;
+  background: #0F172A;
+  border-bottom-right-radius: 4px;
+  z-index: 20;
+}
+
+.slide::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 90px;
+  height: 5px;
+  background: var(--brand-blue);
+  border-bottom-left-radius: 4px;
+  z-index: 20;
+}
+
+.slide.active {
+  display: flex;
+  opacity: 1;
+  transform: translateY(0);
+  z-index: 10;
+}
+
+/* SLIDE HEADER */
+.slide-header {
+  flex-shrink: 0;
+  margin-bottom: 10px;
+}
+
+.slide-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+.badge-module-a {
+  background-color: var(--badge-navy-bg);
+  border: 1px solid var(--badge-navy-border);
+  color: var(--badge-navy-text);
+}
+
+.badge-module-b {
+  background-color: var(--badge-emerald-bg);
+  border: 1px solid var(--badge-emerald-border);
+  color: var(--badge-emerald-text);
+}
+
+.badge-module-c {
+  background-color: var(--badge-sky-bg);
+  border: 1px solid var(--badge-sky-border);
+  color: var(--badge-sky-text);
+}
+
+.badge-category {
+  background-color: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  color: #475569;
+}
+
+.badge-accent {
+  background-color: var(--badge-emerald-bg);
+  border: 1px solid var(--badge-emerald-border);
+  color: var(--badge-emerald-text);
+}
+
+.badge-danger {
+  background-color: var(--badge-red-bg);
+  border: 1px solid var(--badge-red-border);
+  color: var(--badge-red-text);
+}
+
+.badge-amber {
+  background-color: var(--badge-amber-bg);
+  border: 1px solid var(--badge-amber-border);
+  color: var(--badge-amber-text);
+}
+
+.slide-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--brand-slate-dark);
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  margin-bottom: 3px;
+}
+
+.slide-subtitle {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+/* SLIDE BODY */
+.slide-body {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* SLIDEMASON: SPLIT HERO (HALF-AND-HALF) */
+.split-hero {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 20px;
+  height: 100%;
+  align-items: stretch;
+}
+
+.split-left {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  height: 100%;
+}
+
+.split-right {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.photo-panel {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+}
+
+.photo-panel img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.photo-caption {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid #E2E8F0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  text-align: center;
+}
+
+.stacked-metric-stripes {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  height: 100%;
+  justify-content: space-between;
+}
+
+.metric-stripe {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 11px 16px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+  flex: 1;
+}
+
+.metric-stripe::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background: var(--brand-blue);
+}
+
+.metric-stripe.emerald::before { background: var(--brand-emerald); }
+.metric-stripe.danger::before { background: var(--alert-red); }
+.metric-stripe.amber::before { background: var(--alert-amber); }
+.metric-stripe.navy::before { background: var(--brand-navy); }
+
+.metric-stripe-val {
+  font-size: 28px;
+  font-weight: 900;
+  font-family: var(--font-mono);
+  color: var(--brand-blue);
+  min-width: 115px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.metric-stripe.emerald .metric-stripe-val { color: var(--brand-emerald); }
+.metric-stripe.danger .metric-stripe-val { color: var(--alert-red); }
+.metric-stripe.amber .metric-stripe-val { color: var(--alert-amber); }
+.metric-stripe.navy .metric-stripe-val { color: var(--brand-navy); }
+
+.metric-stripe-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metric-stripe-lbl {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--brand-slate-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metric-stripe-desc {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+/* SLIDEMASON: COMPARE GRID (BEFORE VS AFTER) */
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  height: 100%;
+  align-items: stretch;
+}
+
+.compare-col {
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+.compare-col.before {
+  background-color: #FEF2F2;
+  border: 1px solid #FECACA;
+}
+
+.compare-col.before::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background-color: #DC2626;
+}
+
+.compare-col.after {
+  background-color: #F0FDF4;
+  border: 1px solid #A7F3D0;
+}
+
+.compare-col.after::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background-color: #10B981;
+}
+
+.compare-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.compare-title {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.compare-col.before .compare-title { color: #991B1B; }
+.compare-col.after .compare-title { color: #065F46; }
+
+.compare-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+
+.compare-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.compare-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.compare-col.before .compare-icon {
+  background-color: #FEE2E2;
+  color: #DC2626;
+  border: 1px solid #FECACA;
+}
+
+.compare-col.after .compare-icon {
+  background-color: #DCFCE7;
+  color: #10B981;
+  border: 1px solid #BBF7D0;
+}
+
+.compare-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.compare-text-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.compare-text-desc {
+  font-size: 11px;
+  color: #475569;
+  line-height: 1.35;
+}
+
+/* SLIDEMASON: STEP CHEVRON (HORIZONTAL PIPELINE) */
+.chevron-pipeline {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+}
+
+.chevron-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chevron-arrow {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  clip-path: polygon(0% 0%, calc(100% - 14px) 0%, 100% 50%, calc(100% - 14px) 100%, 0% 100%, 14px 50%);
+  padding: 0 16px;
+  background: var(--brand-blue);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+.chevron-step:first-child .chevron-arrow {
+  clip-path: polygon(0% 0%, calc(100% - 14px) 0%, 100% 50%, calc(100% - 14px) 100%, 0% 100%);
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.chevron-step:last-child .chevron-arrow {
+  clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 14px 50%);
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.chevron-card {
+  flex-grow: 1;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+.chevron-card-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0F172A;
+}
+
+.chevron-card-desc {
+  font-size: 11.5px;
+  color: #475569;
+  line-height: 1.45;
+}
+
+/* SLIDEMASON: FEATURE CARDS */
+.grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  height: 100%;
+}
+
+.grid-3col {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+  height: 100%;
+}
+
+.grid-4col {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  height: 100%;
+}
+
+.grid-5col {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  height: 100%;
+}
+
+.square-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #FFFFFF;
+  flex-shrink: 0;
+}
+.square-badge.blue { background-color: var(--brand-blue); }
+.square-badge.sky { background-color: var(--brand-blue-sky); }
+.square-badge.navy { background-color: var(--brand-navy); }
+.square-badge.emerald { background-color: var(--brand-emerald); }
+.square-badge.danger { background-color: var(--alert-red); }
+.square-badge.amber { background-color: var(--alert-amber); }
+
+.card-with-badge {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  height: 100%;
+}
+
+.card-with-badge:hover {
+  border-color: var(--border-card-hover);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+}
+
+.card-badge-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.card-badge-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--brand-slate-dark);
+}
+
+.card-stat-callout {
+  margin-bottom: 6px;
+}
+
+.card-stat-number {
+  font-size: 26px;
+  font-weight: 900;
+  font-family: var(--font-mono);
+  line-height: 1.1;
+}
+
+.card-stat-label {
+  font-size: 9.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--brand-slate-dark);
+}
+
+.card-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.card-list li {
+  position: relative;
+  padding-left: 14px;
+  margin-bottom: 5px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.card-list li:last-child {
+  margin-bottom: 0;
+}
+
+.card-list li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--brand-blue);
+}
+
+.card-list.emerald li::before { background-color: var(--brand-emerald); }
+.card-list.danger li::before { background-color: var(--alert-red); }
+.card-list.amber li::before { background-color: var(--alert-amber); }
+.card-list.navy li::before { background-color: var(--brand-navy); }
+
+/* SLIDEMASON: STAT BOX */
+.stat-box-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  height: 100%;
+}
+
+.stat-box-card::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 5px;
+  background-color: var(--brand-blue);
+}
+.stat-box-card.emerald::before { background-color: var(--brand-emerald); }
+.stat-box-card.danger::before { background-color: var(--alert-red); }
+.stat-box-card.navy::before { background-color: var(--brand-navy); }
+.stat-box-card.amber::before { background-color: var(--alert-amber); }
+
+.stat-box-number {
+  font-size: 32px;
+  font-weight: 900;
+  font-family: var(--font-mono);
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+
+/* SLIDEMASON: DONUT CHART */
+.donut-chart-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border-card);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.donut-chart-title {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--brand-navy);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.donut-chart-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  width: 100%;
+  flex: 1;
+}
+
+.donut-svg-wrapper {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  flex-shrink: 0;
+}
+
+.donut-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  border-radius: 50%;
+}
+
+.donut-center-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.donut-center-badge .center-val {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 900;
+  color: var(--brand-navy);
+  line-height: 1.1;
+}
+
+.donut-center-badge .center-lbl {
+  font-size: 8.5px;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
+.donut-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: 1;
+}
+
+.donut-legend-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.donut-legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.donut-legend-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.donut-legend-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.donut-legend-pct {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 11.5px;
+  color: var(--brand-slate-dark);
+}
+
+.donut-legend-name {
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--brand-slate-dark);
+}
+
+.donut-legend-desc {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+/* CALLOUT & SUMMARY BARS */
+.callout {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.callout-blue {
+  background-color: #F0F9FF;
+  border: 1px solid #BAE6FD;
+  color: #0369A1;
+}
+
+.callout-emerald {
+  background-color: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  color: #065F46;
+}
+
+.callout-amber {
+  background-color: #FFFBEB;
+  border: 1px solid #FDE68A;
+  color: #92400E;
+}
+
+/* SLIDE FOOTER */
+.slide-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-divider);
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  position: relative;
+}
+
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.footer-page-badge {
+  padding: 2px 8px;
+  background-color: #F1F5F9;
+  border-radius: 4px;
+  border: 1px solid var(--border-card);
+  color: var(--brand-navy);
+}
+
+/* FLOATING NAVIGATION TOOLBAR */
+.toolbar {
+  position: fixed;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 40px;
+  padding: 5px 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  z-index: 1000;
+  opacity: 0.35;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.toolbar:hover {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-2px);
+}
+
+.toolbar-btn {
+  background: transparent;
+  border: none;
+  color: #FFFFFF;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: background-color 0.15s ease;
+}
+
+.toolbar-btn:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.toolbar-counter {
+  color: #94A3B8;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 0 6px;
+  font-weight: 600;
+}
+
+.keyboard-hint {
+  position: fixed;
+  bottom: 8px;
+  right: 14px;
+  font-size: 10.5px;
+  color: #64748B;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  z-index: 999;
+}
+
+.key-badge {
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+/* MODAL & DRAWER */
+.modal-backdrop {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-backdrop.open {
+  display: flex;
+}
+
+.grid-modal {
+  width: 90vw;
+  max-width: 1200px;
+  height: 85vh;
+  background: #FFFFFF;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.grid-modal-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid #E2E8F0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.grid-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #0F172A;
+}
+
+.grid-modal-filters {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-btn {
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #475569;
+}
+
+.filter-btn.active {
+  background: var(--brand-blue);
+  color: #FFFFFF;
+  border-color: var(--brand-blue);
+}
+
+.grid-modal-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: #64748B;
+  padding: 4px;
+}
+
+.grid-modal-body {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.grid-cards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.grid-thumb-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.grid-thumb-card:hover {
+  border-color: var(--brand-blue);
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.12);
+  transform: translateY(-2px);
+}
+
+.grid-thumb-card.active {
+  border: 2px solid var(--brand-blue);
+  background-color: #F0F9FF;
+}
+
+.thumb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.thumb-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  color: #64748B;
+}
+
+.thumb-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #0F172A;
+  line-height: 1.3;
+}
+
+.thumb-summary {
+  font-size: 10px;
+  color: #64748B;
+  line-height: 1.35;
+}
+
+/* SPEAKER NOTES DRAWER */
+.notes-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 440px;
+  height: 100vh;
+  background: #FFFFFF;
+  box-shadow: -10px 0 25px rgba(0, 0, 0, 0.2);
+  z-index: 2500;
+  transform: translateX(100%);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.notes-drawer.open {
+  transform: translateX(0);
+}
+
+.notes-drawer-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid #E2E8F0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #F8FAFC;
+}
+
+.notes-drawer-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0F172A;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notes-drawer-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: #64748B;
+}
+
+.notes-drawer-body {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.notes-meta-pill {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.notes-section-title {
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--brand-navy);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+
+.spoken-script-box {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-left: 4px solid var(--brand-blue);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 12px;
+  color: #0F172A;
+  line-height: 1.5;
+}
+
+.pause-pill {
+  display: inline-block;
+  background: #FEF3C7;
+  color: #92400E;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  margin: 0 2px;
+}
+
+.notes-objection-box {
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.notes-context-box {
+  background: #F1F5F9;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 10.5px;
+  color: #475569;
+  line-height: 1.4;
+}
+
+/* PRINT MEDIA STYLESHEET */
+@media print {
+  @page {
+    size: 16in 9in landscape;
+    margin: 0;
+  }
+
+  html, body {
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #FFFFFF !important;
+  }
+
+  .deck-wrapper {
+    width: 100% !important;
+    height: auto !important;
+    padding: 0 !important;
+    background: #FFFFFF !important;
+    display: block !important;
+  }
+
+  .deck-viewport {
+    width: 100% !important;
+    height: auto !important;
+    aspect-ratio: auto !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  .slide {
+    display: flex !important;
+    position: relative !important;
+    width: 16in !important;
+    height: 9in !important;
+    page-break-after: always !important;
+    opacity: 1 !important;
+    transform: none !important;
+    top: auto !important;
+    left: auto !important;
+    padding: 30px 45px 22px 45px !important;
+  }
+
+  .toolbar,
+  .modal-backdrop,
+  .notes-drawer,
+  .keyboard-hint {
+    display: none !important;
+  }
+}
+
+  </style>
+</head>
+<body>
+  <!-- Presentation Deck Container (27 Slides) -->
+  <div class="deck-container" id="deck-container">
+
+  <!-- SLIDE 01: TITLE & POSITIONING -->
+  <section class="slide active" id="slide-1">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-a">VÒNG 1 PITCH</span>
+        <span class="badge badge-category">INNOSTART 2026 DEMO DAY</span>
+        <span class="badge badge-accent">LOCAL-FIRST AI</span>
+      </div>
+      <h1 class="slide-title">LIVA BANKING HARNESS: ĐAI AN TOÀN AI ĐIỀU PHỐI ĐỐI SOÁT &amp; NGUỒN VỐN</h1>
+      <p class="slide-subtitle">Nền tảng Tác tử Cục bộ (Local-First Agentic Harness) bảo vệ bí mật tài chính và tối ưu dòng tiền doanh nghiệp.</p>
+    </header>
+    <div class="slide-body">
+      <div class="split-hero">
+        <div class="split-left">
+          <div class="callout callout-blue" style="font-size:12.5px; font-weight:700;">
+            Tháp Canh Nguồn Vốn &amp; Đai An Toàn Tác Tử AI 24/7 Cho Doanh Nghiệp
+          </div>
+          <div class="stacked-metric-stripes">
+            <div class="metric-stripe emerald">
+              <div class="metric-stripe-val">100%</div>
+              <div class="metric-stripe-content">
+                <div class="metric-stripe-lbl">An Toàn Dữ Liệu Tại Chỗ</div>
+                <div class="metric-stripe-desc">Xử lý 100% tại máy tính doanh nghiệp, 0 byte rò rỉ lên đám mây ngoại quốc.</div>
+              </div>
+            </div>
+            <div class="metric-stripe">
+              <div class="metric-stripe-val">19 Giây</div>
+              <div class="metric-stripe-content">
+                <div class="metric-stripe-lbl">Tốc Độ Xử Lý Vi Giây</div>
+                <div class="metric-stripe-desc">Tự động bóc tách &amp; đối soát 50.000 dòng sao kê đa ngân hàng chỉ trong 19.2 giây.</div>
+              </div>
+            </div>
+            <div class="metric-stripe" style="border-left-color: var(--brand-blue-sky);">
+              <div class="metric-stripe-val" style="color: var(--brand-blue-sky);">99.8%</div>
+              <div class="metric-stripe-content">
+                <div class="metric-stripe-lbl">Khóa Số Học Chuẩn Xác</div>
+                <div class="metric-stripe-desc">Khớp chuẩn xác tuyệt đối từng đồng; 0.2% chuyển cách ly an toàn cho người duyệt.</div>
+              </div>
+            </div>
+          </div>
+          <div class="callout" style="background:#F8FAFC; border:1px solid #E2E8F0; font-size:11px; color:#475569;">
+            <strong style="color:#0F172A;">5 Nhà Sáng Lập Toàn Thời Gian:</strong> Nguyễn Anh Dương (CEO) • Nguyễn Hoàng Hiếu (CTO) • Nguyễn Huy Anh Minh (COO) • Nguyễn Minh Hiếu (Product) • Cao Xuân Đại (Lead Eng).
+          </div>
+        </div>
+        <div class="split-right">
+          <div class="photo-panel">
+            <img src="assets/glass_skyscraper.jpg" alt="Tòa tháp tài chính hiện đại" />
+            <div class="photo-caption">Tòa tháp tài chính hiện đại — Biểu tượng minh bạch &amp; an toàn dữ liệu</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">ROUND 1 PITCH</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">01 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 02: OPERATIONAL PAIN -->
+  <section class="slide" id="slide-2">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-a">VÒNG 1 PITCH</span>
+        <span class="badge badge-danger">ĐIỂM NGHẼN NGHIỆP VỤ</span>
+        <span class="badge badge-category">THỰC TẾ VẬN HÀNH</span>
+      </div>
+      <h1 class="slide-title">CƠN ÁC MỘNG 4 GIỜ ĐỐI SOÁT MỖI SÁNG &amp; VÙNG MÙ THANH KHOẢN T+3</h1>
+      <p class="slide-subtitle">Kế toán kiệt quệ dò tay từng con số, doanh nghiệp rơi vào vùng mù dòng tiền suốt 3 ngày làm việc.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-3col">
+        <div class="card-with-badge" style="border-top: 4px solid var(--alert-red);">
+          <div class="card-badge-header">
+            <span class="square-badge danger">15+</span>
+            <div class="card-badge-title">15+ File Sao Kê Phân Mảnh</div>
+          </div>
+          <div class="card-stat-callout">
+            <div class="card-stat-number" style="color: var(--alert-red);">15+ File</div>
+            <div class="card-stat-label">NGÂN HÀNG PHÂN MẢNH MỖI SÁNG</div>
+          </div>
+          <ul class="card-list danger">
+            <li>Mở 15 file sao kê từ Vietcombank, Techcombank, BIDV... mỗi sáng sớm.</li>
+            <li>Định dạng lộn xộn, ô gộp, nội dung viết tắt không dấu phức tạp.</li>
+            <li>Không thể tự động hóa bằng Macro Excel vì dễ gãy khi ngân hàng đổi mẫu.</li>
+          </ul>
+        </div>
+        <div class="card-with-badge" style="border-top: 4px solid var(--alert-amber);">
+          <div class="card-badge-header">
+            <span class="square-badge amber">4H</span>
+            <div class="card-badge-title">2 – 4 Giờ Dò Tay Thủ Công</div>
+          </div>
+          <div class="card-stat-callout">
+            <div class="card-stat-number" style="color: var(--alert-amber);">2 – 4 Giờ</div>
+            <div class="card-stat-label">LÃNG PHÍ MỖI NGÀY LÀM VIỆC</div>
+          </div>
+          <ul class="card-list amber">
+            <li>Kế toán căng mắt đối chiếu từng dòng với sổ cái doanh nghiệp.</li>
+            <li>Kiệt sức và dễ sai sót vào kỳ chốt sổ cuối tháng hoặc mùa quyết toán.</li>
+            <li>Lãng phí hơn 1.400 giờ công làm việc mỗi năm của cả phòng kế toán.</li>
+          </ul>
+        </div>
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-navy);">
+          <div class="card-badge-header">
+            <span class="square-badge navy">T+3</span>
+            <div class="card-badge-title">Vùng Mù Thanh Khoản T+1..T+3</div>
+          </div>
+          <div class="card-stat-callout">
+            <div class="card-stat-number" style="color: var(--brand-navy);">T+1 .. T+3</div>
+            <div class="card-stat-label">VÙNG MÙ DÒNG TIỀN DOANH NGHIỆP</div>
+          </div>
+          <ul class="card-list navy">
+            <li>CFO không biết chính xác số dư khả dụng thực tế giữa các ngân hàng.</li>
+            <li>Chỉ cần lệch 1.000đ tiền phí là tắc nghẽn toàn bộ báo cáo tài chính.</li>
+            <li>Nguy cơ bị động nguồn vốn và phạt thấu chi ngân hàng lúc 16h thứ Sáu.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">ĐIỂM NGHẼN NGHIỆP VỤ</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">02 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 03: COMPLIANCE RED LINE -->
+  <section class="slide" id="slide-3">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-a">VÒNG 1 PITCH</span>
+        <span class="badge badge-danger">LẰN RANH ĐỎ PHÁP LÝ</span>
+        <span class="badge badge-category">AN NINH DỮ LIỆU</span>
+      </div>
+      <h1 class="slide-title">LẰN RANH ĐỎ PHÁP LÝ: DỮ LIỆU TÀI CHÍNH CẤM TUYỆT ĐỐI ĐƯA LÊN CLOUD AI</h1>
+      <p class="slide-subtitle">Sao chép dữ liệu giao dịch lên đám mây công cộng là hành vi phạm luật với chế tài tới 5% doanh thu.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-3col">
+        <div class="stat-box-card danger">
+          <div class="badge badge-danger" style="margin-bottom:8px; align-self:flex-start;">NGHỊ ĐỊNH 13/2023/NĐ-CP</div>
+          <div class="stat-box-number" style="color: var(--alert-red);">Phạt 5%</div>
+          <div style="font-size:12px; font-weight:800; color:#0F172A; text-transform:uppercase; margin-bottom:6px;">TỔNG DOANH THU NĂM</div>
+          <p style="font-size:11.5px; color:#475569; line-height:1.45;">Dữ liệu giao dịch ngân hàng là dữ liệu cá nhân nhạy cảm; cấm tuyệt đối chuyển trái phép ra máy chủ nước ngoài. Chế tài phạt tới 5% tổng doanh thu.</p>
+        </div>
+        <div class="stat-box-card navy">
+          <div class="badge badge-module-a" style="margin-bottom:8px; align-self:flex-start;">THÔNG TƯ 09/2020/TT-NHNN</div>
+          <div class="stat-box-number" style="color: var(--brand-navy);">Cấp Độ 3-5</div>
+          <div style="font-size:12px; font-weight:800; color:#0F172A; text-transform:uppercase; margin-bottom:6px;">HỆ THỐNG THÔNG TIN NGÂN HÀNG</div>
+          <p style="font-size:11.5px; color:#475569; line-height:1.45;">Quy định an toàn hệ thống thông tin ngành ngân hàng; cấm sử dụng đám mây công cộng cho hệ thống xử lý giao dịch lõi; bắt buộc lưu trữ nhật ký kiểm toán bất biến.</p>
+        </div>
+        <div class="stat-box-card emerald">
+          <div class="badge badge-accent" style="margin-bottom:8px; align-self:flex-start;">CAM KẾT LIVA LOCAL-FIRST</div>
+          <div class="stat-box-number" style="color: var(--brand-emerald);">0 Byte</div>
+          <div style="font-size:12px; font-weight:800; color:#0F172A; text-transform:uppercase; margin-bottom:6px;">RÒ RỈ RA KHỎI VĂN PHÒNG</div>
+          <p style="font-size:11.5px; color:#475569; line-height:1.45;">Xử lý dữ liệu khép kín 100% tại văn phòng doanh nghiệp; khóa giải mã niêm phong trong phần cứng máy trạm; doanh nghiệp nắm toàn quyền làm chủ dữ liệu.</p>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">LẰN RANH ĐỎ PHÁP LÝ</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">03 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 04: CUSTOMER DUAL PERSONA -->
+  <section class="slide" id="slide-4">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-a">VÒNG 1 PITCH</span>
+        <span class="badge badge-category">CHÂN DUNG KHÁCH HÀNG</span>
+        <span class="badge badge-accent">THỊ TRƯỜNG MỤC TIÊU</span>
+      </div>
+      <h1 class="slide-title">KHÁCH HÀNG KÉP: CFO CẦN BẢO VỆ VỐN, NGÂN HÀNG CẦN GIỮ CHÂN TIỀN GỬI CASA</h1>
+      <p class="slide-subtitle">Thấu hiểu sâu sắc áp lực thực tế của hai mắt xích cốt lõi trong lưu chuyển tiền tệ doanh nghiệp.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-2col">
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-blue);">
+          <div class="card-badge-header">
+            <span class="square-badge blue">CFO</span>
+            <div>
+              <div class="card-badge-title">Doanh Nghiệp Vừa &amp; Lớn (15.000+ Doanh Nghiệp)</div>
+              <div style="font-size:11px; color:#64748B;">CFO, Kế toán trưởng, Giám đốc nguồn vốn doanh nghiệp</div>
+            </div>
+          </div>
+          <ul class="card-list" style="margin: 8px 0;">
+            <li><strong>Gom đa ngân hàng:</strong> Hợp nhất 5–20 tài khoản ngân hàng về một màn hình điều phối duy nhất.</li>
+            <li><strong>Đóng sổ tức thì:</strong> Tự động đối soát và đóng sổ kế toán trước 10h sáng mỗi ngày làm việc.</li>
+            <li><strong>Bảo vệ dòng vốn:</strong> Cảnh báo thiếu tiền trước 24–48 giờ để chủ động điều vốn, tránh phạt thấu chi.</li>
+          </ul>
+          <div class="callout callout-blue" style="font-size:11px; font-weight:700;">
+            Ngân Sách Sẵn Sàng Chi Trả: 15 – 45 Triệu VNĐ/tháng ($300 – $1.000/tháng)
+          </div>
+        </div>
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-navy);">
+          <div class="card-badge-header">
+            <span class="square-badge navy">NH</span>
+            <div>
+              <div class="card-badge-title">Ngân Hàng Thương Mại (35+ NHTM Việt Nam)</div>
+              <div style="font-size:11px; color:#64748B;">Khối Vận hành (Bank Ops), Khối Khách hàng Doanh nghiệp</div>
+            </div>
+          </div>
+          <ul class="card-list navy" style="margin: 8px 0;">
+            <li><strong>Giữ chân tiền gửi CASA:</strong> Cung cấp tiện ích ngân quỹ số giữ chân dòng tiền gửi không kỳ hạn giá trị cao.</li>
+            <li><strong>Tự động hóa tra soát:</strong> Tra soát liên ngân hàng Napas/VietQR tự động, giảm tải áp lực trực quầy.</li>
+            <li><strong>Chi phí tinh gọn:</strong> Triển khai nhanh chóng mà không phải đầu tư hàng triệu USD thay thế hệ thống lõi cũ.</li>
+          </ul>
+          <div class="callout callout-emerald" style="font-size:11px; font-weight:700;">
+            Ngân Sách Sẵn Sàng Chi Trả: 500 Triệu – 1.5 Tỷ VNĐ/năm ($50k – $150k/năm)
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">CHÂN DUNG KHÁCH HÀNG</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">04 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 05: SOLUTION BREAKTHROUGH -->
+  <section class="slide" id="slide-5">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-a">VÒNG 1 PITCH</span>
+        <span class="badge badge-accent">GIẢI PHÁP ĐỘT PHÁ</span>
+        <span class="badge badge-category">LIVA BANKING HARNESS</span>
+      </div>
+      <h1 class="slide-title">LIVA: ĐAI AN TOÀN &amp; THÁP CANH NGUỒN VỐN VẬN HÀNH 100% TẠI CHỖ</h1>
+      <p class="slide-subtitle">Tác tử AI cục bộ chạy trên máy trạm hiện có — Tự động bóc tách, đối soát tức thì và cảnh báo dòng tiền sớm.</p>
+    </header>
+    <div class="slide-body">
+      <div class="split-hero">
+        <div class="split-left">
+          <div class="card-with-badge" style="border-left: 4px solid var(--brand-blue); padding:12px 14px;">
+            <div style="font-size:13px; font-weight:800; color:#0F172A; margin-bottom:3px;">1. Bóc Tách Tự Động Trong 30 Giây</div>
+            <div style="font-size:11.5px; color:#475569; line-height:1.4;">Tự động gom và đọc hiểu mọi định dạng sao kê (Excel gộp ô, CSV, PDF scan) qua thư mục nóng thông minh không cần cấu hình phức tạp.</div>
+          </div>
+          <div class="card-with-badge" style="border-left: 4px solid var(--brand-navy); padding:12px 14px;">
+            <div style="font-size:13px; font-weight:800; color:#0F172A; margin-bottom:3px;">2. Động Cơ Đối Soát Chuẩn Xác 99.8%</div>
+            <div style="font-size:11.5px; color:#475569; line-height:1.4;">Tự động đối chiếu ba chiều (Sao kê ngân hàng – Hóa đơn – Sổ cái kế toán), phát hiện trùng lặp và cấn trừ công nợ chính xác từng đồng.</div>
+          </div>
+          <div class="card-with-badge" style="border-left: 4px solid var(--brand-emerald); padding:12px 14px;">
+            <div style="font-size:13px; font-weight:800; color:#0F172A; margin-bottom:3px;">3. Tháp Canh Cảnh Báo Sớm 24 – 48 Giờ</div>
+            <div style="font-size:11.5px; color:#475569; line-height:1.4;">Dự báo dòng tiền luân chuyển, phát hiện nguy cơ thiếu hụt tiền trước 2 ngày để CFO chủ động điều vốn, tối ưu sinh lời lãi suất qua đêm.</div>
+          </div>
+        </div>
+        <div class="split-right">
+          <div class="photo-panel">
+            <img src="assets/architecture_curve.jpg" alt="Đai an toàn và công nghệ tại chỗ" />
+            <div class="photo-caption">100% Vận Hành Tại Chỗ — 0 Byte Rò Rỉ Lên Đám Mây</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">GIẢI PHÁP ĐỘT PHÁ</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">05 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 06: VALUE - BEFORE VS AFTER -->
+  <section class="slide" id="slide-6">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-a">VÒNG 1 PITCH</span>
+        <span class="badge badge-accent">HIỆU QUẢ ĐỊNH LƯỢNG</span>
+        <span class="badge badge-category">BEFORE VS AFTER</span>
+      </div>
+      <h1 class="slide-title">CHUYỂN ĐỔI NGOẠN MỤC: TỪ 4 GIỜ CĂNG THẲNG ĐẾN 30 GIÂY THẢNH THƠI</h1>
+      <p class="slide-subtitle">Minh chứng trực quan về hiệu quả giải phóng sức lao động và loại bỏ triệt để rủi ro tài chính.</p>
+    </header>
+    <div class="slide-body">
+      <div class="compare-grid">
+        <div class="compare-col before">
+          <div class="compare-header">
+            <span class="badge badge-danger">QUY TRÌNH CŨ THỦ CÔNG</span>
+            <span class="compare-title">TRƯỚC KHI CÓ LIVA</span>
+          </div>
+          <ul class="compare-list">
+            <li class="compare-item">
+              <div class="compare-icon">🔴</div>
+              <div class="compare-text">
+                <div class="compare-text-title">2 – 4 Giờ Căng Thẳng Mệt Mỏi</div>
+                <div class="compare-text-desc">Dò tay từng con số, hoa mắt, kiệt sức mỗi sáng sớm; dễ sai sót khi chốt sổ.</div>
+              </div>
+            </li>
+            <li class="compare-item">
+              <div class="compare-icon">🔴</div>
+              <div class="compare-text">
+                <div class="compare-text-title">Vùng Mù Thanh Khoản 1 – 3 Ngày</div>
+                <div class="compare-text-desc">Tiền nằm phân tán nhiều tài khoản ngân hàng, lãng phí chi phí cơ hội lãi suất.</div>
+              </div>
+            </li>
+            <li class="compare-item">
+              <div class="compare-icon">🔴</div>
+              <div class="compare-text">
+                <div class="compare-text-title">Rủi Ro Bị Phạt Chậm Nộp &amp; Thấu Chi</div>
+                <div class="compare-text-desc">Tắc nghẽn thông tin trích nợ lúc 16h thứ Sáu khiến doanh nghiệp bị phạt nặng.</div>
+              </div>
+            </li>
+            <li class="compare-item">
+              <div class="compare-icon">🔴</div>
+              <div class="compare-text">
+                <div class="compare-text-title">Nguy Cơ Án Phạt Nghị Định 13</div>
+                <div class="compare-text-desc">Nhân viên copy dữ liệu dán vào ChatGPT đối mặt án phạt tới 5% tổng doanh thu.</div>
+              </div>
+            </li>
+          </ul>
+        </div>
+        <div class="compare-col after">
+          <div class="compare-header">
+            <span class="badge badge-emerald">TỰ ĐỘNG HÓA CỤC BỘ</span>
+            <span class="compare-title">KHI CÓ LIVA HARNESS</span>
+          </div>
+          <ul class="compare-list">
+            <li class="compare-item">
+              <div class="compare-icon">🟢</div>
+              <div class="compare-text">
+                <div class="compare-text-title">30 Giây Hoàn Tất Toàn Bộ</div>
+                <div class="compare-text-desc">Xong toàn bộ hàng chục nghìn giao dịch, kế toán thảnh thơi nhâm nhi cà phê.</div>
+              </div>
+            </li>
+            <li class="compare-item">
+              <div class="compare-icon">🟢</div>
+              <div class="compare-text">
+                <div class="compare-text-title">Dòng Tiền Sáng Tỏ Trên 1 Màn Hình</div>
+                <div class="compare-text-desc">Hiển thị số dư khả dụng thời gian thực của toàn bộ tài khoản doanh nghiệp.</div>
+              </div>
+            </li>
+            <li class="compare-item">
+              <div class="compare-icon">🟢</div>
+              <div class="compare-text">
+                <div class="compare-text-title">Cảnh Báo Dòng Tiền Trước 24 – 48 Giờ</div>
+                <div class="compare-text-desc">Chủ động điều phối nguồn vốn qua đêm, tối ưu sinh lời hàng trăm triệu đồng.</div>
+              </div>
+            </li>
+            <li class="compare-item">
+              <div class="compare-icon">🟢</div>
+              <div class="compare-text">
+                <div class="compare-text-title">100% An Toàn Cục Bộ Tuyệt Đối</div>
+                <div class="compare-text-desc">Dữ liệu ở lại văn phòng, tuân thủ tuyệt đối Nghị định 13 &amp; Thông tư 09.</div>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout callout-emerald" style="font-size:11.5px; font-weight:700; text-align:center;">
+        ROI Thực Tế: Thu hồi toàn bộ vốn đầu tư trong vòng chưa đầy 3 tháng nhờ tiết kiệm 1.400+ giờ công lao động!
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">BEFORE VS AFTER</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">06 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 07: USER JOURNEY WORKFLOW -->
+  <section class="slide" id="slide-7">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-a">VÒNG 1 PITCH</span>
+        <span class="badge badge-accent">TRẢI NGHIỆM NGƯỜI DÙNG</span>
+        <span class="badge badge-category">LUỒNG VẬN HÀNH 3 BƯỚC</span>
+      </div>
+      <h1 class="slide-title">QUY TRÌNH 3 BƯỚC TỨC THÌ: THẢ FILE, ĐỐI SOÁT 30 GIÂY VÀ 1 CHẠM KÝ DUYỆT</h1>
+      <p class="slide-subtitle">Tối giản hóa tối đa quy trình làm việc hàng ngày của phòng kế toán và ban giám đốc.</p>
+    </header>
+    <div class="slide-body">
+      <div class="chevron-pipeline">
+        <div class="chevron-step">
+          <div class="chevron-arrow" style="background: var(--brand-blue);">BƯỚC 1: THẢ FILE TỰ ĐỘNG</div>
+          <div class="chevron-card" style="border-top: 3px solid var(--brand-blue);">
+            <div class="chevron-card-title">Tải File Vào Thư Mục Nóng</div>
+            <div class="chevron-card-desc">Kế toán chỉ cần tải file sao kê từ ngân hàng về thư mục nóng; hệ thống tự động nhận diện mẫu biểu của 35+ ngân hàng mà không cần cấu hình thủ công.</div>
+            <div class="badge badge-category" style="font-size:9px; align-self:flex-start;">THỜI GIAN: 5 GIÂY</div>
+          </div>
+        </div>
+        <div class="chevron-step">
+          <div class="chevron-arrow" style="background: var(--brand-navy);">BƯỚC 2: ĐỐI SOÁT TỨC THÌ 30S</div>
+          <div class="chevron-card" style="border-top: 3px solid var(--brand-navy);">
+            <div class="chevron-card-title">Khóa Số Học Chuẩn Xác</div>
+            <div class="chevron-card-desc">Động cơ xử lý tại chỗ đọc hiểu nội dung viết tắt, khóa số học chuẩn xác từng đồng, tự động khớp 99.8% giao dịch và cấn trừ công nợ sổ cái.</div>
+            <div class="badge badge-category" style="font-size:9px; align-self:flex-start;">THỜI GIAN: 19 - 30 GIÂY</div>
+          </div>
+        </div>
+        <div class="chevron-step">
+          <div class="chevron-arrow" style="background: var(--brand-emerald);">BƯỚC 3: PHÊ DUYỆT 1 CHẠM</div>
+          <div class="chevron-card" style="border-top: 3px solid var(--brand-emerald);">
+            <div class="chevron-card-title">Đẩy Sổ Kế Toán Tức Thì</div>
+            <div class="chevron-card-desc">Kế toán trưởng kiểm tra bảng tổng hợp trên màn hình Workbench, bấm 1 chạm ký duyệt điện tử để tự động đẩy chứng từ vào phần mềm kế toán.</div>
+            <div class="badge badge-category" style="font-size:9px; align-self:flex-start;">HOÀN TẤT: TRƯỚC 8H30 SÁNG</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">LUỒNG VẬN HÀNH</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">07 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+
+  <!-- SLIDE 08: CORE TECH 2-TIER SAFETY -->
+  <section class="slide" id="slide-8">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-a">VÒNG 1 PITCH</span>
+        <span class="badge badge-accent">NGUYÊN LÝ CÔNG NGHỆ</span>
+        <span class="badge badge-category">AN TOÀN 2 TẦNG</span>
+      </div>
+      <h1 class="slide-title">NGUYÊN LÝ BẢO VỆ 2 TẦNG: AI ĐỌC HIỂU NGÔN NGỮ, MÁY TÍNH KHÓA CỨNG SỐ HỌC</h1>
+      <p class="slide-subtitle">Tuyệt đối không để AI làm toán mò — Phân lập hoàn toàn ngữ nghĩa tiếng Việt và phép tính kế toán kép.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-2col">
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-blue);">
+          <div class="card-badge-header">
+            <span class="square-badge blue">T1</span>
+            <div>
+              <div class="card-badge-title">TẦNG 1: AI BẢN ĐỊA ĐỌC HIỂU THÔNG MINH</div>
+              <div style="font-size:11px; color:#64748B;">Mô hình ngôn ngữ nhỏ (SLM 3B–8B) chạy cục bộ</div>
+            </div>
+          </div>
+          <ul class="card-list" style="margin: 8px 0;">
+            <li><strong>Chuyên sâu bản địa:</strong> Tinh chỉnh sâu trên ngữ liệu ngân hàng và kế toán Việt Nam.</li>
+            <li><strong>Đọc hiểu chữ viết tắt:</strong> Nhận diện chính xác diễn giải tự do không dấu (ví dụ: <code>CK HD 102 va 103 con lai no HD 104</code>).</li>
+            <li><strong>Nguyên tắc kỷ luật:</strong> Chỉ trích xuất thực thể (mã HĐ, tên đối tác, số tiền); tuyệt đối không tự ý cộng trừ.</li>
+          </ul>
+          <div class="callout callout-blue" style="font-size:11px; font-weight:700;">
+            Nhiệm Vụ Duy Nhất: Đọc hiểu văn bản viết tắt — Không làm toán mò!
+          </div>
+        </div>
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-emerald);">
+          <div class="card-badge-header">
+            <span class="square-badge emerald">T2</span>
+            <div>
+              <div class="card-badge-title">TẦNG 2: ĐỘNG CƠ SỐ HỌC KHÓA CỨNG 100%</div>
+              <div style="font-size:11px; color:#64748B;">Động cơ máy tính toán học xác định kế toán kép</div>
+            </div>
+          </div>
+          <ul class="card-list emerald" style="margin: 8px 0;">
+            <li><strong>Thuật toán chuyên dụng:</strong> Chạy giải thuật đối chiếu công nợ kép trực tiếp trên máy tính.</li>
+            <li><strong>Khớp từng đồng từng cắc:</strong> Khóa số học chuẩn xác 100% số dư Nợ - Có, triệt tiêu hoàn toàn ảo giác.</li>
+            <li><strong>Khóa an toàn Fail-Closed:</strong> Nếu phát hiện lệch dù chỉ 1 đồng, lập tức ngắt an toàn và chuyển người duyệt.</li>
+          </ul>
+          <div class="callout callout-emerald" style="font-size:11px; font-weight:700;">
+            Nhiệm Vụ Duy Nhất: Khóa cứng phép tính số học — Lệch 1 đồng lập tức dừng!
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">NGUYÊN LÝ CÔNG NGHỆ</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">08 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 09: VALIDATION LAB BENCHMARK -->
+  <section class="slide" id="slide-9">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-a">VÒNG 1 PITCH</span>
+        <span class="badge badge-accent">THỰC CHỨNG PHÒNG LAB</span>
+        <span class="badge badge-category">MINH BẠCH TUYỆT ĐỐI</span>
+      </div>
+      <h1 class="slide-title">THỰC CHỨNG 50.000 DÒNG SAO KÊ: 19.2 GIÂY, RAM 680MB, 0.2% DUYỆT NGƯỜI AN TOÀN</h1>
+      <p class="slide-subtitle">Cam kết trung thực tuyệt đối: Dữ liệu đo kiểm thực tế từ phòng lab trên tập sao kê mô phỏng đa ngân hàng.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-4col">
+        <div class="stat-box-card">
+          <div class="stat-box-number" style="color: var(--brand-blue);">&lt; 0.5 ms</div>
+          <div style="font-size:11px; font-weight:800; color:#0F172A; text-transform:uppercase; margin-bottom:4px;">TỐC ĐỘ XỬ LÝ SIÊU TỐC</div>
+          <p style="font-size:11px; color:#475569; line-height:1.4;">Thực tế đạt 0.38 ms/dòng, hoàn tất 50.000 giao dịch trong đúng 19.2 giây.</p>
+        </div>
+        <div class="stat-box-card navy">
+          <div class="stat-box-number" style="color: var(--brand-navy);">680 MB</div>
+          <div style="font-size:11px; font-weight:800; color:#0F172A; text-transform:uppercase; margin-bottom:4px;">TIÊU THỤ RAM ĐỈNH</div>
+          <p style="font-size:11px; color:#475569; line-height:1.4;">Vận hành nhẹ nhàng trên máy tính văn phòng phổ thông (Intel Core i5, 8GB RAM).</p>
+        </div>
+        <div class="stat-box-card emerald">
+          <div class="stat-box-number" style="color: var(--brand-emerald);">99.8%</div>
+          <div style="font-size:11px; font-weight:800; color:#0F172A; text-transform:uppercase; margin-bottom:4px;">TỰ ĐỘNG KHỚP CHUẨN</div>
+          <p style="font-size:11px; color:#475569; line-height:1.4;">So khớp chuẩn xác tuyệt đối trên 49.900 giao dịch đa ngân hàng phức tạp.</p>
+        </div>
+        <div class="stat-box-card amber">
+          <div class="stat-box-number" style="color: var(--alert-amber);">0.2%</div>
+          <div style="font-size:11px; font-weight:800; color:#0F172A; text-transform:uppercase; margin-bottom:4px;">CÁCH LY DUYỆT NGƯỜI</div>
+          <p style="font-size:11px; color:#475569; line-height:1.4;">100 dòng mơ hồ được chuyển Kế toán trưởng duyệt (Tính năng bảo vệ, không phải lỗi).</p>
+        </div>
+      </div>
+      <div class="callout" style="background:#F8FAFC; border:1px solid #E2E8F0; font-size:11.5px; color:#334155; line-height:1.45;">
+        🛡️ <strong>Cam Kết Liêm Chính &amp; Minh Bạch:</strong> Dữ liệu đo kiểm thực tế trong phòng lab trên mã nguồn hoàn chỉnh; sản phẩm ở giai đoạn MVP đo kiểm chuẩn hóa, sẵn sàng bước vào chương trình thử nghiệm Sandbox và PoC cùng đối tác.
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">THỰC CHỨNG PHÒNG LAB</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">09 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 10: BUSINESS MODEL REVENUE -->
+  <section class="slide" id="slide-10">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-a">VÒNG 1 PITCH</span>
+        <span class="badge badge-accent">MÔ HÌNH KINH DOANH</span>
+        <span class="badge badge-category">ĐỘNG CƠ DOANH THU B2B</span>
+      </div>
+      <h1 class="slide-title">MÔ HÌNH B2B HAI MŨI NHỌN: DÒNG TIỀN ĐỊNH KỲ CFO &amp; BẢN QUYỀN NGÂN HÀNG</h1>
+      <p class="slide-subtitle">Đa dạng hóa nguồn thu, chu kỳ bán hàng linh hoạt, biên lợi nhuận gộp vượt trội trên 88%.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-3col">
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-blue);">
+          <div class="card-badge-header">
+            <span class="square-badge blue">SaaS</span>
+            <div class="card-badge-title">Thuê Bao Doanh Nghiệp (CFO)</div>
+          </div>
+          <div class="card-stat-callout">
+            <div class="card-stat-number" style="color: var(--brand-blue);">15 – 45 Tr</div>
+            <div class="card-stat-label">VNĐ / THÁNG ($300 – $1.000)</div>
+          </div>
+          <ul class="card-list">
+            <li>Chu kỳ chốt nhanh từ 2 đến 4 tuần qua mạng lưới đại lý.</li>
+            <li>Cài đặt và vận hành ngay trong 15 phút tại máy trạm kế toán.</li>
+            <li>Tạo dòng tiền định kỳ (ARR) tự chủ nuôi sống bộ máy công ty.</li>
+          </ul>
+        </div>
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-navy);">
+          <div class="card-badge-header">
+            <span class="square-badge navy">Bank</span>
+            <div class="card-badge-title">Bản Quyền Ngân Hàng (Enterprise)</div>
+          </div>
+          <div class="card-stat-callout">
+            <div class="card-stat-number" style="color: var(--brand-navy);">500Tr – 1.5Tỷ</div>
+            <div class="card-stat-label">VNĐ / NĂM ($50K – $150K)</div>
+          </div>
+          <ul class="card-list navy">
+            <li>Cài đặt on-premise cho khối vận hành và tra soát ngân hàng.</li>
+            <li>Hợp đồng giá trị lớn, gia hạn hàng năm từ 3 đến 5 năm.</li>
+            <li>Giúp ngân hàng giữ chân tiền gửi không kỳ hạn CASA doanh nghiệp.</li>
+          </ul>
+        </div>
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-emerald);">
+          <div class="card-badge-header">
+            <span class="square-badge emerald">ERP</span>
+            <div class="card-badge-title">Dịch Vụ Tích Hợp Sâu ERP</div>
+          </div>
+          <div class="card-stat-callout">
+            <div class="card-stat-number" style="color: var(--brand-emerald);">50 – 150 Tr</div>
+            <div class="card-stat-label">VNĐ / DỰ ÁN ($2K – $6K)</div>
+          </div>
+          <ul class="card-list emerald">
+            <li>Tùy biến kết nối sâu theo yêu cầu của doanh nghiệp lớn.</li>
+            <li>Đồng bộ 2 chiều với hệ thống SAP, Oracle, MISA, FAST, Bravo.</li>
+            <li>Gia tăng giá trị hợp đồng và độ gắn bó chặt chẽ của khách hàng.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout callout-blue" style="font-size:11.5px; font-weight:700; text-align:center;">
+        Biên Lợi Nhuận Gộp &gt; 88% (Chi phí server biên = $0) • LTV/CAC đạt 5.2x • Thời Gian Hoàn Vốn Khách Hàng &lt; 3 Tháng
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">MÔ HÌNH KINH DOANH</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">10 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 11: GTM STRATEGY EXPANSION -->
+  <section class="slide" id="slide-11">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-a">VÒNG 1 PITCH</span>
+        <span class="badge badge-accent">CHIẾN LƯỢC GTM</span>
+        <span class="badge badge-category">MỞ RỘNG THỊ TRƯỜNG</span>
+      </div>
+      <h1 class="slide-title">CHIẾN LƯỢC GTM 3 GIAI ĐOẠN: ĐÒN BẨY KÊNH ERP &amp; MẠNG LƯỚI 200+ CFO</h1>
+      <p class="slide-subtitle">Tận dụng mạng lưới đại lý phần mềm kế toán có sẵn để mở rộng quy mô với chi phí thấp nhất.</p>
+    </header>
+    <div class="slide-body">
+      <div class="chevron-pipeline">
+        <div class="chevron-step">
+          <div class="chevron-arrow" style="background: var(--brand-blue);">GIAI ĐOẠN 1: LIÊN MINH KÊNH ERP (50%)</div>
+          <div class="chevron-card" style="border-top: 3px solid var(--brand-blue);">
+            <div class="chevron-card-title">Mạng Lưới Đại Lý Sẵn Có</div>
+            <div class="chevron-card-desc">Bắt tay cùng mạng lưới đại lý và đối tác triển khai MISA, FAST, Bravo qua cơ chế chia sẻ doanh thu 20–30%; tận dụng tệp khách hàng hơn 200.000 doanh nghiệp có sẵn.</div>
+            <div class="badge badge-category" style="font-size:9px; align-self:flex-start;">ĐÓNG GÓP 50% KHÁCH HÀNG</div>
+          </div>
+        </div>
+        <div class="chevron-step">
+          <div class="chevron-arrow" style="background: var(--brand-navy);">GIAI ĐOẠN 2: TIẾP CẬN 200+ CFO (30%)</div>
+          <div class="chevron-card" style="border-top: 3px solid var(--brand-navy);">
+            <div class="chevron-card-title">Hội Thảo Chuyên Đề &amp; PoC</div>
+            <div class="chevron-card-desc">Tiếp cận trực tiếp mạng lưới hơn 200 Giám đốc tài chính qua CLB CFO Việt Nam, chuỗi hội thảo chuyên đề đóng sổ tài chính và tài trợ 50 bản dùng thử PoC.</div>
+            <div class="badge badge-category" style="font-size:9px; align-self:flex-start;">ĐÓNG GÓP 30% KHÁCH HÀNG</div>
+          </div>
+        </div>
+        <div class="chevron-step">
+          <div class="chevron-arrow" style="background: var(--brand-emerald);">GIAI ĐOẠN 3: ĐỒNG HÀNH NGÂN HÀNG (20%)</div>
+          <div class="chevron-card" style="border-top: 3px solid var(--brand-emerald);">
+            <div class="chevron-card-title">Gia Tăng Giá Trị Cho Tài Khoản CASA</div>
+            <div class="chevron-card-desc">Phối hợp cùng khối khách hàng doanh nghiệp của 2 ngân hàng thương mại tiên phong để đóng gói LIVA thành tiện ích gia tăng giữ chân dòng tiền gửi CASA.</div>
+            <div class="badge badge-category" style="font-size:9px; align-self:flex-start;">ĐÓNG GÓP 20% DOANH THU LỚN</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">CHIẾN LƯỢC GTM</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">11 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 12: COMPETITIVE MOAT DEFENSE -->
+  <section class="slide" id="slide-12">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-a">VÒNG 1 PITCH</span>
+        <span class="badge badge-accent">HÀO LŨY CẠNH TRANH</span>
+        <span class="badge badge-category">LỢI THẾ PHÒNG THỦ</span>
+      </div>
+      <h1 class="slide-title">HÀO LŨY CẠNH TRANH: TẠI SAO EXCEL VÀ NGÂN HÀNG KHÔNG THỂ THAY THẾ LIVA?</h1>
+      <p class="slide-subtitle">Giải mã nghịch lý đám mây của Big Tech và tính trung lập đa ngân hàng độc nhất của LIVA.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-3col">
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-blue);">
+          <div class="card-badge-header">
+            <span class="square-badge blue">☁️</span>
+            <div class="card-badge-title">Nghịch Lý Đám Mây Big Tech</div>
+          </div>
+          <ul class="card-list">
+            <li><strong>Mô hình kinh doanh Cloud:</strong> Microsoft, OpenAI thu lợi từ việc bán tài nguyên máy chủ đám mây.</li>
+            <li><strong>Không muốn chạy offline:</strong> Họ không có động lực đóng gói phần mềm chạy 100% tại chỗ vì sẽ tự triệt tiêu nguồn thu Cloud.</li>
+            <li><strong>LIVA định vị ngược lại:</strong> Tối ưu hóa 100% cho máy trạm cá nhân, không tốn chi phí server.</li>
+          </ul>
+        </div>
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-navy);">
+          <div class="card-badge-header">
+            <span class="square-badge navy">⚖️</span>
+            <div class="card-badge-title">Tính Trung Lập Đa Ngân Hàng</div>
+          </div>
+          <ul class="card-list navy">
+            <li><strong>Không chia sẻ đối thủ:</strong> Vietcombank không bao giờ viết phần mềm quản lý tài khoản Techcombank hay MBBank.</li>
+            <li><strong>Doanh nghiệp cần bên thứ 3:</strong> CFO bắt buộc phải dùng một trọng tài trung lập để gom 15+ ngân hàng về một mối.</li>
+            <li><strong>Hợp tác cộng sinh:</strong> Ngân hàng coi LIVA là tiện ích mở rộng giúp thu hút thêm tiền gửi.</li>
+          </ul>
+        </div>
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-emerald);">
+          <div class="card-badge-header">
+            <span class="square-badge emerald">📚</span>
+            <div class="card-badge-title">Ngữ Liệu Bản Địa Độc Quyền</div>
+          </div>
+          <ul class="card-list emerald">
+            <li><strong>500.000 mẫu giao dịch:</strong> Kho ngữ liệu chuẩn hóa khổng lồ về chữ viết tắt và thói quen chuyển khoản tiếng Việt.</li>
+            <li><strong>Độ chính xác vượt trội:</strong> Đọc hiểu chính xác hơn các mô hình ngôn ngữ ngoại quốc tổng quát.</li>
+            <li><strong>Hào lũy thời gian:</strong> Đối thủ nước ngoài mất nhiều năm mới có thể xây dựng được tập dữ liệu này.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">HÀO LŨY CẠNH TRANH</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">12 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 13: THE SEED ASK ALLOCATION -->
+  <section class="slide" id="slide-13">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-a">VÒNG 1 PITCH</span>
+        <span class="badge badge-accent">KÊU GỌI ĐẦU TƯ</span>
+        <span class="badge badge-category">VÒNG SEED &amp; TẦM NHÌN</span>
+      </div>
+      <h1 class="slide-title">KÊU GỌI VÒNG SEED $500K - $750K: BẢO ĐẢM 18-24 THÁNG RUNWAY TỰ CHỦ</h1>
+      <p class="slide-subtitle">Mở rộng mạng lưới kết nối ngân hàng, hoàn thiện đai an toàn tác tử và xác lập vị thế dẫn đầu thị trường.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-2col">
+        <div style="display:flex; flex-direction:column; gap:12px; justify-content:center;">
+          <div class="card-with-badge" style="border-left: 4px solid var(--brand-blue); padding:16px 18px;">
+            <div style="font-size:12px; font-weight:800; color:var(--brand-navy); text-transform:uppercase;">QUY MÔ VỐN GỌI SEED</div>
+            <div style="font-size:28px; font-weight:900; font-family:var(--font-mono); color:var(--brand-blue); margin:4px 0;">$500K – $750K USD</div>
+            <div style="font-size:11.5px; color:#475569;">Chào bán 12.0% – 15.0% cổ phần cho các Quỹ đầu tư mạo hiểm và Nhà đầu tư chiến lược ngành FinTech.</div>
+          </div>
+          <div class="card-with-badge" style="border-left: 4px solid var(--brand-emerald); padding:16px 18px;">
+            <div style="font-size:12px; font-weight:800; color:var(--brand-navy); text-transform:uppercase;">ĐỊNH GIÁ DOANH NGHIỆP</div>
+            <div style="font-size:28px; font-weight:900; font-family:var(--font-mono); color:var(--brand-emerald); margin:4px 0;">$4.0M – $5.0M USD</div>
+            <div style="font-size:11.5px; color:#475569;">Định giá Post-money, bảo đảm thời gian vận hành tự chủ từ 18 đến 24 tháng đưa công ty chạm điểm hòa vốn.</div>
+          </div>
+        </div>
+        <div class="donut-chart-card">
+          <div class="donut-chart-title">CƠ CẤU PHÂN BỔ NGUỒN VỐN GỌI</div>
+          <div class="donut-chart-container">
+            <div class="donut-svg-wrapper">
+              <svg class="donut-svg" viewBox="0 0 160 160">
+                <circle cx="80" cy="80" r="65" fill="none" stroke="#F1F5F9" stroke-width="22"></circle>
+                <circle cx="80" cy="80" r="65" fill="none" stroke="#0284C7" stroke-width="22" stroke-dasharray="204.20 204.20" stroke-dashoffset="0"></circle>
+                <circle cx="80" cy="80" r="65" fill="none" stroke="#0EA5E9" stroke-width="22" stroke-dasharray="102.10 306.30" stroke-dashoffset="-204.20"></circle>
+                <circle cx="80" cy="80" r="65" fill="none" stroke="#10B981" stroke-width="22" stroke-dasharray="61.26 347.14" stroke-dashoffset="-306.30"></circle>
+                <circle cx="80" cy="80" r="65" fill="none" stroke="#F59E0B" stroke-width="22" stroke-dasharray="40.84 367.56" stroke-dashoffset="-367.56"></circle>
+              </svg>
+              <div class="donut-center-badge">
+                <div class="center-val">$750K</div>
+                <div class="center-lbl">VÒNG SEED</div>
+              </div>
+            </div>
+            <div class="donut-legend">
+              <div class="donut-legend-item">
+                <div class="donut-legend-dot" style="background:#0284C7;"></div>
+                <div class="donut-legend-text">
+                  <div class="donut-legend-header">
+                    <span class="donut-legend-pct">50%</span>
+                    <span class="donut-legend-name">Sản Phẩm &amp; 35+ Ngân Hàng</span>
+                  </div>
+                  <div class="donut-legend-desc">Tuyển 4 kỹ sư giỏi, hoàn thiện kết nối 35+ NHTM.</div>
+                </div>
+              </div>
+              <div class="donut-legend-item">
+                <div class="donut-legend-dot" style="background:#0EA5E9;"></div>
+                <div class="donut-legend-text">
+                  <div class="donut-legend-header">
+                    <span class="donut-legend-pct">25%</span>
+                    <span class="donut-legend-name">Thị Trường &amp; Đối Tác ERP</span>
+                  </div>
+                  <div class="donut-legend-desc">Ký kết đối tác đại lý kế toán, chuỗi CFO Summit.</div>
+                </div>
+              </div>
+              <div class="donut-legend-item">
+                <div class="donut-legend-dot" style="background:#10B981;"></div>
+                <div class="donut-legend-text">
+                  <div class="donut-legend-header">
+                    <span class="donut-legend-pct">15%</span>
+                    <span class="donut-legend-name">Pháp Lý &amp; Sandbox NHNN</span>
+                  </div>
+                  <div class="donut-legend-desc">Kiểm định ISO 27001 và nộp hồ sơ Sandbox NHNN.</div>
+                </div>
+              </div>
+              <div class="donut-legend-item">
+                <div class="donut-legend-dot" style="background:#F59E0B;"></div>
+                <div class="donut-legend-text">
+                  <div class="donut-legend-header">
+                    <span class="donut-legend-pct">10%</span>
+                    <span class="donut-legend-name">Quỹ Dự Phòng An Toàn</span>
+                  </div>
+                  <div class="donut-legend-desc">Bảo đảm thanh khoản và đường băng 18–24 tháng.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">KÊU GỌI VỐN SEED</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">13 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+
+  <!-- SLIDE 14: ROADMAP 4 QUARTERS -->
+  <section class="slide" id="slide-14">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-b">VÒNG 2 TOP 3</span>
+        <span class="badge badge-accent">KẾ HOẠCH 1 NĂM</span>
+        <span class="badge badge-category">LỘ TRÌNH SẢN PHẨM</span>
+      </div>
+      <h1 class="slide-title">LỘ TRÌNH THỰC THI 4 QUÝ: TỪ PHÒNG LAB ĐẾN LIÊN MINH KẾ TOÁN &amp; NGÂN HÀNG</h1>
+      <p class="slide-subtitle">Kế hoạch hành động kỷ luật theo từng mốc quý (Q4/2026 – Q3/2027), bám sát các chỉ số nghiệm thu thực tế.</p>
+    </header>
+    <div class="slide-body">
+      <div class="chevron-pipeline">
+        <div class="chevron-step">
+          <div class="chevron-arrow" style="background: var(--brand-blue);">Q4 / 2026: THỬ NGHIỆM THỰC TẾ</div>
+          <div class="chevron-card" style="border-top: 3px solid var(--brand-blue);">
+            <div class="chevron-card-title">Hoàn Thiện Bộ Đọc 20 Ngân Hàng</div>
+            <div class="chevron-card-desc">Thử nghiệm nội bộ cùng 15 doanh nghiệp thân thiết; nộp hồ sơ đánh giá an ninh thông tin; bắt đầu ghi nhận doanh thu khởi đầu.</div>
+            <div class="badge badge-category" style="font-size:9px; align-self:flex-start;">MỤC TIÊU: ARR $150K</div>
+          </div>
+        </div>
+        <div class="chevron-step">
+          <div class="chevron-arrow" style="background: var(--brand-blue-sky);">Q1 / 2027: RA MẮT TOP 5 NGÂN HÀNG</div>
+          <div class="chevron-card" style="border-top: 3px solid var(--brand-blue-sky);">
+            <div class="chevron-card-title">Bộ Kết Nối VCB, TCB, BIDV, CTG, MBB</div>
+            <div class="chevron-card-desc">Mở rộng 50 khách hàng doanh nghiệp trả phí; hoàn thiện cơ chế phê duyệt hai pha Maker-Checker và bàn giao bộ công cụ đối soát.</div>
+            <div class="badge badge-category" style="font-size:9px; align-self:flex-start;">MỤC TIÊU: ARR $450K</div>
+          </div>
+        </div>
+        <div class="chevron-step">
+          <div class="chevron-arrow" style="background: var(--brand-navy);">Q2 / 2027: TÍCH HỢP SÂU KẾ TOÁN</div>
+          <div class="chevron-card" style="border-top: 3px solid var(--brand-navy);">
+            <div class="chevron-card-title">Liên Minh MISA, FAST, Bravo</div>
+            <div class="chevron-card-desc">Kết nối tự động 1 chạm vào các phần mềm kế toán phổ biến; triển khai thí điểm cùng 2 ngân hàng thương mại; đạt mốc 120 doanh nghiệp.</div>
+            <div class="badge badge-category" style="font-size:9px; align-self:flex-start;">MỤC TIÊU: ARR $1.1M</div>
+          </div>
+        </div>
+        <div class="chevron-step">
+          <div class="chevron-arrow" style="background: var(--brand-emerald);">Q3 / 2027: PHỦ SÓNG 35+ NGÂN HÀNG</div>
+          <div class="chevron-card" style="border-top: 3px solid var(--brand-emerald);">
+            <div class="chevron-card-title">Thương Mại Hóa Tháp Canh 48H</div>
+            <div class="chevron-card-desc">Hỗ trợ 35+ ngân hàng VN; cấp bản quyền cho 2 ngân hàng; đạt 220 doanh nghiệp trả phí; chính thức hòa vốn vận hành vào Tháng 11/2027.</div>
+            <div class="badge badge-category" style="font-size:9px; align-self:flex-start;">MỤC TIÊU: ARR $2.4M</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">LỘ TRÌNH SẢN PHẨM</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">14 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 15: UNIT ECONOMICS BREAKEVEN -->
+  <section class="slide" id="slide-15">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-b">VÒNG 2 TOP 3</span>
+        <span class="badge badge-accent">HIỆU QUẢ ĐƠN VỊ</span>
+        <span class="badge badge-category">UNIT ECONOMICS</span>
+      </div>
+      <h1 class="slide-title">HIỆU QUẢ ĐƠN VỊ VƯỢT TRỘI: LTV/CAC 5.2X &amp; ĐIỂM HÒA VỐN THÁNG 11/2027</h1>
+      <p class="slide-subtitle">Mô hình tài chính bền vững nhờ chi phí máy chủ đám mây biên bằng 0 và thời gian hoàn vốn khách hàng dưới 3 tháng.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-4col">
+        <div class="stat-box-card">
+          <div class="stat-box-number" style="color: var(--brand-blue);">5.2x</div>
+          <div style="font-size:11px; font-weight:800; color:#0F172A; text-transform:uppercase; margin-bottom:4px;">TỶ LỆ LTV / CAC</div>
+          <p style="font-size:11px; color:#475569; line-height:1.4;">Giá trị vòng đời khách hàng gấp 5.2 lần chi phí thu hút khách hàng mới.</p>
+        </div>
+        <div class="stat-box-card navy">
+          <div class="stat-box-number" style="color: var(--brand-navy);">4.6 Tháng</div>
+          <div style="font-size:11px; font-weight:800; color:#0F172A; text-transform:uppercase; margin-bottom:4px;">CAC PAYBACK PERIOD</div>
+          <p style="font-size:11px; color:#475569; line-height:1.4;">Thời gian thu hồi chi phí bán hàng và tiếp thị cực nhanh nhờ kênh đối tác.</p>
+        </div>
+        <div class="stat-box-card emerald">
+          <div class="stat-box-number" style="color: var(--brand-emerald);">&gt; 88%</div>
+          <div style="font-size:11px; font-weight:800; color:#0F172A; text-transform:uppercase; margin-bottom:4px;">BIÊN LỢI NHUẬN GỘP</div>
+          <p style="font-size:11px; color:#475569; line-height:1.4;">Phần mềm chạy trên máy tính khách hàng, chi phí server biên = $0.</p>
+        </div>
+        <div class="stat-box-card amber">
+          <div class="stat-box-number" style="color: var(--alert-amber);">T11 / 2027</div>
+          <div style="font-size:11px; font-weight:800; color:#0F172A; text-transform:uppercase; margin-bottom:4px;">ĐIỂM HÒA VỐN DÒNG TIỀN</div>
+          <p style="font-size:11px; color:#475569; line-height:1.4;">Hòa vốn vận hành sau 14 tháng triển khai với 85 doanh nghiệp và 2 ngân hàng.</p>
+        </div>
+      </div>
+      <div class="callout callout-emerald" style="font-size:11.5px; font-weight:700; text-align:center;">
+        Tài Chính Kỷ Luật: Tỷ lệ giữ chân khách hàng 92% • Thời gian sử dụng bình quân 36 tháng • Dòng tiền dương tự chủ
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">UNIT ECONOMICS</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">15 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 16: FINANCIAL PROJECTION 3-YEAR -->
+  <section class="slide" id="slide-16">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-b">VÒNG 2 TOP 3</span>
+        <span class="badge badge-accent">DỰ PHÓNG TÀI CHÍNH</span>
+        <span class="badge badge-category">3 NĂM 2026 – 2028</span>
+      </div>
+      <h1 class="slide-title">DỰ PHÓNG DOANH THU 3 NĂM: BASE CASE $3.9M VÀ BULL TARGET $7.2M NĂM 2028</h1>
+      <p class="slide-subtitle">Cơ cấu doanh thu minh bạch giữa thuê bao doanh nghiệp và bản quyền vận hành ngân hàng thương mại.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-2col">
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-blue);">
+          <div class="card-badge-header">
+            <span class="square-badge blue">BASE</span>
+            <div>
+              <div class="card-badge-title">Kịch Bản Cơ Sở (Base Case 2028)</div>
+              <div style="font-size:11px; color:#64748B;">Mục tiêu thận trọng bám sát thị trường sơ cấp</div>
+            </div>
+          </div>
+          <div class="card-stat-callout">
+            <div class="card-stat-number" style="color: var(--brand-blue);">$3,900,000 USD</div>
+            <div class="card-stat-label">TỔNG DOANH THU NĂM 2028 (ARR $2.75M)</div>
+          </div>
+          <ul class="card-list">
+            <li><strong>Quy mô khách hàng:</strong> 450 Doanh nghiệp vừa/lớn trả phí + 8 Ngân hàng thương mại.</li>
+            <li><strong>Cơ cấu doanh thu:</strong> 70% đến từ gói thuê bao CFO; 30% đến từ bản quyền ngân hàng.</li>
+            <li><strong>Tỷ lệ gia hạn hợp đồng:</strong> Đạt trên 92% nhờ tính gắn kết cao vào quy trình kế toán.</li>
+          </ul>
+        </div>
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-navy);">
+          <div class="card-badge-header">
+            <span class="square-badge navy">BULL</span>
+            <div>
+              <div class="card-badge-title">Kịch Bản Bứt Phá (Bull Target Case 2028)</div>
+              <div style="font-size:11px; color:#64748B;">Mở rộng mạnh mẽ qua kênh liên minh ngân hàng</div>
+            </div>
+          </div>
+          <div class="card-stat-callout">
+            <div class="card-stat-number" style="color: var(--brand-navy);">$7,200,000 USD</div>
+            <div class="card-stat-label">TỔNG DOANH THU NĂM 2028 (ARR $5.80M)</div>
+          </div>
+          <ul class="card-list navy">
+            <li><strong>Quy mô khách hàng:</strong> 750 Doanh nghiệp vừa/lớn trả phí + 8 Ngân hàng thương mại.</li>
+            <li><strong>Biên lợi nhuận ròng:</strong> Đạt trên 42% nhờ lợi thế quy mô của phần mềm xử lý tại chỗ.</li>
+            <li><strong>Mở rộng sản phẩm:</strong> Bổ sung mô-đun quản trị ngân quỹ và chấm điểm tín nhiệm dòng tiền.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout callout-blue" style="font-size:11.5px; font-weight:700; text-align:center;">
+        Lộ Trình Tăng Trưởng: Năm 2026: $450K (35 DN, 1 NH) ➔ Năm 2027: $2.4M (220 DN, 3 NH, Hòa vốn T11) ➔ Năm 2028: $3.9M – $7.2M
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">DỰ PHÓNG TÀI CHÍNH</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">16 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 17: COST STRUCTURE BURN RATE -->
+  <section class="slide" id="slide-17">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-b">VÒNG 2 TOP 3</span>
+        <span class="badge badge-accent">QUẢN TRỊ DÒNG TIỀN</span>
+        <span class="badge badge-category">CƠ CẤU CHI PHÍ &amp; BURN RATE</span>
+      </div>
+      <h1 class="slide-title">QUẢN TRỊ DÒNG TIỀN VẬN HÀNH: CHI PHÍ TINH GỌN &amp; TỶ LỆ ĐỐT TIỀN DƯỚI $25K/THÁNG</h1>
+      <p class="slide-subtitle">Tối ưu hóa tối đa chi phí hoạt động nhờ mô hình phần mềm chạy tại chỗ, bảo đảm runway dài hạn.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-2col">
+        <div style="display:flex; flex-direction:column; gap:12px; justify-content:center;">
+          <div class="card-with-badge" style="border-left: 4px solid var(--brand-blue); padding:16px 18px;">
+            <div style="font-size:12px; font-weight:800; color:var(--brand-navy); text-transform:uppercase;">TỶ LỆ ĐỐT TIỀN HÀNG THÁNG (BURN RATE)</div>
+            <div style="font-size:28px; font-weight:900; font-family:var(--font-mono); color:var(--brand-blue); margin:4px 0;">$15K – $25K USD</div>
+            <div style="font-size:11.5px; color:#475569;">Kiểm soát chi phí vận hành tinh gọn; không đốt tiền vào quảng cáo đại trà mà tập trung đối tác kế toán.</div>
+          </div>
+          <div class="card-with-badge" style="border-left: 4px solid var(--brand-emerald); padding:16px 18px;">
+            <div style="font-size:12px; font-weight:800; color:var(--brand-navy); text-transform:uppercase;">ĐƯỜNG BĂNG VẬN HÀNH AN TOÀN (RUNWAY)</div>
+            <div style="font-size:28px; font-weight:900; font-family:var(--font-mono); color:var(--brand-emerald); margin:4px 0;">18 – 24 Tháng</div>
+            <div style="font-size:11.5px; color:#475569;">Nguồn vốn Seed $500k – $750k bảo đảm an toàn dòng tiền đến khi công ty đạt điểm hòa vốn tự chủ.</div>
+          </div>
+        </div>
+        <div class="donut-chart-card">
+          <div class="donut-chart-title">CƠ CẤU CHI PHÍ VẬN HÀNH HÀNG THÁNG</div>
+          <div class="donut-chart-container">
+            <div class="donut-svg-wrapper">
+              <svg class="donut-svg" viewBox="0 0 160 160">
+                <circle cx="80" cy="80" r="65" fill="none" stroke="#F1F5F9" stroke-width="22"></circle>
+                <circle cx="80" cy="80" r="65" fill="none" stroke="#0284C7" stroke-width="22" stroke-dasharray="224.62 183.78" stroke-dashoffset="0"></circle>
+                <circle cx="80" cy="80" r="65" fill="none" stroke="#0EA5E9" stroke-width="22" stroke-dasharray="81.68 326.72" stroke-dashoffset="-224.62"></circle>
+                <circle cx="80" cy="80" r="65" fill="none" stroke="#10B981" stroke-width="22" stroke-dasharray="61.26 347.14" stroke-dashoffset="-306.30"></circle>
+                <circle cx="80" cy="80" r="65" fill="none" stroke="#F59E0B" stroke-width="22" stroke-dasharray="40.84 367.56" stroke-dashoffset="-367.56"></circle>
+              </svg>
+              <div class="donut-center-badge">
+                <div class="center-val">&lt; $25K</div>
+                <div class="center-lbl">BURN RATE</div>
+              </div>
+            </div>
+            <div class="donut-legend">
+              <div class="donut-legend-item">
+                <div class="donut-legend-dot" style="background:#0284C7;"></div>
+                <div class="donut-legend-text">
+                  <div class="donut-legend-header">
+                    <span class="donut-legend-pct">55%</span>
+                    <span class="donut-legend-name">Kỹ Sư &amp; Nghiệp Vụ Tài Chính</span>
+                  </div>
+                  <div class="donut-legend-desc">Lương &amp; phúc lợi đội ngũ nòng cốt toàn thời gian.</div>
+                </div>
+              </div>
+              <div class="donut-legend-item">
+                <div class="donut-legend-dot" style="background:#0EA5E9;"></div>
+                <div class="donut-legend-text">
+                  <div class="donut-legend-header">
+                    <span class="donut-legend-pct">20%</span>
+                    <span class="donut-legend-name">Tiếp Thị &amp; Hội Thảo CFO Summit</span>
+                  </div>
+                  <div class="donut-legend-desc">Phát triển đại lý kế toán và tài trợ 50 bản PoC.</div>
+                </div>
+              </div>
+              <div class="donut-legend-item">
+                <div class="donut-legend-dot" style="background:#10B981;"></div>
+                <div class="donut-legend-text">
+                  <div class="donut-legend-header">
+                    <span class="donut-legend-pct">15%</span>
+                    <span class="donut-legend-name">Pháp Lý &amp; Kiểm Toán ISO 27001</span>
+                  </div>
+                  <div class="donut-legend-desc">Hồ sơ DPIA A05, ISO 27001 và Sandbox NHNN.</div>
+                </div>
+              </div>
+              <div class="donut-legend-item">
+                <div class="donut-legend-dot" style="background:#F59E0B;"></div>
+                <div class="donut-legend-text">
+                  <div class="donut-legend-header">
+                    <span class="donut-legend-pct">10%</span>
+                    <span class="donut-legend-name">Quản Lý Vận Hành &amp; Lab</span>
+                  </div>
+                  <div class="donut-legend-desc">Chi phí văn phòng và hạ tầng máy trạm kiểm thử.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">CƠ CẤU CHI PHÍ</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">17 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 18: REGULATORY COMPLIANCE -->
+  <section class="slide" id="slide-18">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-b">VÒNG 2 TOP 3</span>
+        <span class="badge badge-accent">KHUNG PHÁP LÝ &amp; AN NINH</span>
+        <span class="badge badge-category">TIÊU CHUẨN QUỐC GIA &amp; QUỐC TẾ</span>
+      </div>
+      <h1 class="slide-title">KHUNG PHÁP LÝ &amp; AN NINH: ĐÁNH GIÁ ISO 27001 &amp; HỒ SƠ SANDBOX NGÂN HÀNG NHÀ NƯỚC</h1>
+      <p class="slide-subtitle">Chủ động hoàn thiện các chứng nhận an toàn thông tin và tham gia cơ chế thử nghiệm có kiểm soát.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-4col">
+        <div class="card-with-badge" style="border-top: 4px solid var(--alert-red);">
+          <div class="card-badge-header">
+            <span class="square-badge danger">§13</span>
+            <div class="card-badge-title">Nghị Định 13/2023/NĐ-CP</div>
+          </div>
+          <p style="font-size:11.5px; color:#475569; line-height:1.4;">Hoàn thành hồ sơ Đánh giá tác động xử lý dữ liệu cá nhân (DPIA) gửi Cục An ninh mạng A05; cam kết 100% Zero Data Egress.</p>
+        </div>
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-navy);">
+          <div class="card-badge-header">
+            <span class="square-badge navy">§09</span>
+            <div class="card-badge-title">Thông Tư 09/2020/TT-NHNN</div>
+          </div>
+          <p style="font-size:11.5px; color:#475569; line-height:1.4;">Tuân thủ tiêu chuẩn an toàn hệ thống thông tin ngành ngân hàng cấp độ 3-5; hỗ trợ đầy đủ nhật ký kiểm toán bất biến phục vụ thanh tra.</p>
+        </div>
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-blue);">
+          <div class="card-badge-header">
+            <span class="square-badge blue">ISO</span>
+            <div class="card-badge-title">Tiêu Chuẩn ISO 27001:2022</div>
+          </div>
+          <p style="font-size:11.5px; color:#475569; line-height:1.4;">Hợp tác cùng tổ chức kiểm toán an ninh độc lập để đánh giá và cấp chứng chỉ Hệ thống quản lý an toàn thông tin (ISMS) cho toàn bộ quy trình.</p>
+        </div>
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-emerald);">
+          <div class="card-badge-header">
+            <span class="square-badge emerald">SBV</span>
+            <div class="card-badge-title">Lộ Trình Sandbox NHNN</div>
+          </div>
+          <p style="font-size:11.5px; color:#475569; line-height:1.4;">Chuẩn bị sẵn sàng hồ sơ tham gia cơ chế thử nghiệm có kiểm soát cho giải pháp công nghệ tài chính theo Quyết định 810/QĐ-NHNN và Nghị định 52/2024.</p>
+        </div>
+      </div>
+      <div class="callout callout-emerald" style="font-size:11.5px; font-weight:700; text-align:center;">
+        Chiến Lược Pháp Lý: Biến Tuân Thủ Chuẩn Mực Cao Cấp Thành Hào Lũy Phòng Thủ Bền Vững Cho Khách Hàng!
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">KHUNG PHÁP LÝ</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">18 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 19: FOUNDING TEAM CAPABILITY -->
+  <section class="slide" id="slide-19">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-b">VÒNG 2 TOP 3</span>
+        <span class="badge badge-accent">ĐỘI NGŨ SÁNG LẬP</span>
+        <span class="badge badge-category">100% TOÀN THỜI GIAN</span>
+      </div>
+      <h1 class="slide-title">ĐỘI NGŨ SÁNG LẬP 100% FULL-TIME: GẮN KẾT, THẤU HIỂU NGHIỆP VỤ &amp; LÀM CHỦ CÔNG NGHỆ</h1>
+      <p class="slide-subtitle">5 nhà sáng lập làm việc toàn thời gian cùng kế hoạch bổ sung kỹ sư hệ thống hiệu năng cao.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-5col">
+        <div class="card-with-badge" style="border-top: 3px solid var(--brand-blue); padding:12px;">
+          <div style="font-size:13px; font-weight:800; color:#0F172A;">Nguyễn Anh Dương</div>
+          <div style="font-size:10.5px; font-weight:700; color:var(--brand-blue); margin:2px 0 6px 0;">CEO / Co-Founder</div>
+          <p style="font-size:10.5px; color:#475569; line-height:1.35;">Định hướng chiến lược FinTech, quan hệ đối tác ngân hàng và điều hành vòng gọi vốn.</p>
+        </div>
+        <div class="card-with-badge" style="border-top: 3px solid var(--brand-navy); padding:12px;">
+          <div style="font-size:13px; font-weight:800; color:#0F172A;">Nguyễn Hoàng Hiếu</div>
+          <div style="font-size:10.5px; font-weight:700; color:var(--brand-navy); margin:2px 0 6px 0;">CTO / Co-Founder</div>
+          <p style="font-size:10.5px; color:#475569; line-height:1.35;">Làm chủ kiến trúc động cơ xử lý tại chỗ và mô hình ngôn ngữ tài chính chuyên sâu.</p>
+        </div>
+        <div class="card-with-badge" style="border-top: 3px solid var(--brand-emerald); padding:12px;">
+          <div style="font-size:13px; font-weight:800; color:#0F172A;">Nguyễn Huy Anh Minh</div>
+          <div style="font-size:10.5px; font-weight:700; color:var(--brand-emerald); margin:2px 0 6px 0;">COO / Co-Founder</div>
+          <p style="font-size:10.5px; color:#475569; line-height:1.35;">Quản trị tuân thủ pháp lý Nghị định 13, mở rộng thị trường và đối tác liên minh ERP.</p>
+        </div>
+        <div class="card-with-badge" style="border-top: 3px solid var(--brand-blue-sky); padding:12px;">
+          <div style="font-size:13px; font-weight:800; color:#0F172A;">Nguyễn Minh Hiếu</div>
+          <div style="font-size:10.5px; font-weight:700; color:var(--brand-blue-sky); margin:2px 0 6px 0;">Head of Product</div>
+          <p style="font-size:10.5px; color:#475569; line-height:1.35;">Thiết kế luồng trải nghiệm người dùng, tối ưu hóa giao diện kế toán và nghiệp vụ ngân quỹ.</p>
+        </div>
+        <div class="card-with-badge" style="border-top: 3px solid #64748B; padding:12px;">
+          <div style="font-size:13px; font-weight:800; color:#0F172A;">Cao Xuân Đại</div>
+          <div style="font-size:10.5px; font-weight:700; color:#64748B; margin:2px 0 6px 0;">Lead Engineer</div>
+          <p style="font-size:10.5px; color:#475569; line-height:1.35;">Tối ưu hóa thuật toán đối soát số học xác định và phát triển giao diện Workbench.</p>
+        </div>
+      </div>
+      <div class="callout callout-blue" style="font-size:11px; font-weight:700; text-align:center;">
+        Kế Hoạch Nhân Sự Hậu Vòng Seed: Tuyển dụng thêm 4 kỹ sư hệ thống cao cấp và 2 chuyên viên tư vấn tài chính B2B.
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">ĐỘI NGŨ SÁNG LẬP</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">19 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 20: RISK MANAGEMENT MITIGATION -->
+  <section class="slide" id="slide-20">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-b">VÒNG 2 TOP 3</span>
+        <span class="badge badge-accent">QUẢN TRỊ RỦI RO</span>
+        <span class="badge badge-category">KỊCH BẢN PHÒNG VỆ</span>
+      </div>
+      <h1 class="slide-title">QUẢN TRỊ RỦI RO CHỦ ĐỘNG: KỊCH BẢN ỨNG PHÓ PHÁP LÝ, KINH DOANH VÀ CÔNG NGHỆ</h1>
+      <p class="slide-subtitle">Nhìn thẳng vào khó khăn và chuẩn bị sẵn sàng các phương án phòng vệ an toàn cho doanh nghiệp.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-3col">
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-blue);">
+          <div class="card-badge-header">
+            <span class="square-badge blue">BIZ</span>
+            <div class="card-badge-title">Chu Kỳ Bán Hàng Ngân Hàng Kéo Dài</div>
+          </div>
+          <div style="font-size:11.5px; color:#0F172A; font-weight:700; margin-bottom:4px;">Nhận diện: Chu kỳ thẩm định 12–18 tháng.</div>
+          <p style="font-size:11.5px; color:#475569; line-height:1.4;"><strong>Kịch bản ứng phó:</strong> Lấy ngắn nuôi dài — Tập trung đẩy mạnh gói thuê bao cho các CFO doanh nghiệp chốt hợp đồng nhanh trong 2–4 tuần để tạo dòng tiền tự chủ nuôi sống bộ máy.</p>
+        </div>
+        <div class="card-with-badge" style="border-top: 4px solid var(--brand-navy);">
+          <div class="card-badge-header">
+            <span class="square-badge navy">LAW</span>
+            <div class="card-badge-title">Thủ Tục Thử Nghiệm Sandbox Cần Thời Gian</div>
+          </div>
+          <div style="font-size:11.5px; color:#0F172A; font-weight:700; margin-bottom:4px;">Nhận diện: Quy trình Sandbox kéo dài 6–12 tháng.</div>
+          <p style="font-size:11.5px; color:#475569; line-height:1.4;"><strong>Kịch bản ứng phó:</strong> Triển khai trước gói quản trị và đối soát nội bộ cho doanh nghiệp thông thường (không can thiệp lệnh chuyển tiền liên ngân hàng), song song hoàn thiện hồ sơ.</p>
+        </div>
+        <div class="card-with-badge" style="border-top: 4px solid var(--alert-amber);">
+          <div class="card-badge-header">
+            <span class="square-badge amber">TECH</span>
+            <div class="card-badge-title">Mẫu Sao Kê Ngân Hàng Thay Đổi Bất Ngờ</div>
+          </div>
+          <div style="font-size:11.5px; color:#0F172A; font-weight:700; margin-bottom:4px;">Nhận diện: Ngân hàng cập nhật giao diện định kỳ.</div>
+          <p style="font-size:11.5px; color:#475569; line-height:1.4;"><strong>Kịch bản ứng phó:</strong> Kích hoạt cơ chế khóa an toàn chuyển 0.2% sang người duyệt ngay khi mẫu mới chưa nhận diện; cập nhật từ điển bóc tách tự động trong vòng 24 giờ.</p>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">QUẢN TRỊ RỦI RO</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">20 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+
+  <!-- SLIDE 21: Q&A 01 EXCEL VS LIVA -->
+  <section class="slide" id="slide-21">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-c">VÒNG 3 Q&amp;A</span>
+        <span class="badge badge-accent">PHẢN BIỆN CHUYÊN SÂU</span>
+        <span class="badge badge-category">DEEP DIVE 01: EXCEL VS LIVA</span>
+      </div>
+      <h1 class="slide-title">Q&amp;A 01: &quot;TẠI SAO KHÔNG DÙNG EXCEL HAY MACRO VBA ĐỂ ĐỐI SOÁT?&quot;</h1>
+      <p class="slide-subtitle">Phân tích giới hạn chết người của bảng tính thủ công trước khối lượng sao kê ngân hàng đa dạng.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-2col">
+        <div class="card" style="border-left: 4px solid var(--alert-crimson); background: #FFF5F5;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+            <div class="icon-sq" style="background:#FEE2E2; color:#DC2626;">
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </div>
+            <h3 style="font-size:15px; font-weight:800; color:#DC2626; margin:0;">3 Giới Hạn Chết Người Của Excel &amp; Macro</h3>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <div style="font-size:12.5px; color:#1E293B; line-height:1.45;">
+              <strong style="color:#DC2626;">❌ Gãy công thức liên tục:</strong> Chỉ cần một ngân hàng chèn thêm 1 cột hoặc đổi tiêu đề là toàn bộ hàm VLOOKUP / Macro báo lỗi sập toàn bộ chuỗi đối soát.
+            </div>
+            <div style="font-size:12.5px; color:#1E293B; line-height:1.45;">
+              <strong style="color:#DC2626;">❌ Mù chữ viết tắt tự do:</strong> Excel hoàn toàn không thể hiểu các diễn giải tự do như <em>&quot;CK HD 101 bot tien thue&quot;</em> hay viết tắt không dấu của khách hàng.
+            </div>
+            <div style="font-size:12.5px; color:#1E293B; line-height:1.45;">
+              <strong style="color:#DC2626;">❌ Quá tải dữ liệu lớn:</strong> Khi dữ liệu vượt 20.000 dòng, file Excel bị đơ, treo máy tính văn phòng và tiềm ẩn nguy cơ mất dữ liệu không thể khôi phục.
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="border-left: 4px solid var(--brand-emerald); background: #F0FDF4;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+            <div class="icon-sq" style="background:#D1FAE5; color:#059669;">
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
+            </div>
+            <h3 style="font-size:15px; font-weight:800; color:#059669; margin:0;">Ưu Thế Tuyệt Đối Của LIVA Banking Harness</h3>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <div style="font-size:12.5px; color:#1E293B; line-height:1.45;">
+              <strong style="color:#059669;">✅ Đọc hiểu thông minh:</strong> Tự động nhận diện nội dung ngữ nghĩa tiếng Việt bất kể vị trí cột hay cấu trúc ô gộp của từng ngân hàng.
+            </div>
+            <div style="font-size:12.5px; color:#1E293B; line-height:1.45;">
+              <strong style="color:#059669;">✅ Tốc độ vi giây tức thì:</strong> Xử lý 50.000 dòng trong 19.2 giây trên máy tính thông thường, không bao giờ gây đơ máy hay tràn RAM.
+            </div>
+            <div style="font-size:12.5px; color:#059669; line-height:1.45;">
+              <strong style="color:#059669;">✅ Nhật ký kiểm toán bất biến:</strong> Lưu vết đối soát vĩnh viễn, minh bạch tuyệt đối, loại bỏ 100% rủi ro vô tình sửa đè công thức trong Excel.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="callout callout-navy" style="font-size:11.5px; font-weight:700; text-align:center;">
+        Thực Chứng Phòng Lab: Excel chỉ khớp được dưới 40% trên 100 giao dịch viết tắt — LIVA đạt 99.8% độ chính xác tự động.
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">DEEP DIVE 01: EXCEL VS LIVA</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">21 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 22: Q&A 02 MULTI-BANK NEUTRALITY -->
+  <section class="slide" id="slide-22">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-c">VÒNG 3 Q&amp;A</span>
+        <span class="badge badge-accent">PHẢN BIỆN CHUYÊN SÂU</span>
+        <span class="badge badge-category">DEEP DIVE 02: TÍNH TRUNG LẬP ĐA NGÂN HÀNG</span>
+      </div>
+      <h1 class="slide-title">Q&amp;A 02: &quot;NẾU NGÂN HÀNG TỰ NÂNG CẤP INTERNET BANKING THÌ LIVA CÓ BỊ THAY THẾ?&quot;</h1>
+      <p class="slide-subtitle">Giải mã tính trung lập đa ngân hàng và lý do các ngân hàng không bao giờ tích hợp dữ liệu của đối thủ.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-3col">
+        <div class="card">
+          <div class="icon-sq" style="background:#EFF6FF; color:var(--brand-blue); margin-bottom:10px;">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+          </div>
+          <h3 style="font-size:14px; font-weight:800; color:var(--brand-navy); margin-bottom:6px;">Ranh Giới Lợi Ích Cạnh Tranh</h3>
+          <p style="font-size:12px; color:#475569; line-height:1.45;">Ngân hàng A không bao giờ xây tính năng giúp doanh nghiệp chuyển tiền tối ưu trên tài khoản của Ngân hàng B. Mỗi ngân hàng chỉ chăm sóc dòng tiền trong phạm vi tài khoản nội bộ của mình.</p>
+        </div>
+        <div class="card">
+          <div class="icon-sq" style="background:#F0FDF4; color:var(--brand-emerald); margin-bottom:10px;">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"></path></svg>
+          </div>
+          <h3 style="font-size:14px; font-weight:800; color:var(--brand-navy); margin-bottom:6px;">Vị Thế Trọng Tài Độc Lập</h3>
+          <p style="font-size:12px; color:#475569; line-height:1.45;">Doanh nghiệp luôn mở từ 5 đến 20 tài khoản ngân hàng để phân tán rủi ro và tận dụng hạn mức tín dụng. Doanh nghiệp bắt buộc cần bên thứ ba độc lập như LIVA để gom toàn bộ 35+ ngân hàng về một mối.</p>
+        </div>
+        <div class="card">
+          <div class="icon-sq" style="background:#EEF2FF; color:var(--brand-navy); margin-bottom:10px;">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+          </div>
+          <h3 style="font-size:14px; font-weight:800; color:var(--brand-navy); margin-bottom:6px;">Quan Hệ Cộng Sinh Bền Vững</h3>
+          <p style="font-size:12px; color:#475569; line-height:1.45;">Ngân hàng thương mại coi LIVA là giải pháp gia tăng giá trị giữ chân tiền gửi CASA doanh nghiệp mà ngân hàng không cần tự đầu tư hàng triệu USD phát triển phần mềm ngân quỹ riêng.</p>
+        </div>
+      </div>
+      <div class="callout callout-emerald" style="font-size:11.5px; font-weight:700; text-align:center;">
+        Bài Học Ngành FinTech Toàn Cầu: Các nền tảng trung lập như Plaid hay Yapily luôn thắng thế nhờ tính độc lập đa ngân hàng.
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">DEEP DIVE 02: TÍNH TRUNG LẬP</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">22 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 23: Q&A 03 LOCAL SLM VS CLOUD LLM -->
+  <section class="slide" id="slide-23">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-c">VÒNG 3 Q&amp;A</span>
+        <span class="badge badge-accent">PHẢN BIỆN CHUYÊN SÂU</span>
+        <span class="badge badge-category">DEEP DIVE 03: SLM VS CLOUD LLM</span>
+      </div>
+      <h1 class="slide-title">Q&amp;A 03: &quot;TẠI SAO NGÂN HÀNG BẮT BUỘC DÙNG MÔ HÌNH 3B-8B CỤC BỘ THAY VÌ CHATGPT?&quot;</h1>
+      <p class="slide-subtitle">Bóc tách bài toán chi phí, độ trễ, quyền riêng tư và sự phù hợp nghiệp vụ của AI tài chính bản địa.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-2col">
+        <div class="card" style="border-left: 4px solid var(--alert-crimson); background: #FFF5F5;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+            <div class="icon-sq" style="background:#FEE2E2; color:#DC2626;">
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            </div>
+            <h3 style="font-size:15px; font-weight:800; color:#DC2626; margin:0;">3 Bẫy Nguy Hiểm Của Cloud LLM Đối Với Ngân Quỹ</h3>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <div style="font-size:12.5px; color:#1E293B; line-height:1.45;">
+              <strong style="color:#DC2626;">❌ Rủi ro pháp lý tối cao:</strong> Chuyển dữ liệu sao kê ra máy chủ nước ngoài vi phạm Nghị định 13 và Thông tư 09, đối mặt mức phạt tới 5% doanh thu.
+            </div>
+            <div style="font-size:12.5px; color:#1E293B; line-height:1.45;">
+              <strong style="color:#DC2626;">❌ Chi phí gọi API khổng lồ:</strong> Xử lý 50.000 giao dịch mỗi buổi sáng qua Cloud AI tiêu tốn hàng chục triệu VNĐ phí API mỗi tháng.
+            </div>
+            <div style="font-size:12.5px; color:#1E293B; line-height:1.45;">
+              <strong style="color:#DC2626;">❌ Độ trễ mạng cao (2–5 giây):</strong> Độ trễ mạng viễn thông làm chậm tiến độ đối soát đầu ngày, không thể đáp ứng đối soát tức thì.
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="border-left: 4px solid var(--brand-blue); background: #F0F9FF;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+            <div class="icon-sq" style="background:#BAE6FD; color:var(--brand-blue);">
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+            </div>
+            <h3 style="font-size:15px; font-weight:800; color:var(--brand-blue); margin:0;">3 Lợi Thế Áp Đảo Của Mô Hình Nhỏ 3B–8B</h3>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <div style="font-size:12.5px; color:#1E293B; line-height:1.45;">
+              <strong style="color:var(--brand-blue);">✅ Chuyên biệt hóa nghiệp vụ:</strong> Tinh chỉnh sâu để đọc vanh vách chữ viết tắt tiếng Việt tài chính, không lãng phí tài nguyên làm thơ hay tán gẫu.
+            </div>
+            <div style="font-size:12.5px; color:#1E293B; line-height:1.45;">
+              <strong style="color:var(--brand-blue);">✅ Tốc độ tức thì (&lt; 0.5ms):</strong> Xử lý siêu tốc ngay trên máy tính văn phòng Core i5 thông thường với 2GB RAM.
+            </div>
+            <div style="font-size:12.5px; color:#1E293B; line-height:1.45;">
+              <strong style="color:var(--brand-blue);">✅ An toàn 100% &amp; Chi phí = $0:</strong> Chạy hoàn toàn tại chỗ, không kết nối ra Internet, chi phí biến đổi biên bằng 0 tròn trĩnh.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="callout callout-navy" style="font-size:11.5px; font-weight:700; text-align:center;">
+        Punchline: Không Dùng Đại Bác Bắn Chim Sẻ — Dùng Dao Mổ Chuyên Dụng Cho Dữ Liệu Tài Chính Bản Địa!
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">DEEP DIVE 03: SLM VS CLOUD</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">23 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 24: Q&A 04 FAIL-CLOSED & MAKER-CHECKER -->
+  <section class="slide" id="slide-24">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-c">VÒNG 3 Q&amp;A</span>
+        <span class="badge badge-accent">PHẢN BIỆN CHUYÊN SÂU</span>
+        <span class="badge badge-category">DEEP DIVE 04: TRÁCH NHIỆM &amp; FAIL-CLOSED</span>
+      </div>
+      <h1 class="slide-title">Q&amp;A 04: &quot;XỬ LÝ SAI SÓT 0.2% NHƯ THẾ NÀO? AI CHỊU TRÁCH NHIỆM KHI MẤT TIỀN?&quot;</h1>
+      <p class="slide-subtitle">Triết lý khóa an toàn Fail-Closed và cơ chế phân quyền phê duyệt hai pha Maker-Checker.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-2col" style="grid-template-columns: 1.1fr 2fr; gap: 16px;">
+        <div class="stat-box-card amber" style="display:flex; flex-direction:column; justify-content:center; text-align:center;">
+          <div class="stat-box-number" style="color: var(--alert-amber); font-size:42px;">0.2%</div>
+          <div style="font-size:12px; font-weight:800; color:#0F172A; text-transform:uppercase; margin-bottom:6px;">CÁCH LY AN TOÀN</div>
+          <p style="font-size:11.5px; color:#475569; line-height:1.45;">100 dòng / 50.000 dòng có nội dung mơ hồ được đưa vào hàng đợi cách ly an toàn để Kế toán trưởng kiểm tra kèm phương án gợi ý. Tuyệt đối không đoán mò số dư.</p>
+          <div class="badge badge-accent" style="margin-top:8px; font-size:10px; align-self:center;">TÍNH NĂNG BẢO VỆ CÓ CHỦ ĐÍCH</div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div class="card" style="padding:10px 14px;">
+            <div style="font-size:13px; font-weight:800; color:var(--brand-navy); margin-bottom:3px;">1. Khóa An Toàn Tuyệt Đối (Fail-Closed Protocol)</div>
+            <p style="font-size:11.5px; color:#475569; line-height:1.4; margin:0;">Khi thông tin giao dịch mơ hồ hoặc phát hiện chênh lệch dù chỉ 1 đồng, hệ thống lập tức kích hoạt khóa dừng lại; kiên quyết không tự ý hạch toán số liệu của khách hàng.</p>
+          </div>
+          <div class="card" style="padding:10px 14px;">
+            <div style="font-size:13px; font-weight:800; color:var(--brand-navy); margin-bottom:3px;">2. Quy Trình Phê Duyệt Hai Pha (Maker-Checker)</div>
+            <p style="font-size:11.5px; color:#475569; line-height:1.4; margin:0;">AI chỉ đóng vai trò trợ lý đề xuất (Maker); chỉ khi Kế toán trưởng hoặc Giám đốc tài chính (Checker) ký duyệt điện tử thì lệnh đối soát và hạch toán mới có hiệu lực pháp lý.</p>
+          </div>
+          <div class="card" style="padding:10px 14px;">
+            <div style="font-size:13px; font-weight:800; color:var(--brand-navy); margin-bottom:3px;">3. Nhật Ký Kiểm Toán Bất Biến (Audit Trail)</div>
+            <p style="font-size:11.5px; color:#475569; line-height:1.4; margin:0;">Mọi đề xuất và thao tác phê duyệt đều được ghi vết vĩnh viễn với dấu thời gian chuẩn, bảo đảm minh bạch 100% trách nhiệm trước cơ quan thanh tra thuế và kiểm toán.</p>
+          </div>
+        </div>
+      </div>
+      <div class="callout callout-emerald" style="font-size:11.5px; font-weight:700; text-align:center;">
+        Punchline: AI Chỉ Là Trợ Lý Đề Xuất — Quyền Quyết Định Tài Chính Luôn Nằm Trọn Trong Tay Con Người!
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">DEEP DIVE 04: TRÁCH NHIỆM PHÁP LÝ</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">24 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 25: Q&A 05 CAPITAL TRANCHES -->
+  <section class="slide" id="slide-25">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-c">VÒNG 3 Q&amp;A</span>
+        <span class="badge badge-accent">PHẢN BIỆN CHUYÊN SÂU</span>
+        <span class="badge badge-category">DEEP DIVE 05: PHÂN BỔ NGUỒN VỐN</span>
+      </div>
+      <h1 class="slide-title">Q&amp;A 05: &quot;CHI TIẾT PHÂN BỔ VỐN SEED: 50% R&amp;D, 25% GTM, 15% PHÁP LÝ &amp; 10% DỰ PHÒNG&quot;</h1>
+      <p class="slide-subtitle">Sử dụng nguồn vốn có kỷ luật, bám sát các mốc nghiệm thu kỹ thuật và chỉ số tăng trưởng.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-2col" style="grid-template-columns: 1fr 1.25fr; gap: 18px; align-items:center;">
+        <!-- Left: Donut Chart -->
+        <div class="donut-chart-card">
+          <div class="donut-chart-title">CƠ CẤU PHÂN BỔ VỐN SEED ($500K – $750K)</div>
+          <div class="donut-chart-container">
+            <div class="donut-svg-wrapper">
+              <svg class="donut-svg" viewBox="0 0 160 160">
+                <circle cx="80" cy="80" r="65" fill="none" stroke="#F1F5F9" stroke-width="22"></circle>
+                <circle cx="80" cy="80" r="65" fill="none" stroke="#0284C7" stroke-width="22" stroke-dasharray="204.20 204.20" stroke-dashoffset="0"></circle>
+                <circle cx="80" cy="80" r="65" fill="none" stroke="#0EA5E9" stroke-width="22" stroke-dasharray="102.10 306.30" stroke-dashoffset="-204.20"></circle>
+                <circle cx="80" cy="80" r="65" fill="none" stroke="#10B981" stroke-width="22" stroke-dasharray="61.26 347.14" stroke-dashoffset="-306.30"></circle>
+                <circle cx="80" cy="80" r="65" fill="none" stroke="#F59E0B" stroke-width="22" stroke-dasharray="40.84 367.56" stroke-dashoffset="-367.56"></circle>
+              </svg>
+              <div class="donut-center-badge">
+                <div class="center-val">$500K-$750K</div>
+                <div class="center-lbl">VỐN SEED</div>
+              </div>
+            </div>
+            <div class="donut-legend">
+              <div class="donut-legend-item">
+                <div class="donut-legend-dot" style="background:#0284C7;"></div>
+                <div class="donut-legend-text">
+                  <div class="donut-legend-header">
+                    <span class="donut-legend-pct">50%</span>
+                    <span class="donut-legend-name">R&amp;D &amp; 35+ Ngân Hàng</span>
+                  </div>
+                  <div class="donut-legend-desc">Tuyển 4 kỹ sư, bộ kết nối 35+ NHTM.</div>
+                </div>
+              </div>
+              <div class="donut-legend-item">
+                <div class="donut-legend-dot" style="background:#0EA5E9;"></div>
+                <div class="donut-legend-text">
+                  <div class="donut-legend-header">
+                    <span class="donut-legend-pct">25%</span>
+                    <span class="donut-legend-name">GTM &amp; Kênh Đại Lý ERP</span>
+                  </div>
+                  <div class="donut-legend-desc">Ký kết đối tác MISA, FAST, Bravo.</div>
+                </div>
+              </div>
+              <div class="donut-legend-item">
+                <div class="donut-legend-dot" style="background:#10B981;"></div>
+                <div class="donut-legend-text">
+                  <div class="donut-legend-header">
+                    <span class="donut-legend-pct">15%</span>
+                    <span class="donut-legend-name">Pháp Lý &amp; Sandbox NHNN</span>
+                  </div>
+                  <div class="donut-legend-desc">Kiểm định ISO 27001 và hồ sơ Sandbox.</div>
+                </div>
+              </div>
+              <div class="donut-legend-item">
+                <div class="donut-legend-dot" style="background:#F59E0B;"></div>
+                <div class="donut-legend-text">
+                  <div class="donut-legend-header">
+                    <span class="donut-legend-pct">10%</span>
+                    <span class="donut-legend-name">Quỹ Dự Phòng An Toàn</span>
+                  </div>
+                  <div class="donut-legend-desc">Bảo đảm 18-24 tháng đường băng vận hành.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Tranche-Gated Milestones -->
+        <div style="display:flex; flex-direction:column; gap:9px;">
+          <div class="card" style="border-left:3px solid var(--brand-blue); padding:10px 12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <div style="font-size:12.5px; font-weight:800; color:var(--brand-navy);">ĐỢT 1: GIẢI NGÂN 40% (NGAY KHI ĐÓNG VÒNG)</div>
+              <span class="badge badge-category" style="font-size:9px;">MỐC 1</span>
+            </div>
+            <p style="font-size:11.5px; color:#475569; line-height:1.4; margin:0;">Kích hoạt mở rộng đội ngũ kỹ sư nòng cốt và hoàn thiện bộ kết nối sao kê cho 20 ngân hàng lớn nhất.</p>
+          </div>
+          <div class="card" style="border-left:3px solid var(--brand-emerald); padding:10px 12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <div style="font-size:12.5px; font-weight:800; color:var(--brand-navy);">ĐỢT 2: GIẢI NGÂN 35% (THÁNG THỨ 6)</div>
+              <span class="badge badge-category" style="font-size:9px;">MỐC 2</span>
+            </div>
+            <p style="font-size:11.5px; color:#475569; line-height:1.4; margin:0;">Nghiệm thu tích hợp MISA, FAST và đạt cột mốc 50 khách hàng doanh nghiệp trả phí định kỳ.</p>
+          </div>
+          <div class="card" style="border-left:3px solid var(--brand-navy); padding:10px 12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <div style="font-size:12.5px; font-weight:800; color:var(--brand-navy);">ĐỢT 3: GIẢI NGÂN 25% (THÁNG THỨ 12)</div>
+              <span class="badge badge-category" style="font-size:9px;">MỐC 3</span>
+            </div>
+            <p style="font-size:11.5px; color:#475569; line-height:1.4; margin:0;">Nghiệm thu chương trình thí điểm ngân hàng và hoàn tất kiểm toán an ninh độc lập ISO 27001.</p>
+          </div>
+        </div>
+      </div>
+      <div class="callout callout-emerald" style="font-size:11.5px; font-weight:700; text-align:center;">
+        Bảo Vệ Nhà Đầu Tư: Khoản chi vượt $20.000 USD ngoài kế hoạch bắt buộc phải có sự phê duyệt bằng văn bản của đại diện HĐQT.
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">DEEP DIVE 05: PHÂN BỔ VỐN</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">25 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 26: Q&A 06 IP DEFENSE -->
+  <section class="slide" id="slide-26">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-c">VÒNG 3 Q&amp;A</span>
+        <span class="badge badge-accent">PHẢN BIỆN CHUYÊN SÂU</span>
+        <span class="badge badge-category">DEEP DIVE 06: HÀO LŨY BẢN QUYỀN</span>
+      </div>
+      <h1 class="slide-title">Q&amp;A 06: &quot;CHIẾN LƯỢC BẢO VỆ BẢN QUYỀN &amp; PHÒNG THỦ TRƯỚC CÁC TẬP ĐOÀN BIG TECH&quot;</h1>
+      <p class="slide-subtitle">Đăng ký sở hữu trí tuệ, làm chủ bộ ngữ liệu tiếng Việt tài chính độc quyền và kiến trúc phần cứng khép kín.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-3col">
+        <div class="card">
+          <div class="icon-sq" style="background:#EFF6FF; color:var(--brand-blue); margin-bottom:10px;">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          </div>
+          <h3 style="font-size:14px; font-weight:800; color:var(--brand-navy); margin-bottom:6px;">Bản Quyền Tác Giả &amp; Sở Hữu Trí Tuệ</h3>
+          <p style="font-size:12px; color:#475569; line-height:1.45;">Đăng ký bảo hộ bản quyền phần mềm và giải pháp kiến trúc bảo vệ 2 tầng; ký cam kết bảo mật và chuyển giao sở hữu trí tuệ 100% của toàn bộ đội ngũ sáng lập.</p>
+        </div>
+        <div class="card">
+          <div class="icon-sq" style="background:#F0FDF4; color:var(--brand-emerald); margin-bottom:10px;">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+          </div>
+          <h3 style="font-size:14px; font-weight:800; color:var(--brand-navy); margin-bottom:6px;">Bộ Ngữ Liệu Bản Địa Độc Quyền</h3>
+          <p style="font-size:12px; color:#475569; line-height:1.45;">Sở hữu kho hơn 500.000 cặp mẫu giao dịch viết tắt tiếng Việt được chuẩn hóa và gán nhãn nghiệp vụ; đây là tài sản vô hình các đối thủ ngoại quốc không thể thu thập được.</p>
+        </div>
+        <div class="card">
+          <div class="icon-sq" style="background:#EEF2FF; color:var(--brand-navy); margin-bottom:10px;">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+          </div>
+          <h3 style="font-size:14px; font-weight:800; color:var(--brand-navy); margin-bottom:6px;">Kiến Trúc Đóng Gói Khép Kín</h3>
+          <p style="font-size:12px; color:#475569; line-height:1.45;">Phần mềm được biên dịch khép kín trực tiếp thành mã máy, mã hóa bảo vệ chống sao chép ngược; khóa bản quyền gắn liền với định danh phần cứng máy tính doanh nghiệp.</p>
+        </div>
+      </div>
+      <div class="callout callout-navy" style="font-size:11.5px; font-weight:700; text-align:center;">
+        Punchline: Đối Thủ Có Thể Bắt Chước Giao Diện — Nhưng Không Thể Sao Chép Được Hào Lũy Dữ Liệu Bản Địa!
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">DEEP DIVE 06: HÀO LŨY BẢN QUYỀN</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">26 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- SLIDE 27: CLOSING CALL & SOVEREIGN AI -->
+  <section class="slide" id="slide-27">
+    <header class="slide-header">
+      <div class="slide-badges-row">
+        <span class="badge badge-module-c">VÒNG 3 TỔNG KẾT</span>
+        <span class="badge badge-accent">KÊU GỌI HỢP TÁC</span>
+        <span class="badge badge-category">CLOSING CALL TO ACTION</span>
+      </div>
+      <h1 class="slide-title">LIVA BANKING HARNESS: KHẲNG ĐỊNH CHỦ QUYỀN AI TÀI CHÍNH TẠI VIỆT NAM</h1>
+      <p class="slide-subtitle">Sẵn sàng đồng hành cùng các Quỹ đầu tư và Ngân hàng tiên phong thiết lập chuẩn mực mới cho tự động hóa ngân quỹ.</p>
+    </header>
+    <div class="slide-body">
+      <div class="grid-2col" style="grid-template-columns: 1.35fr 1fr; gap: 18px; align-items:stretch;">
+        <div style="display:flex; flex-direction:column; justify-content:space-between; gap:10px;">
+          <div style="background:var(--brand-navy); color:white; padding:12px 14px; border-radius:10px;">
+            <div style="font-size:10.5px; font-weight:800; color:var(--brand-blue-sky); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:4px;">TUYÊN NGÔN CHỦ QUYỀN</div>
+            <div style="font-size:13.5px; font-weight:800; line-height:1.45;">&quot;Tự Động Hóa Ngân Quỹ Doanh Nghiệp: Tốc Độ Tức Thì, Chuẩn Xác Từng Đồng &amp; Tuyệt Đối An Toàn Tại Chỗ.&quot;</div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#1E293B;">
+              <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--brand-emerald);"></span>
+              <span><strong>100% Zero Cloud Leakage:</strong> Bảo vệ bí mật tài chính tối cao theo pháp luật.</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#1E293B;">
+              <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--brand-blue);"></span>
+              <span><strong>0% Ảo Giác Số Học:</strong> Động cơ toán học xác định bảo đảm chính xác từng đồng.</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#1E293B;">
+              <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--alert-amber);"></span>
+              <span><strong>Hoàn Vốn &lt; 3 Tháng:</strong> Mang lại giá trị kinh tế trực tiếp và tức thì cho doanh nghiệp.</span>
+            </div>
+          </div>
+
+          <div class="card" style="padding:10px 12px; background:#F8FAFC; border:1px solid #CBD5E1;">
+            <div style="font-size:11.5px; font-weight:800; color:var(--brand-navy); margin-bottom:4px;">THÔNG TIN KÊU GỌI ĐẦU TƯ &amp; HỢP TÁC:</div>
+            <div style="font-size:11px; color:#334155; line-height:1.45;">
+              • <strong>Vốn gọi Seed:</strong> $500,000 – $750,000 USD (cho 12% – 15% cổ phần).<br>
+              • <strong>Đối tác Ngân hàng:</strong> Tìm kiếm 02 Ngân hàng TMCP tiên phong thử nghiệm Sandbox.<br>
+              • <strong>Email:</strong> investors@liva-ai.vn | <strong>Điện thoại:</strong> +84 (0) 90 123 4567<br>
+              • <strong>Địa điểm:</strong> Phòng Lab Công nghệ LIVA Banking, Hà Nội &amp; TP. Hồ Chí Minh.
+            </div>
+          </div>
+        </div>
+
+        <div style="position:relative; border-radius:12px; overflow:hidden; box-shadow:0 8px 24px rgba(15,23,42,0.12); min-height:220px;">
+          <img src="assets/glass_skyscraper.jpg" alt="LIVA Banking Harness Vision" style="width:100%; height:100%; object-fit:cover; display:block;">
+          <div style="position:absolute; bottom:0; left:0; right:0; background:linear-gradient(to top, rgba(15,23,42,0.85) 0%, transparent 100%); padding:14px; color:white;">
+            <div style="font-size:12px; font-weight:800; letter-spacing:0.5px;">LIVA BANKING HARNESS</div>
+            <div style="font-size:10px; color:#94A3B8;">Tự chủ Công nghệ Tài chính Việt • Sẵn sàng bước vào Kỷ nguyên Mới</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <span style="font-weight:700; color:var(--brand-navy);">LIVA Banking Harness</span>
+        <span>•</span>
+        <span>INNOSTART 2026 DEMO DAY</span>
+        <span>•</span>
+        <span class="badge badge-category" style="font-size:9.5px; padding:2px 8px;">CLOSING CALL TO ACTION</span>
+      </div>
+      <div class="footer-right">
+        <span class="footer-page-badge">27 / 27</span>
+      </div>
+    </footer>
+  </section>
+
+  </div>
+
+
+  <!-- Floating Navigation Toolbar -->
+  <div class="toolbar" id="deck-toolbar">
+    <button class="toolbar-btn" onclick="deck.prevSlide()" title="Slide Trước (Phím Mũi Tên Trái / Phím Trắng)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      <span>Trước</span>
+    </button>
+    <div class="toolbar-counter" id="slide-counter">Slide 01 / 27</div>
+    <button class="toolbar-btn" onclick="deck.nextSlide()" title="Slide Kế Tiếp (Phím Mũi Tên Phải / Spacebar)">
+      <span>Tiếp</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+    </button>
+    <div style="width:1px; height:18px; background:rgba(255,255,255,0.2); margin: 0 4px;"></div>
+    <button class="toolbar-btn" onclick="deck.toggleGrid()" title="Xem Tổng Quan Toàn Bộ 27 Slide (Phím G)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+      <span>Lưới (G)</span>
+    </button>
+    <button class="toolbar-btn" onclick="deck.toggleNotes()" title="Bật / Tắt Ghi Chú Diễn Giả (Phím S)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+      <span>Ghi Chú (S)</span>
+    </button>
+    <button class="toolbar-btn" onclick="deck.toggleFullscreen()" title="Toàn Màn Hình (Phím F / F11)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" x2="14" y1="3" y2="10"/><line x1="3" x2="10" y1="21" y2="14"/></svg>
+      <span>Toàn Màn Hình</span>
+    </button>
+  </div>
+
+  <!-- Keyboard Shortcuts Indicator -->
+  <div class="keyboard-hint">
+    <span>Điều hướng:</span>
+    <span class="key-badge">←</span>
+    <span class="key-badge">→</span>
+    <span class="key-badge">Space</span>
+    <span>•</span>
+    <span>Lưới:</span> <span class="key-badge">G</span>
+    <span>•</span>
+    <span>Ghi chú:</span> <span class="key-badge">S</span>
+    <span>•</span>
+    <span>In PDF:</span> <span class="key-badge">P</span>
+  </div>
+
+  <!-- 27-Slide Grid Modal Backdrop -->
+  <div class="modal-backdrop" id="grid-modal-backdrop">
+    <div class="grid-modal">
+      <div class="grid-modal-header">
+        <div class="grid-modal-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+          <span>Tổng Quan Bộ Trình Chiếu (27 Slides)</span>
+        </div>
+        <div class="grid-modal-filters">
+          <button class="filter-btn active" data-filter="ALL">Tất Cả (27)</button>
+          <button class="filter-btn" data-filter="A">Vòng 1 (13)</button>
+          <button class="filter-btn" data-filter="B">Vòng 2 (7)</button>
+          <button class="filter-btn" data-filter="C">Q&A (7)</button>
+        </div>
+        <button class="grid-modal-close" onclick="deck.toggleGrid()" title="Đóng Lưới (Esc / G)">✕</button>
+      </div>
+      <div class="grid-modal-body">
+        <div class="grid-cards-container" id="grid-cards-container">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Speaker Notes Drawer -->
+  <div class="notes-drawer" id="notes-drawer">
+    <div class="notes-drawer-header">
+      <div class="notes-drawer-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+        <span id="notes-title">Speaker Notes • Slide 01</span>
+      </div>
+      <button class="notes-drawer-close" onclick="deck.toggleNotes()" title="Đóng Ghi Chú (Esc / S)">✕</button>
+    </div>
+    <div class="notes-drawer-body" id="notes-body">
+      <!-- Dynamically populated -->
+    </div>
+  </div>
+
+
+  <!-- Injected Speaker Notes (Strict verify_deck regex compliance) -->
+  <script>
+  window.SPEAKER_NOTES = {
+  "1": {
+    "timing": "25s",
+    "wpm": "136 wpm",
+    "tone": "Trầm ấm, đĩnh đạc, tự tin, chỉ huy sân khấu",
+    "spoken": "Kính thưa Ban giám khảo và các Nhà đầu tư, tôi là đại diện LIVA Banking Harness. [Nghỉ 1.5s] Chúng tôi mang đến lời giải dứt điểm cho bài toán nhức nhối của các CFO: Tự động hóa đối soát và cảnh báo thanh khoản bằng AI nhưng vận hành 100% tại chỗ, tuyệt đối không gửi một byte dữ liệu nào lên đám mây!",
+    "takeaway": "LIVA Banking Harness là giải pháp AI tài chính chạy tại chỗ đầu tiên tại Việt Nam, giải quyết triệt để bài toán đối soát và quản trị dòng tiền.",
+    "punchline": "Đai An Toàn AI & Tháp Canh Nguồn Vốn 24/7 Vận Hành 100% Tại Chỗ!",
+    "objection_q": "Tại sao lại gọi là Đai an toàn và Tháp canh nguồn vốn?",
+    "objection_a": "Đai an toàn giữ dữ liệu không bao giờ rò rỉ lên mạng; Tháp canh nhìn xa dòng tiền trước 48 giờ để không bao giờ bị động thanh khoản.",
+    "context_proof": "Vận hành 100% trên máy tính văn phòng thông thường, không đòi hỏi phần cứng đắt tiền."
+  },
+  "2": {
+    "timing": "25s",
+    "wpm": "136 wpm",
+    "tone": "Thấu cảm sâu sắc, đanh thép mô tả nỗi đau thực tế",
+    "spoken": "Mỗi sáng, kế toán phải mở 15 file sao kê từ Vietcombank, Techcombank, BIDV, căng mắt dò từng dòng với sổ cái suốt 2 đến 4 tiếng. [Nghỉ 1.5s] [Giọng đanh thép] Chỉ cần lệch đúng 1.000 đồng tiền phí, cả phòng phải thức trắng đêm tìm kiếm, đẩy CFO vào vùng mù thanh khoản suốt 3 ngày làm việc!",
+    "takeaway": "Đối soát sao kê thủ công ngốn 2-4h mỗi ngày và đẩy doanh nghiệp vào vùng mù thanh khoản T+1 đến T+3.",
+    "punchline": "Một khoản phí 1.000 đồng có thể làm tê liệt toàn bộ báo cáo tài chính tháng!",
+    "objection_q": "Doanh nghiệp có thể tuyển thêm nhân viên kế toán để giải quyết không?",
+    "objection_a": "Thêm người chỉ làm tăng chi phí và tăng nguy cơ sai sót con người; điều họ cần là tự động hóa chuẩn xác.",
+    "context_proof": "Khảo sát thực tế tại hơn 20 doanh nghiệp quy mô 100-500 tỷ VNĐ cho thấy đối soát là khâu gây ức chế nhất."
+  },
+  "3": {
+    "timing": "25s",
+    "wpm": "137 wpm",
+    "tone": "Đanh thép, nhấn mạnh sự nghiêm minh của pháp luật",
+    "spoken": "Tại sao họ không đưa lên ChatGPT để xử lý? Vì làm vậy là phạm luật! [Nghỉ 1.5s] Theo Nghị định 13 và Thông tư 09, sao kê là bí mật tài chính cấp độ cao; đưa lên đám mây công cộng đối mặt mức phạt tới 5% doanh thu. Ngành tài chính rất cần AI, nhưng cánh cửa lên Cloud đã đóng chặt!",
+    "takeaway": "Nghị định 13 và Thông tư 09 cấm đưa dữ liệu sao kê lên Cloud AI công cộng; giải pháp tại chỗ là lối thoát duy nhất.",
+    "punchline": "Tự động hóa bằng Cloud AI là chiếc bẫy pháp lý có thể làm bay màu 5% doanh thu doanh nghiệp!",
+    "objection_q": "Các doanh nghiệp có thực sự sợ mức phạt này không?",
+    "objection_a": "Cục An ninh mạng A05 đang siết chặt thanh tra; các tập đoàn lớn tuyệt đối cấm nhân viên đưa dữ liệu tài chính lên ChatGPT.",
+    "context_proof": "Nghị định 13/2023/NĐ-CP Điều 26 & 28; Thông tư 09/2020/TT-NHNN Cấp độ an toàn hệ thống thông tin."
+  },
+  "4": {
+    "timing": "25s",
+    "wpm": "137 wpm",
+    "tone": "Mạch lạc, làm rõ giá trị cho cả hai nhóm người mua",
+    "spoken": "LIVA giải quyết bài toán của hai khách hàng then chốt: [Nghỉ 1.5s] Các CFO của hơn 15.000 doanh nghiệp cần tháp canh nhìn rõ dòng tiền mỗi sáng để không bị động nguồn vốn; và 35 Ngân hàng thương mại cần công cụ ngân quỹ số giữ chân tiền gửi CASA mà không phải đầu tư hàng triệu USD thay thế hệ thống cũ.",
+    "takeaway": "Mô hình khách hàng kép: CFO cần bảo vệ dòng vốn và đóng sổ nhanh, Ngân hàng cần giữ chân tiền gửi CASA.",
+    "punchline": "LIVA mang lại giá trị cộng hưởng: Doanh nghiệp tối ưu vốn, Ngân hàng giữ vững CASA!",
+    "objection_q": "Bán cho Ngân hàng hay Doanh nghiệp dễ hơn?",
+    "objection_a": "Bán cho CFO doanh nghiệp chốt hợp đồng nhanh trong 2-4 tuần; bán cho Ngân hàng tạo hợp đồng lớn dài hạn.",
+    "context_proof": "Thị trường Việt Nam có hơn 15.000 doanh nghiệp doanh thu trên 100 tỷ và 35 ngân hàng thương mại cổ phần."
+  },
+  "5": {
+    "timing": "25s",
+    "wpm": "139 wpm",
+    "tone": "Tràn đầy năng lượng, tự tin khẳng định bước đột phá",
+    "spoken": "Giải pháp của chúng tôi là LIVA Banking Harness: Chiếc Đai an toàn và Tháp canh nguồn vốn 24/7. [Nghỉ 1.5s] Kế toán chỉ cần thả file sao kê vào thư mục, hệ thống tự động bóc tách và đối soát trong 30 giây với độ chính xác 99.8%, đồng thời cảnh báo thiếu tiền trước 24 đến 48 giờ hoàn toàn tại chỗ!",
+    "takeaway": "LIVA tự động bóc tách sao kê trong 30 giây, khớp chuẩn 99.8% và cảnh báo thâm hụt dòng tiền trước 24-48 giờ hoàn toàn tại chỗ.",
+    "punchline": "Đai An Toàn Chống Rò Rỉ Dữ Liệu — Tháp Canh Cảnh Báo Thiếu Tiền Trước 48 Giờ!",
+    "objection_q": "LIVA có thay thế kế toán không?",
+    "objection_a": "Không, LIVA giải phóng kế toán khỏi việc dò tay máy móc để họ tập trung vào phân tích tài chính và tối ưu dòng tiền.",
+    "context_proof": "Thời gian đối soát thực tế giảm từ 180 phút xuống 30 giây trên tập dữ liệu chuẩn hóa."
+  },
+  "6": {
+    "timing": "25s",
+    "wpm": "144 wpm",
+    "tone": "Tương phản rõ rệt giữa căng thẳng bế tắc và nhẹ nhõm thảnh thơi",
+    "spoken": "Quý vị hãy nhìn sự chuyển đổi ngoạn mục: [Nghỉ 1.5s] Trước khi có LIVA là 4 tiếng căng thẳng dò tay, dòng tiền mù mờ 3 ngày và nỗi sợ rò rỉ dữ liệu. [Chỉ tay sang cột xanh] Khi có LIVA, mọi thứ xong trong 30 giây! Dòng tiền hiển thị tức thì trên 1 màn hình và dữ liệu an toàn tuyệt đối tại văn phòng doanh nghiệp.",
+    "takeaway": "Chuyển đổi từ 4h căng thẳng dò tay sang 30 giây hoàn tất, xóa bỏ hoàn toàn vùng mù thanh khoản.",
+    "punchline": "Từ 4 Giờ Căng Thẳng Đến 30 Giây Thảnh Thơi — Thu Hồi Vốn Trong Vòng Chưa Đầy 3 Tháng!",
+    "objection_q": "Doanh nghiệp tiết kiệm được bao nhiêu tiền mỗi năm?",
+    "objection_a": "Tiết kiệm hơn 1.400 giờ công làm việc và tránh được các khoản phạt chậm nộp, tương đương 500-900 triệu VNĐ mỗi năm.",
+    "context_proof": "Thời gian hoàn vốn ROI thực tế của khách hàng đạt dưới 3 tháng sau khi triển khai."
+  },
+  "7": {
+    "timing": "20s",
+    "wpm": "144 wpm",
+    "tone": "Trực quan, sinh động, mô tả sự tiện lợi không cần đào tạo phức tạp",
+    "spoken": "Trải nghiệm thực tế gồm 3 bước siêu đơn giản: [Nghỉ 1.5s] Bước 1: Kế toán tải sao kê vào thư mục tự động. Bước 2: LIVA bóc tách và đối soát trong 30 giây. Bước 3: Kế toán trưởng 1 chạm ký duyệt đẩy vào phần mềm kế toán. Mọi việc xong trước 8h30 sáng!",
+    "takeaway": "Trải nghiệm 3 bước siêu đơn giản: Thả file sao kê, đối soát tự động 30 giây, 1 chạm phê duyệt vào phần mềm kế toán.",
+    "punchline": "Không Cần Đào Tạo Phức Tạp — 3 Bước Đơn Giản Xong Trước 8h30 Sáng!",
+    "objection_q": "Kế toán lớn tuổi có dùng được không?",
+    "objection_a": "Giao diện tiếng Việt trực quan, thiết kế theo thói quen của người làm kế toán, thao tác kéo thả quen thuộc.",
+    "context_proof": "Quy trình thử nghiệm nội bộ với kế toán viên cho thấy thời gian làm quen dưới 15 phút."
+  },
+  "8": {
+    "timing": "25s",
+    "wpm": "141 wpm",
+    "tone": "Chắc chắn, giải tỏa ngay mối lo lớn nhất của giám khảo về ảo giác AI",
+    "spoken": "Làm sao tin được AI khi AI hay bịa số? [Nghỉ 1.5s] LIVA áp dụng nguyên lý bảo vệ 2 tầng cực kỳ kỷ luật: Tầng 1 là AI thông minh chuyên đọc hiểu chữ viết tắt tiếng Việt; còn tầng tính tiền do máy tính chuyên dụng khóa cứng số học. [Giọng đanh thép] Trong kế toán, tuyệt đối không bao giờ để AI làm toán mò!",
+    "takeaway": "Nguyên lý 2 tầng: AI chỉ đọc hiểu ngôn ngữ viết tắt, động cơ máy tính khóa cứng tính toán số học, triệt tiêu 100% ảo giác.",
+    "punchline": "Trong Kế Toán, Tuyệt Đối Không Bao Giờ Để AI Làm Toán Mò!",
+    "objection_q": "Tại sao không để AI làm toán luôn cho tiện?",
+    "objection_a": "Mô hình ngôn ngữ hoạt động theo xác suất thống kê nên luôn có nguy cơ bịa số; trong tài chính, số học bắt buộc phải xác định 100%.",
+    "context_proof": "Kiến trúc phân tách ngữ nghĩa và số học triệt tiêu hoàn toàn hiện tượng ảo giác số dư."
+  },
+  "9": {
+    "timing": "25s",
+    "wpm": "134 wpm",
+    "tone": "Chân thành, đĩnh đạc, tự tin với số liệu đo kiểm thực chứng",
+    "spoken": "Chúng tôi cam kết trung thực tuyệt đối: Trong phòng lab, LIVA đã hoàn thành đo kiểm 50.000 dòng sao kê trong đúng 19.2 giây, tiêu thụ chỉ 680MB RAM trên máy tính văn phòng. [Nghỉ 1.5s] 99.8% giao dịch khớp chuẩn, và 0.2% chuyển cách ly an toàn cho kế toán duyệt để bảo đảm 0% sai sót lọt lưới!",
+    "takeaway": "Thực chứng 50.000 dòng sao kê trong 19.2 giây, 680MB RAM; 0.2% chuyển duyệt người là tính năng bảo vệ an toàn có chủ đích.",
+    "punchline": "99.8% Khớp Tự Động — 0.2% Cách Ly An Toàn — 0% Sai Sót Lọt Lưới!",
+    "objection_q": "0.2% ngoại lệ có phải là do phần mềm bị lỗi không?",
+    "objection_a": "Không, 100 dòng này chứa nội dung chuyển khoản quá mơ hồ hoặc không đủ thông tin đối chiếu; dừng lại hỏi người là nguyên tắc an toàn cao nhất.",
+    "context_proof": "Môi trường thử nghiệm: Intel Core i5 văn phòng, 8GB RAM, Windows 11."
+  },
+  "10": {
+    "timing": "25s",
+    "wpm": "137 wpm",
+    "tone": "Thực tế, rành mạch về khả năng tạo dòng tiền và sinh lời bền vững",
+    "spoken": "Về kinh doanh, LIVA đi bằng hai mũi nhọn: [Nghỉ 1.5s] Thuê bao CFO từ 15 đến 45 triệu đồng/tháng chốt nhanh trong 2 đến 4 tuần tạo dòng tiền ngay; và bản quyền Ngân hàng từ 500 triệu đến 1.5 tỷ đồng/năm. Vì phần mềm chạy tại chỗ, chi phí server bằng 0, mang lại biên lợi nhuận gộp vượt trên 88%!",
+    "takeaway": "Mô hình hai mũi nhọn: Thuê bao CFO chốt nhanh tạo dòng tiền định kỳ và Bản quyền Ngân hàng giá trị lớn, biên gộp > 88%.",
+    "punchline": "Chi Phí Server Biên Bằng 0 — Biên Lợi Nhuận Gộp Vượt Trội Trên 88%!",
+    "objection_q": "Tại sao ngân hàng lại sẵn sàng trả 500 triệu đến 1.5 tỷ đồng?",
+    "objection_a": "Số tiền này quá nhỏ so với chi phí tự xây dựng hàng chục tỷ, trong khi giúp ngân hàng thu hút thêm hàng trăm tỷ tiền gửi CASA doanh nghiệp.",
+    "context_proof": "Chỉ số tài chính: LTV/CAC đạt 5.2x, thời gian hoàn vốn CAC dưới 5 tháng."
+  },
+  "11": {
+    "timing": "20s",
+    "wpm": "150 wpm",
+    "tone": "Nhanh nhẹn, thông minh, nhấn mạnh hiệu quả sử dụng vốn không đốt tiền",
+    "spoken": "Chiến lược tiếp cận thị trường của chúng tôi là đòn bẩy thông minh: [Nghỉ 1.5s] 50% khách hàng đến từ đại lý phần mềm kế toán MISA, FAST có sẵn; 30% từ tiếp cận trực tiếp mạng lưới hơn 200 CFO; và 20% từ các ngân hàng đối tác, giúp mở rộng nhanh mà không đốt tiền!",
+    "takeaway": "Chiến lược GTM thông minh không đốt tiền: Liên minh đại lý ERP có sẵn, tiếp cận mạng lưới 200+ CFO và đồng hành cùng ngân hàng.",
+    "punchline": "Mở Rộng Thần Tốc Nhờ Đòn Bẩy Mạng Lưới Phân Phối Kế Toán Sẵn Có!",
+    "objection_q": "Đại lý ERP có động lực gì để bán LIVA?",
+    "objection_a": "Họ nhận mức chia sẻ doanh thu hấp dẫn 20-30% và giải quyết được nút thắt nhập liệu cho chính phần mềm kế toán của họ.",
+    "context_proof": "MISA, FAST, Bravo hiện đang phục vụ hơn 80% thị phần phần mềm kế toán tại Việt Nam."
+  },
+  "12": {
+    "timing": "25s",
+    "wpm": "141 wpm",
+    "tone": "Sắc sảo, thuyết phục, đánh trúng tư duy chiến lược của nhà đầu tư",
+    "spoken": "Big Tech hay Ngân hàng lớn có làm được việc này không? [Nghỉ 1.5s] Câu trả lời là không! Big Tech bị kẹt trong mô hình bán Cloud, họ không muốn phần mềm chạy offline. Còn mỗi ngân hàng chỉ quản lý tài khoản của riêng mình. Doanh nghiệp bắt buộc cần một trọng tài độc lập như LIVA để gom 35 ngân hàng về một mối!",
+    "takeaway": "3 hào lũy phòng thủ: Nghịch lý đám mây của Big Tech, tính trung lập đa ngân hàng độc nhất và bộ ngữ liệu bản địa độc quyền.",
+    "punchline": "Doanh Nghiệp Bắt Buộc Cần Một Trọng Tài Độc Lập Như LIVA Để Gom Đa Ngân Hàng!",
+    "objection_q": "Nếu UiPath hay PowerAutomate nhảy vào cạnh tranh thì sao?",
+    "objection_a": "RPA truyền thống rất đắt, dễ gãy bot khi file sao kê đổi mẫu và không có khả năng hiểu chữ viết tắt tiếng Việt.",
+    "context_proof": "LIVA triển khai trong 15 phút, trong khi dự án RPA mất từ 3 đến 6 tháng cấu hình."
+  },
+  "13": {
+    "timing": "25s",
+    "wpm": "139 wpm",
+    "tone": "Hào hùng, tự tin, khép lại trọn vẹn 5 phút thuyết trình Vòng 1",
+    "spoken": "Hôm nay, LIVA mở vòng gọi vốn Seed từ 500.000 đến 750.000 USD cho 12% đến 15% cổ phần, định giá 4 đến 5 triệu USD. [Nghỉ 1.5s] Vốn được phân bổ kỷ luật: 50% sản phẩm, 25% thị trường, 15% pháp lý Sandbox và 10% dự phòng. [Giọng đĩnh đạc] Chúng tôi bảo đảm 18 đến 24 tháng runway tự chủ tài chính!",
+    "takeaway": "Vòng gọi vốn Seed $500k-$750k cho 12-15% cổ phần, định giá $4.0M-$5.0M, phân bổ kỷ luật bảo đảm 18-24 tháng runway.",
+    "punchline": "Bảo Đảm 18 – 24 Tháng Runway Tự Chủ Để Dẫn Đầu Làn Sóng AI Ngân Quỹ Cục Bộ!",
+    "objection_q": "Tại sao định giá doanh nghiệp là 4 đến 5 triệu USD?",
+    "objection_a": "Định giá dựa trên mã nguồn hoàn chỉnh đã đo kiểm, thị trường TAM 180 triệu USD và tiềm năng đạt điểm hòa vốn trong 14 tháng.",
+    "context_proof": "Cơ cấu giải ngân theo mốc nghiệm thu bảo vệ tối đa lợi ích của các nhà đầu tư."
+  },
+  "14": {
+    "timing": "25s",
+    "wpm": "136 wpm",
+    "tone": "Đĩnh đạc, tự tin, mở đầu thuyết phục cho Vòng 2 Top 3",
+    "spoken": "Bước vào Vòng 2, chúng tôi xin trình bày lộ trình thực thi 4 quý cực kỳ kỷ luật: [Nghỉ 1.5s] Quý 4 năm nay hoàn thiện 20 ngân hàng. Quý 1/2027 kết nối Top 5 ngân hàng lớn. Quý 2/2027 tích hợp 1 chạm vào MISA, FAST. [Nghỉ 1.5s] Và Quý 3/2027 phủ sóng toàn bộ 35 ngân hàng, đạt mốc 220 doanh nghiệp và doanh thu 2.4 triệu USD!",
+    "takeaway": "Lộ trình 4 quý rõ ràng: Từ thử nghiệm 15 doanh nghiệp đến tích hợp ERP và phủ sóng 35+ ngân hàng với ARR $2.4M.",
+    "punchline": "Kế Hoạch Hành Động Kỷ Luật Từng Quý — Từng Mốc Đều Đo Bằng Doanh Thu Thực Tế!",
+    "objection_q": "Làm sao kết nối được 35 ngân hàng mà không cần API chính thức?",
+    "objection_a": "LIVA phân tích trực tiếp file sao kê chuẩn hóa do ngân hàng xuất ra, không phụ thuộc vào việc mở cổng API kết nối.",
+    "context_proof": "Đã hoàn thành bộ giải mã cho 20 mẫu sao kê của các ngân hàng lớn nhất."
+  },
+  "15": {
+    "timing": "25s",
+    "wpm": "136 wpm",
+    "tone": "Chắc chắn, nhấn mạnh tính bền vững và sự an toàn vốn cho nhà đầu tư",
+    "spoken": "Sức hấp dẫn tài chính của LIVA đến từ các chỉ số kinh tế đơn vị vượt trội: [Nghỉ 1.5s] Tỷ lệ LTV trên CAC đạt 5.2 lần; thời gian thu hồi chi phí bán hàng chỉ 4.6 tháng; và biên lợi nhuận gộp trên 88% do không gánh chi phí server. [Giọng dứt khoát] Công ty sẽ chính thức hòa vốn vận hành vào Tháng 11/2027!",
+    "takeaway": "Unit economics vượt bậc: LTV/CAC 5.2x, hoàn vốn CAC 4.6 tháng, biên gộp > 88% và hòa vốn vào Tháng 11/2027.",
+    "punchline": "Mô Hình Kinh Doanh Sinh Lời Bền Vững — Không Bao Giờ Rơi Vào Cái Bẫy Đốt Tiền!",
+    "objection_q": "Tại sao CAC chỉ mất 4.6 tháng để thu hồi?",
+    "objection_a": "Nhờ tận dụng kênh phân phối đại lý ERP có sẵn và chu kỳ chốt hợp đồng thuê bao ngắn ngày.",
+    "context_proof": "LTV tính toán trên thời gian sử dụng trung bình 36 tháng với tỷ lệ giữ chân khách hàng 92%."
+  },
+  "16": {
+    "timing": "25s",
+    "wpm": "136 wpm",
+    "tone": "Đĩnh đạc, minh bạch, bảo vệ sự tin cậy của các con số dự phóng",
+    "spoken": "Dự phóng tài chính 3 năm của chúng tôi rất thận trọng: [Nghỉ 1.5s] Năm 2026 đạt 450 nghìn USD từ 35 doanh nghiệp đầu tiên. Năm 2027 tăng tốc lên 2.4 triệu USD và đạt điểm hòa vốn với 220 khách hàng. [Nghỉ 1.5s] Đến năm 2028, kịch bản cơ sở đạt 3.9 triệu USD và kịch bản bứt phá đạt 7.2 triệu USD!",
+    "takeaway": "Dự phóng doanh thu 3 năm khả thi: $450k năm 2026, $2.4M năm 2027 (hòa vốn), và $3.9M - $7.2M năm 2028.",
+    "punchline": "Tăng Trưởng Thực Chất Gắn Liền Với Điểm Hòa Vốn Rõ Ràng Vào Cuối Năm 2027!",
+    "objection_q": "Cơ sở nào để đạt 220 doanh nghiệp vào cuối năm 2027?",
+    "objection_a": "Chỉ cần chiếm 1.5% trong số hơn 15.000 doanh nghiệp mục tiêu thông qua mạng lưới đại lý phần mềm kế toán.",
+    "context_proof": "Doanh thu phân bổ: 70% từ thuê bao doanh nghiệp và 30% từ bản quyền ngân hàng."
+  },
+  "17": {
+    "timing": "20s",
+    "wpm": "147 wpm",
+    "tone": "Điềm tĩnh, thể hiện kỷ luật chi tiêu của người quản trị tài chính",
+    "spoken": "Là những người làm tài chính, chúng tôi quản trị chi tiêu rất chặt chẽ: [Nghỉ 1.5s] Mức chi tiêu hàng tháng được kiểm soát dưới 25 nghìn USD, với 55% dành cho đội ngũ kỹ sư nòng cốt. Vốn gọi vòng Seed bảo đảm 18 đến 24 tháng đường băng an toàn để tập trung hoàn thiện sản phẩm.",
+    "takeaway": "Kỷ luật dòng tiền thép: Tỷ lệ đốt tiền dưới $25k/tháng, 55% chi cho kỹ sư, bảo đảm runway an toàn 18-24 tháng.",
+    "punchline": "Kỷ Luật Dòng Tiền Thép — Từng Đồng Vốn Đều Được Chi Tiêu Đúng Mục Đích!",
+    "objection_q": "Nếu doanh thu về chậm hơn dự kiến thì sao?",
+    "objection_a": "Quỹ dự phòng 10% và mức đốt tiền thấp cho phép công ty kéo dài thời gian hoạt động thêm 6 tháng mà không cần huy động vốn gấp.",
+    "context_proof": "Ngân sách chi tiết được kiểm soát theo quý và báo cáo minh bạch cho hội đồng quản trị."
+  },
+  "18": {
+    "timing": "25s",
+    "wpm": "136 wpm",
+    "tone": "Chuyên nghiệp, am hiểu sâu sắc hành lang pháp lý tài chính",
+    "spoken": "Trong tài chính, công nghệ giỏi phải đi đôi với tuân thủ pháp lý: [Nghỉ 1.5s] LIVA chủ động thực hiện 4 bước: Nộp hồ sơ đánh giá tác động dữ liệu Nghị định 13; tuân thủ Thông tư 09; đánh giá an ninh ISO 27001; và chuẩn bị hồ sơ tham gia Sandbox Ngân hàng Nhà nước. Pháp lý chính là lợi thế cạnh tranh của LIVA!",
+    "takeaway": "Chủ động tuân thủ toàn diện: Nghị định 13 (DPIA), Thông tư 09, ISO 27001 và sẵn sàng tham gia Sandbox NHNN.",
+    "punchline": "Biến Tuân Thủ Pháp Lý Thành Hào Lũy Bảo Vệ Vững Chắc Cho Khách Hàng!",
+    "objection_q": "Thời gian xin vào Sandbox Ngân hàng Nhà nước mất bao lâu?",
+    "objection_a": "Thường mất từ 6 đến 12 tháng; trong thời gian đó LIVA vẫn vận hành thương mại bình thường cho gói quản trị đối soát nội bộ doanh nghiệp.",
+    "context_proof": "Nghị định 52/2024/NĐ-CP và Quyết định 810/QĐ-NHNN về chuyển đổi số ngành ngân hàng."
+  },
+  "19": {
+    "timing": "20s",
+    "wpm": "150 wpm",
+    "tone": "Tự hào, gắn kết, truyền tải trọn vẹn sự tin cậy của đội ngũ",
+    "spoken": "Sức mạnh lớn nhất của LIVA là con người: [Nghỉ 1.5s] 5 nhà sáng lập chúng tôi đều làm việc 100% toàn thời gian, kết hợp ăn ý giữa chuyên môn tài chính và năng lực công nghệ lõi làm chủ hoàn toàn. [Giọng quyết đoán] Chúng tôi toàn tâm toàn ý xây dựng LIVA thành biểu tượng công nghệ tài chính tự chủ!",
+    "takeaway": "5 nhà sáng lập làm việc 100% toàn thời gian, làm chủ công nghệ lõi và am hiểu sâu sắc nghiệp vụ tài chính.",
+    "punchline": "100% Toàn Thời Gian — Cam Kết Dài Hạn Và Toàn Tâm Toàn Ý Vì Mục Tiêu!",
+    "objection_q": "Đội ngũ có đủ năng lực mở rộng quy mô kỹ thuật không?",
+    "objection_a": "Các kỹ sư trưởng có kinh nghiệm xây dựng hệ thống phân tán và bảo mật ngân hàng, sẵn sàng tuyển dụng và dẫn dắt đội ngũ kỹ sư mới.",
+    "context_proof": "100% thành viên đã ký cam kết cống hiến toàn thời gian tối thiểu 3 năm."
+  },
+  "20": {
+    "timing": "25s",
+    "wpm": "136 wpm",
+    "tone": "Điềm đạm, bản lĩnh, khép lại Vòng 2 bằng sự chuẩn bị kỹ lưỡng",
+    "spoken": "Chúng tôi luôn chuẩn bị cho tình huống xấu nhất: [Nghỉ 1.5s] Nếu bán cho ngân hàng chậm, chúng tôi có dòng tiền thuê bao CFO bù đắp; nếu thủ tục Sandbox cần thời gian, chúng tôi tập trung đối soát nội bộ; và nếu ngân hàng đổi mẫu sao kê, cơ chế khóa an toàn bảo đảm không bao giờ lệch số. Chúng tôi sẵn sàng cho Vòng Q&A!",
+    "takeaway": "Nhận diện thẳng thắn 3 rủi ro trọng yếu và có sẵn phương án hóa giải cụ thể cho từng trường hợp.",
+    "punchline": "Luôn Chuẩn Bị Sẵn Sàng Cho Tình Huống Xấu Nhất Để Doanh Nghiệp Luôn Tăng Trưởng An Toàn!",
+    "objection_q": "Rủi ro lớn nhất đối với LIVA trong năm đầu tiên là gì?",
+    "objection_a": "Rủi ro tiến độ tích hợp với các phần mềm kế toán; chúng tôi khắc phục bằng cơ chế xuất nhập file trung gian trước khi có kết nối API trực tiếp.",
+    "context_proof": "Kế hoạch ứng phó chi tiết được cập nhật định kỳ hàng tháng trong sổ quản trị rủi ro của công ty."
+  },
+  "21": {
+    "timing": "25s",
+    "wpm": "136 wpm",
+    "tone": "Chắc nịch, giải đáp dứt khoát câu hỏi phổ biến nhất của giám khảo",
+    "spoken": "Tại sao kế toán không viết mấy dòng Macro Excel cho đỡ tốn tiền? [Nghỉ 1.5s] Trả lời: Excel chỉ làm được khi dữ liệu chuẩn một khuôn. Nhưng thực tế 15 ngân hàng là 15 mẫu khác nhau. [Giọng đanh thép] Excel không hiểu được câu chữ viết tắt tự do, và chỉ cần ngân hàng chèn thêm 1 cột là Macro gãy nát vụn! Excel không sinh ra để làm đai an toàn ngân quỹ.",
+    "takeaway": "Excel và Macro sụp đổ khi dữ liệu đổi mẫu hoặc gặp chữ viết tắt; LIVA hiểu ngữ nghĩa và xử lý 50.000 dòng không bao giờ đơ máy.",
+    "punchline": "Excel Sinh Ra Để Làm Bảng Tính — Không Sinh Ra Để Làm Đai An Toàn Ngân Quỹ!",
+    "objection_q": "Power Query trong Excel có giải quyết được không?",
+    "objection_a": "Power Query vẫn yêu cầu người dùng phải tự định nghĩa quy tắc biến đổi thủ công và hoàn toàn bất lực trước câu chữ tự do tiếng Việt.",
+    "context_proof": "Thực tế kiểm thử với 100 giao dịch viết tắt cho thấy Excel khớp được dưới 40%, trong khi LIVA đạt 99.8%."
+  },
+  "22": {
+    "timing": "25s",
+    "wpm": "136 wpm",
+    "tone": "Điềm tĩnh, phân tích góc nhìn chiến lược ngành ngân hàng",
+    "spoken": "Nếu ngân hàng tự nâng cấp Internet Banking thì LIVA có bị thay thế? [Nghỉ 1.5s] Câu trả lời là KHÔNG! Vì Vietcombank không bao giờ chịu xây phần mềm quản lý tài khoản Techcombank hay MBBank. Ngân hàng chỉ quản lý tiền của họ. [Giọng dứt khoát] Doanh nghiệp bắt buộc cần bên trung lập như LIVA để gom 15 ngân hàng. Ngân hàng là đối tác cộng sinh của LIVA!",
+    "takeaway": "Ngân hàng không bao giờ quản lý tài khoản của đối thủ; doanh nghiệp luôn cần bên thứ ba độc lập như LIVA để hợp nhất đa ngân hàng.",
+    "punchline": "Ngân Hàng Không Phải Đối Thủ Của LIVA — Ngân Hàng Là Đối Tác Cộng Sinh!",
+    "objection_q": "Liệu các ngân hàng có bắt tay nhau xây dựng nền tảng chung không?",
+    "objection_a": "Cạnh tranh tiền gửi CASA giữa các ngân hàng cực kỳ khốc liệt; họ sẽ không bao giờ chia sẻ dữ liệu khách hàng doanh nghiệp cho đối thủ.",
+    "context_proof": "Lịch sử ngành Open Banking toàn cầu chứng minh các nền tảng trung lập như Plaid hay Yapily luôn chiến thắng."
+  },
+  "23": {
+    "timing": "25s",
+    "wpm": "136 wpm",
+    "tone": "Đanh thép, giải thích công nghệ bằng góc nhìn kinh tế và bảo mật",
+    "spoken": "Tại sao LIVA lại dùng mô hình nhỏ 3B đến 8B thay vì ChatGPT? [Nghỉ 1.5s] Để đọc sao kê, chúng ta không cần 'đại bác' 70 tỷ tham số biết làm thơ; chúng ta cần 'dao mổ chuyên dụng' đọc vanh vách chữ viết tắt tiếng Việt. [Giọng tự tin] Mô hình nhỏ chạy cục bộ vừa an toàn 100%, vừa đạt tốc độ tức thì mà chi phí API bằng 0!",
+    "takeaway": "Đối soát không cần mô hình 70B biết làm thơ; mô hình nhỏ 3B-8B cục bộ chuyên sâu xử lý nhanh hơn, an toàn tuyệt đối và chi phí $0.",
+    "punchline": "Không Dùng Đại Bác Bắn Chim Sẻ — Dùng Dao Mổ Chuyên Dụng Cho Dữ Liệu Tài Chính!",
+    "objection_q": "Mô hình nhỏ có hiểu được các câu chuyển khoản phức tạp không?",
+    "objection_a": "Nhờ được tinh chỉnh sâu trên 500.000 mẫu chuyển khoản thực tế, mô hình nhỏ hiểu ngữ nghĩa tiếng Việt tài chính chính xác hơn cả mô hình tổng quát.",
+    "context_proof": "Đo kiểm nhận diện thực thể tên hóa đơn và số tiền đạt F1-score > 98.5%."
+  },
+  "24": {
+    "timing": "25s",
+    "wpm": "136 wpm",
+    "tone": "Điềm đạm, nghiêm túc, khẳng định trách nhiệm nghề nghiệp cao nhất",
+    "spoken": "Ai chịu trách nhiệm khi mất tiền? [Nghỉ 1.5s] LIVA thiết kế theo triết lý khóa an toàn Fail-Closed: Khi thông tin mơ hồ, hệ thống kiên quyết không đoán mò mà cách ly ngay 0.2% cho người xem xét. [Giọng đanh thép] Cơ chế Maker-Checker quy định AI chỉ đề xuất, Kế toán trưởng ký duyệt mới có hiệu lực. Quyền quyết định luôn thuộc về con người!",
+    "takeaway": "Cơ chế khóa an toàn Fail-Closed không bao giờ đoán mò; quy trình phê duyệt Maker-Checker giữ quyền quyết định tối cao cho con người.",
+    "punchline": "AI Chỉ Là Trợ Lý Đề Xuất — Quyền Quyết Định Tài Chính Luôn Nằm Trọn Trong Tay Con Người!",
+    "objection_q": "LIVA có tự động trích tiền trong tài khoản không?",
+    "objection_a": "Tuyệt đối không; LIVA chỉ lập đề xuất đối soát và lệnh thanh toán, việc chuyển tiền bắt buộc phải qua chữ ký số của Kế toán trưởng và Giám đốc.",
+    "context_proof": "Cơ chế phân quyền 4 cấp độ và chữ ký điện tử hai pha tuân thủ tiêu chuẩn an toàn ngân quỹ."
+  },
+  "25": {
+    "timing": "25s",
+    "wpm": "136 wpm",
+    "tone": "Minh bạch, thể hiện sự tôn trọng tuyệt đối đối với vốn của nhà đầu tư",
+    "spoken": "Vốn của nhà đầu tư được giải ngân ra sao? [Nghỉ 1.5s] Chúng tôi áp dụng cơ chế giải ngân theo 3 đợt gắn với mốc nghiệm thu: 50% hoàn thiện sản phẩm, 25% mở rộng kênh kế toán, 15% kiểm toán an ninh và 10% dự phòng. [Giọng chắc chắn] Từng đồng vốn đều trực tiếp tạo ra tài sản công nghệ và doanh thu thực chất!",
+    "takeaway": "Giải ngân vốn có kỷ luật theo 3 đợt gắn với mốc nghiệm thu cụ thể: 50% Sản phẩm, 25% Thị trường, 15% Pháp lý, 10% Dự phòng.",
+    "punchline": "Từng Đồng Vốn Đều Gắn Chặt Với Mốc Nghiệm Thu Và Tạo Ra Doanh Thu Thực Chất!",
+    "objection_q": "Nhà đầu tư có được quyền biểu quyết các khoản chi lớn không?",
+    "objection_a": "Các khoản chi vượt quá 20.000 USD ngoài kế hoạch bắt buộc phải có sự phê duyệt bằng văn bản của đại diện nhà đầu tư trong HĐQT.",
+    "context_proof": "Điều khoản bảo vệ nhà đầu tư được chuẩn hóa theo hợp đồng đầu tư mạo hiểm quốc tế (NVCA standard)."
+  },
+  "26": {
+    "timing": "25s",
+    "wpm": "136 wpm",
+    "tone": "Tự tin, khẳng định giá trị tài sản trí tuệ và sự kiên cố của sản phẩm",
+    "spoken": "Nếu đối thủ muốn sao chép LIVA thì sao? [Nghỉ 1.5s] Họ có thể sao chép giao diện, nhưng không thể sao chép 3 thứ: Bản quyền kiến trúc đã đăng ký; kho nửa triệu mẫu chữ viết tắt ngân hàng Việt Nam; [Giọng tự tin] và kiến trúc đóng gói khép kín gắn chặt phần cứng máy tính. LIVA được bảo vệ bằng nhiều tầng hào lũy vững chắc!",
+    "takeaway": "Bảo vệ toàn diện bằng đăng ký sở hữu trí tuệ, bộ ngữ liệu bản địa độc quyền và kiến trúc đóng gói khép kín chống sao chép.",
+    "punchline": "Đối Thủ Có Thể Bắt Chước Giao Diện — Nhưng Không Thể Sao Chép Được Hào Lũy Dữ Liệu Bản Địa!",
+    "objection_q": "Có sợ nhân viên kỹ thuật nghỉ việc mang mã nguồn đi không?",
+    "objection_a": "100% mã nguồn được bảo vệ bằng hợp đồng cam kết bảo mật NDA nghiêm ngặt, phân quyền truy cập theo từng module và mã hóa khóa phân tán.",
+    "context_proof": "Hồ sơ đăng ký quyền tác giả phần mềm đã hoàn tất các thủ tục pháp lý cần thiết."
+  },
+  "27": {
+    "timing": "25s",
+    "wpm": "136 wpm",
+    "tone": "Hào hùng, truyền cảm hứng mạnh mẽ, khép lại trọn vẹn buổi thuyết trình",
+    "spoken": "Tương lai tài chính của doanh nghiệp Việt Nam không thể phó mặc cho đám mây ngoại quốc. Tương lai thuộc về AI Bản Địa: Tự chủ, Tốc độ cao và Bảo mật an toàn tại chỗ! [Nghỉ 1.5s] LIVA Banking Harness tự hào làm chủ 100% công nghệ và hoàn vốn trong 3 tháng. [Giọng truyền cảm hứng] Hãy cùng chúng tôi thiết lập chuẩn mực mới cho ngân quỹ Việt Nam!",
+    "takeaway": "LIVA khẳng định chủ quyền AI tài chính bản địa: Tự chủ, an toàn tuyệt đối tại chỗ, hoàn vốn trong 3 tháng.",
+    "punchline": "Tương Lai Tài Chính Thuộc Về AI Bản Địa — Tự Chủ, Chuẩn Xác Và An Toàn Tuyệt Đối!",
+    "objection_q": "Bước đi tiếp theo ngay sau Demo Day là gì?",
+    "objection_a": "Chúng tôi sẽ ký kết thỏa thuận thử nghiệm PoC với 2 ngân hàng thương mại và giải ngân vòng Seed để đẩy nhanh tốc độ thương mại hóa.",
+    "context_proof": "Toàn bộ mã nguồn, tài liệu thẩm định kỹ thuật và báo cáo kiểm toán an ninh sẵn sàng trong phòng dữ liệu (Data Room) cho nhà đầu tư."
+  }
+};
+  </script>
+
+  <!-- Standalone Presentation Engine -->
+  <script>
+
+(function() {
+  "use strict";
+
+  const TOTAL_SLIDES = 27;
+  let currentSlide = 1;
+  let isGridOpen = false;
+  let isNotesOpen = false;
+
+  const slides = document.querySelectorAll(".slide");
+  const counterElem = document.getElementById("slide-counter");
+  const gridModalBackdrop = document.getElementById("grid-modal-backdrop");
+  const gridContainer = document.getElementById("grid-cards-container");
+  const notesDrawer = document.getElementById("notes-drawer");
+  const notesBody = document.getElementById("notes-body");
+  const notesTitle = document.getElementById("notes-title");
+
+  const notesData = window.SPEAKER_NOTES || {};
+
+  function init() {
+    const hash = window.location.hash;
+    if (hash && hash.startsWith("#slide-")) {
+      const slideNum = parseInt(hash.replace("#slide-", ""), 10);
+      if (slideNum >= 1 && slideNum <= TOTAL_SLIDES) {
+        currentSlide = slideNum;
+      }
+    }
+
+    renderGrid();
+    showSlide(currentSlide, false);
+    setupEventListeners();
+  }
+
+  function showSlide(n, updateUrl = true) {
+    if (n < 1) n = 1;
+    if (n > TOTAL_SLIDES) n = TOTAL_SLIDES;
+    currentSlide = n;
+
+    slides.forEach((s, idx) => {
+      if (idx + 1 === currentSlide) {
+        s.classList.add("active");
+      } else {
+        s.classList.remove("active");
+      }
+    });
+
+    if (counterElem) {
+      counterElem.textContent = "Slide " + (currentSlide < 10 ? "0" + currentSlide : currentSlide) + " / " + TOTAL_SLIDES;
+    }
+
+    if (updateUrl) {
+      history.replaceState(null, null, "#slide-" + currentSlide);
+    }
+
+    updateNotesDrawer();
+    updateGridActive();
+  }
+
+  function nextSlide() {
+    if (currentSlide < TOTAL_SLIDES) {
+      showSlide(currentSlide + 1);
+    }
+  }
+
+  function prevSlide() {
+    if (currentSlide > 1) {
+      showSlide(currentSlide - 1);
+    }
+  }
+
+  function goToSlide(n) {
+    showSlide(n);
+    if (isGridOpen) toggleGrid();
+  }
+
+  function toggleGrid() {
+    isGridOpen = !isGridOpen;
+    if (isGridOpen) {
+      gridModalBackdrop.classList.add("open");
+      updateGridActive();
+    } else {
+      gridModalBackdrop.classList.remove("open");
+    }
+  }
+
+  function toggleNotes() {
+    isNotesOpen = !isNotesOpen;
+    if (isNotesOpen) {
+      notesDrawer.classList.add("open");
+      updateNotesDrawer();
+    } else {
+      notesDrawer.classList.remove("open");
+    }
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.warn("Fullscreen request error:", err);
+      });
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  }
+
+  function updateNotesDrawer() {
+    if (!notesBody) return;
+    const data = notesData[currentSlide];
+    if (!data) {
+      notesBody.innerHTML = "<p>Chưa có ghi chú cho slide này.</p>";
+      return;
+    }
+
+    if (notesTitle) {
+      notesTitle.textContent = "Speaker Notes • Slide " + currentSlide;
+    }
+
+    let spokenHtml = (data.spoken || "").replace(/\[Nghỉ 1\.5s\]/g, '<span class="pause-pill">⏱ Nghỉ 1.5s</span>');
+
+    notesBody.innerHTML = `
+      <div class="notes-meta-pill">
+        <span class="badge badge-accent">${data.timing || "25s"}</span>
+        <span class="badge badge-category">${data.wpm || "136 wpm"}</span>
+        <span class="badge badge-module-a">${data.tone || "Chuẩn mực"}</span>
+      </div>
+
+      <div>
+        <div class="notes-section-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+          Lời Thoại Diễn Giả (Verbatim Spoken Script)
+        </div>
+        <div class="spoken-script-box">
+          <p>${spokenHtml}</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="notes-section-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
+          Key Takeaway (Thông Điệp Cốt Lõi)
+        </div>
+        <p style="font-size:12px; color:#334155; line-height:1.45;">${data.takeaway || ""}</p>
+      </div>
+
+      <div>
+        <div class="notes-section-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="m10 15 5-3-5-3v6Z"/></svg>
+          Callout Punchline (Câu Chốt Đắt Giá)
+        </div>
+        <div class="callout callout-emerald" style="font-size:11.5px; font-weight:600;">
+          "${data.punchline || ""}"
+        </div>
+      </div>
+
+      <div>
+        <div class="notes-section-title" style="color:#DC2626;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+          Dự Liệu Giám Khảo Phản Biện &amp; Cú Móc Phòng Thủ
+        </div>
+        <div class="notes-objection-box">
+          <p style="font-size:11.5px; font-weight:700; color:#1E3A8A; margin-bottom:4px;">Q: "${data.objection_q || ""}"</p>
+          <p style="font-size:11.5px; color:#334155;">🛡️ <strong>Phản xạ:</strong> ${data.objection_a || ""}</p>
+        </div>
+      </div>
+
+      ${data.context_proof ? `
+      <div>
+        <div class="notes-section-title" style="color:#475569;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Tài Liệu Căn Cứ &amp; Minh Chứng Kỹ Thuật
+        </div>
+        <div class="notes-context-box">
+          ${data.context_proof}
+        </div>
+      </div>` : ""}
+    `;
+  }
+
+  function renderGrid() {
+    if (!gridContainer) return;
+    gridContainer.innerHTML = "";
+
+    slides.forEach((s, idx) => {
+      const slideNum = idx + 1;
+      const titleElem = s.querySelector(".slide-title");
+      const title = titleElem ? titleElem.textContent.trim() : "Slide " + slideNum;
+      const modClass = slideNum <= 13 ? "A" : (slideNum <= 20 ? "B" : "C");
+
+      const card = document.createElement("div");
+      card.className = "grid-thumb-card" + (slideNum === currentSlide ? " active" : "");
+      card.dataset.slide = slideNum;
+      card.dataset.module = modClass;
+      card.onclick = () => goToSlide(slideNum);
+
+      card.innerHTML = `
+        <div class="thumb-header">
+          <span class="thumb-num">#${slideNum < 10 ? "0" + slideNum : slideNum}</span>
+          <span class="badge ${modClass === "A" ? "badge-module-a" : (modClass === "B" ? "badge-module-b" : "badge-module-c")}" style="font-size:9px; padding:2px 6px;">
+            ${modClass === "A" ? "VÒNG 1" : (modClass === "B" ? "VÒNG 2" : "Q&A")}
+          </span>
+        </div>
+        <div class="thumb-title">${title}</div>
+        <div class="thumb-summary">${(notesData[slideNum] && notesData[slideNum].punchline) ? notesData[slideNum].punchline.substring(0, 75) + "..." : ""}</div>
+      `;
+      gridContainer.appendChild(card);
+    });
+  }
+
+  function updateGridActive() {
+    if (!gridContainer) return;
+    const cards = gridContainer.querySelectorAll(".grid-thumb-card");
+    cards.forEach(card => {
+      if (parseInt(card.dataset.slide, 10) === currentSlide) {
+        card.classList.add("active");
+      } else {
+        card.classList.remove("active");
+      }
+    });
+  }
+
+  function filterGrid(mod) {
+    if (!gridContainer) return;
+    const cards = gridContainer.querySelectorAll(".grid-thumb-card");
+    cards.forEach(card => {
+      if (mod === "ALL" || card.dataset.module === mod) {
+        card.style.display = "flex";
+      } else {
+        card.style.display = "none";
+      }
+    });
+
+    const filterBtns = document.querySelectorAll(".filter-btn");
+    filterBtns.forEach(btn => {
+      if (btn.dataset.filter === mod) {
+        btn.classList.add("active");
+      } else {
+        btn.classList.remove("active");
+      }
+    });
+  }
+
+  function setupEventListeners() {
+    window.addEventListener("keydown", function(e) {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+
+      switch (e.key) {
+        case "ArrowRight":
+        case "ArrowDown":
+        case "PageDown":
+        case " ":
+          e.preventDefault();
+          if (isGridOpen) toggleGrid();
+          nextSlide();
+          break;
+
+        case "ArrowLeft":
+        case "ArrowUp":
+        case "PageUp":
+          e.preventDefault();
+          if (isGridOpen) toggleGrid();
+          prevSlide();
+          break;
+
+        case "Home":
+          e.preventDefault();
+          goToSlide(1);
+          break;
+
+        case "End":
+          e.preventDefault();
+          goToSlide(TOTAL_SLIDES);
+          break;
+
+        case "g":
+        case "G":
+          e.preventDefault();
+          toggleGrid();
+          break;
+
+        case "s":
+        case "S":
+          e.preventDefault();
+          toggleNotes();
+          break;
+
+        case "f":
+        case "F":
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+
+        case "p":
+        case "P":
+          e.preventDefault();
+          window.print();
+          break;
+
+        case "Escape":
+          if (isGridOpen) toggleGrid();
+          if (isNotesOpen) toggleNotes();
+          break;
+      }
+    });
+
+    window.addEventListener("hashchange", function() {
+      const hash = window.location.hash;
+      if (hash && hash.startsWith("#slide-")) {
+        const slideNum = parseInt(hash.replace("#slide-", ""), 10);
+        if (slideNum >= 1 && slideNum <= TOTAL_SLIDES && slideNum !== currentSlide) {
+          showSlide(slideNum, false);
+        }
+      }
+    });
+
+    let touchStartX = 0;
+    let touchStartY = 0;
+    document.addEventListener("touchstart", function(e) {
+      touchStartX = e.changedTouches[0].screenX;
+      touchStartY = e.changedTouches[0].screenY;
+    }, false);
+
+    document.addEventListener("touchend", function(e) {
+      const touchEndX = e.changedTouches[0].screenX;
+      const touchEndY = e.changedTouches[0].screenY;
+      const diffX = touchEndX - touchStartX;
+      const diffY = touchEndY - touchStartY;
+
+      if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
+        if (diffX < 0) {
+          nextSlide();
+        } else {
+          prevSlide();
+        }
+      }
+    }, false);
+
+    const filterBtns = document.querySelectorAll(".filter-btn");
+    filterBtns.forEach(btn => {
+      btn.addEventListener("click", () => filterGrid(btn.dataset.filter));
+    });
+  }
+
+  window.deck = {
+    nextSlide: nextSlide,
+    prevSlide: prevSlide,
+    goToSlide: goToSlide,
+    toggleGrid: toggleGrid,
+    toggleNotes: toggleNotes,
+    toggleFullscreen: toggleFullscreen,
+    filterGrid: filterGrid
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+
+  </script>
+</body>
+</html>

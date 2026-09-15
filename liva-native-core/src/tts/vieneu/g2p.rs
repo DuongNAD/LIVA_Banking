@@ -1,0 +1,926 @@
+//! Bilingual (vi/en) grapheme-to-phoneme engine.
+//!
+//! Vendored from sea-g2p (`pnnbao97/sea-g2p`, Apache-2.0), `src/g2p/mod.rs`.
+//! This is the exact phonemizer VieNeu-TTS was trained with, so its 419-token
+//! phoneme vocabulary lines up with the model's `tokenizer.json` — espeak-ng
+//! (used by Piper) would not. Two changes from upstream, both behaviour-
+//! preserving: the `.bin` dictionary is read into an owned `Vec<u8>` instead of
+//! memory-mapped (drops the `memmap2` dep), and `once_cell::Lazy` becomes
+//! `std::sync::LazyLock` (edition 2024). The lookup/segmentation logic is kept
+//! byte-for-byte.
+
+use regex::Regex;
+use std::collections::HashMap;
+use std::io;
+use std::sync::{LazyLock, RwLock};
+
+fn invalid_dictionary(message: impl Into<String>) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, message.into())
+}
+
+/// Đọc một `RwLock` **bộ nhớ đệm** kể cả khi nó đã bị nhiễm độc.
+///
+/// `RwLock::read()` trả `Err` khi một luồng khác panic *trong lúc đang giữ khoá*.
+/// `.unwrap()` ở đó biến một panic đơn lẻ ở đâu đó thành **mất TTS vĩnh viễn cho
+/// cả tiến trình**: mọi lượt nói sau đều panic tại cùng dòng, và người dùng chỉ
+/// thấy LIVA câm hẳn cho tới khi khởi động lại. Với một trợ lý thoại chạy offline
+/// trên máy người lạ, đó đúng là chế độ hỏng khó lấy log nhất.
+///
+/// Ở đây `into_inner()` là lựa chọn **đúng**, không phải đường tắt — và lý do nằm
+/// ở việc năm khoá này bảo vệ cái gì: chúng là **memoization thuần tuý**
+/// (`merged_cache`, `common_cache`, `missing_*`, `segmentation_cache`). Không có
+/// bất biến nào bắc ngang hai lần ghi, nên **mọi trạng thái đều là trạng thái
+/// hợp lệ của một cache**; xấu nhất là thiếu hoặc thừa một mục, và đường chạy tự
+/// tra lại từ `dict`. Nhiễm độc ở đây không hàm ý dữ liệu rách.
+///
+/// ⚠️ **Đừng sao chép hai helper này sang khoá bảo vệ trạng thái có bất biến.**
+/// Ở đó nuốt nhiễm độc là giấu dữ liệu rách, và panic mới là hành vi đúng.
+fn doc_cache<T>(lock: &RwLock<T>) -> std::sync::RwLockReadGuard<'_, T> {
+    lock.read().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Bản ghi của [`doc_cache`] — cùng lập luận, cùng giới hạn áp dụng.
+fn ghi_cache<T>(lock: &RwLock<T>) -> std::sync::RwLockWriteGuard<'_, T> {
+    lock.write().unwrap_or_else(|e| e.into_inner())
+}
+
+fn read_dictionary_u32(data: &[u8], offset: usize) -> io::Result<u32> {
+    let bytes = data
+        .get(offset..offset.saturating_add(4))
+        .ok_or_else(|| invalid_dictionary(format!("u32 at offset {offset} is out of bounds")))?;
+    Ok(u32::from_le_bytes(
+        bytes
+            .try_into()
+            .map_err(|_| invalid_dictionary("invalid u32 field"))?,
+    ))
+}
+
+fn validate_dictionary_section(
+    data_len: usize,
+    position: usize,
+    count: u32,
+    record_size: usize,
+    name: &str,
+) -> io::Result<()> {
+    if count == 0 {
+        return Ok(());
+    }
+    if position < 32 {
+        return Err(invalid_dictionary(format!(
+            "{name} section overlaps the dictionary header"
+        )));
+    }
+    let byte_len = (count as usize)
+        .checked_mul(record_size)
+        .ok_or_else(|| invalid_dictionary(format!("{name} section size overflow")))?;
+    let end = position
+        .checked_add(byte_len)
+        .ok_or_else(|| invalid_dictionary(format!("{name} section offset overflow")))?;
+    if end > data_len {
+        return Err(invalid_dictionary(format!(
+            "{name} section exceeds dictionary size"
+        )));
+    }
+    Ok(())
+}
+
+/// Binary dictionary reader over the `sea_g2p.bin` blob.
+///
+/// Layout (little-endian): magic `SEAP` + version at [0..8], then three counts
+/// at [8..20] and three section offsets at [20..32]. Strings are a packed,
+/// NUL-terminated pool addressed by a `u32` offset table; `merged` and `common`
+/// are sorted `(word_id, …)` records queried by binary search.
+pub struct PhonemeDict {
+    data: Vec<u8>,
+    string_count: u32,
+    merged_count: u32,
+    common_count: u32,
+    string_offsets_pos: usize,
+    merged_pos: usize,
+    common_pos: usize,
+}
+
+impl PhonemeDict {
+    pub fn new(path: &str) -> io::Result<Self> {
+        let data = std::fs::read(path)?;
+
+        if data.len() < 32 || &data[0..4] != b"SEAP" {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Invalid dictionary format",
+            ));
+        }
+
+        let string_count = read_dictionary_u32(&data, 8)?;
+        let merged_count = read_dictionary_u32(&data, 12)?;
+        let common_count = read_dictionary_u32(&data, 16)?;
+
+        let string_offsets_pos = read_dictionary_u32(&data, 20)? as usize;
+        let merged_pos = read_dictionary_u32(&data, 24)? as usize;
+        let common_pos = read_dictionary_u32(&data, 28)? as usize;
+
+        validate_dictionary_section(
+            data.len(),
+            string_offsets_pos,
+            string_count,
+            4,
+            "string offset",
+        )?;
+        validate_dictionary_section(data.len(), merged_pos, merged_count, 8, "merged")?;
+        validate_dictionary_section(data.len(), common_pos, common_count, 12, "common")?;
+
+        for id in 0..string_count as usize {
+            let offset = read_dictionary_u32(&data, string_offsets_pos + id * 4)? as usize;
+            let start = 32_usize
+                .checked_add(offset)
+                .ok_or_else(|| invalid_dictionary("string offset overflow"))?;
+            let string_data = data
+                .get(start..)
+                .ok_or_else(|| invalid_dictionary("string offset exceeds dictionary size"))?;
+            if !string_data.contains(&0) {
+                return Err(invalid_dictionary(format!(
+                    "string {id} is not NUL-terminated"
+                )));
+            }
+        }
+
+        for record in 0..merged_count as usize {
+            let ptr = merged_pos + record * 8;
+            for field_offset in [0, 4] {
+                if read_dictionary_u32(&data, ptr + field_offset)? >= string_count {
+                    return Err(invalid_dictionary(format!(
+                        "merged record {record} references an invalid string"
+                    )));
+                }
+            }
+        }
+
+        for record in 0..common_count as usize {
+            let ptr = common_pos + record * 12;
+            for field_offset in [0, 4, 8] {
+                if read_dictionary_u32(&data, ptr + field_offset)? >= string_count {
+                    return Err(invalid_dictionary(format!(
+                        "common record {record} references an invalid string"
+                    )));
+                }
+            }
+        }
+
+        Ok(Self {
+            data,
+            string_count,
+            merged_count,
+            common_count,
+            string_offsets_pos,
+            merged_pos,
+            common_pos,
+        })
+    }
+
+    fn get_string(&self, id: u32) -> &str {
+        if id >= self.string_count {
+            return "";
+        }
+        let off_ptr = self.string_offsets_pos + (id as usize * 4);
+        let offset =
+            u32::from_le_bytes(self.data[off_ptr..off_ptr + 4].try_into().unwrap()) as usize;
+
+        let start = 32 + offset;
+        let mut end = start;
+        while end < self.data.len() && self.data[end] != 0 {
+            end += 1;
+        }
+        std::str::from_utf8(&self.data[start..end]).unwrap_or("")
+    }
+
+    pub fn lookup_merged(&self, word: &str) -> Option<&str> {
+        let mut low = 0;
+        let mut high = self.merged_count as i32 - 1;
+
+        while low <= high {
+            let mid = (low + high) / 2;
+            let ptr = self.merged_pos + (mid as usize * 8);
+            let w_id = u32::from_le_bytes(self.data[ptr..ptr + 4].try_into().unwrap());
+            let current_word = self.get_string(w_id);
+
+            if current_word == word {
+                let p_id = u32::from_le_bytes(self.data[ptr + 4..ptr + 8].try_into().unwrap());
+                return Some(self.get_string(p_id));
+            } else if current_word < word {
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+        None
+    }
+
+    pub fn lookup_common(&self, word: &str) -> Option<(&str, &str)> {
+        let mut low = 0;
+        let mut high = self.common_count as i32 - 1;
+
+        while low <= high {
+            let mid = (low + high) / 2;
+            let ptr = self.common_pos + (mid as usize * 12);
+            let w_id = u32::from_le_bytes(self.data[ptr..ptr + 4].try_into().unwrap());
+            let current_word = self.get_string(w_id);
+
+            if current_word == word {
+                let vi_id = u32::from_le_bytes(self.data[ptr + 4..ptr + 8].try_into().unwrap());
+                let en_id = u32::from_le_bytes(self.data[ptr + 8..ptr + 12].try_into().unwrap());
+                return Some((self.get_string(vi_id), self.get_string(en_id)));
+            } else if current_word < word {
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+        None
+    }
+}
+
+static RE_TOKEN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)(<en>.*?</en>)|(\w+(?:['’]\w+)*)|([^\w\s])").unwrap());
+
+static RE_TAG_CONTENT: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(\w+(?:['’]\w+)*)|([^\w\s])").unwrap());
+
+static RE_TAG_STRIP: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)</?en>").unwrap());
+
+static VI_ACCENTS: &str = "àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ";
+
+// Nguyên âm tiếng Anh + tiếng Việt (lowercase, đã include dấu)
+static VOWELS: &str = "aeiouyàáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵ";
+
+/// Kiểm tra segment có cả nguyên âm lẫn phụ âm không.
+fn has_vowel_and_consonant(s: &str) -> bool {
+    let mut has_v = false;
+    let mut has_c = false;
+    for c in s.chars() {
+        let lc = c.to_lowercase().next().unwrap_or(c);
+        if VOWELS.contains(lc) {
+            has_v = true;
+        } else if lc.is_alphabetic() {
+            has_c = true;
+        }
+        if has_v && has_c {
+            return true;
+        }
+    }
+    false
+}
+
+/// Ánh xạ một token dấu câu về dạng GIỮ trong chuỗi phoneme, đồng bộ với quy tắc
+/// của Normalizer: `, . ! ?` giữ nguyên; `; :` -> `,`; ellipsis -> `.`; còn lại bỏ.
+fn map_punct(s: &str) -> Option<&'static str> {
+    let mut it = s.chars();
+    let c = match (it.next(), it.next()) {
+        (Some(c), None) => c,
+        _ => return None,
+    };
+    match c {
+        ',' => Some(","),
+        '.' => Some("."),
+        '!' => Some("!"),
+        '?' => Some("?"),
+        ';' | ':' => Some(","),
+        '\u{2026}' | '\u{2025}' | '\u{2024}' => Some("."),
+        _ => None,
+    }
+}
+
+#[derive(Clone)]
+struct Token {
+    lang: String,
+    content: String,
+    phone: Option<String>,
+    is_explicit_en: bool,
+}
+
+pub struct G2PEngine {
+    dict: PhonemeDict,
+    merged_cache: RwLock<HashMap<String, String>>,
+    common_cache: RwLock<HashMap<String, (String, String)>>,
+    missing_merged: RwLock<std::collections::HashSet<String>>,
+    missing_common: RwLock<std::collections::HashSet<String>>,
+    /// Cache kết quả segment_oov. Key = "{word}_{lang}", value = None nếu không segment được.
+    segmentation_cache: RwLock<HashMap<String, Option<String>>>,
+}
+
+impl G2PEngine {
+    pub fn new(dict_path: &str) -> io::Result<Self> {
+        Ok(Self {
+            dict: PhonemeDict::new(dict_path)?,
+            merged_cache: RwLock::new(HashMap::with_capacity(2048)),
+            common_cache: RwLock::new(HashMap::with_capacity(1024)),
+            missing_merged: RwLock::new(std::collections::HashSet::new()),
+            missing_common: RwLock::new(std::collections::HashSet::new()),
+            segmentation_cache: RwLock::new(HashMap::with_capacity(512)),
+        })
+    }
+
+    fn cached_lookup_merged(&self, word: &str) -> Option<String> {
+        {
+            let r = doc_cache(&self.merged_cache);
+            if let Some(v) = r.get(word) {
+                return Some(v.clone());
+            }
+        }
+        {
+            let m = doc_cache(&self.missing_merged);
+            if m.contains(word) {
+                return None;
+            }
+        }
+        match self.dict.lookup_merged(word) {
+            Some(s) => {
+                let val = s.to_string();
+                let mut w = ghi_cache(&self.merged_cache);
+                if w.len() >= 10_000 {
+                    w.clear();
+                }
+                w.insert(word.to_string(), val.clone());
+                Some(val)
+            }
+            None => {
+                let mut m = ghi_cache(&self.missing_merged);
+                if m.len() < 50_000 {
+                    m.insert(word.to_string());
+                }
+                None
+            }
+        }
+    }
+
+    fn cached_lookup_common(&self, word: &str) -> Option<(String, String)> {
+        {
+            let r = doc_cache(&self.common_cache);
+            if let Some(v) = r.get(word) {
+                return Some(v.clone());
+            }
+        }
+        {
+            let m = doc_cache(&self.missing_common);
+            if m.contains(word) {
+                return None;
+            }
+        }
+        match self.dict.lookup_common(word) {
+            Some((v, e)) => {
+                let val = (v.to_string(), e.to_string());
+                let mut w = ghi_cache(&self.common_cache);
+                if w.len() >= 5_000 {
+                    w.clear();
+                }
+                w.insert(word.to_string(), val.clone());
+                Some(val)
+            }
+            None => {
+                let mut m = ghi_cache(&self.missing_common);
+                if m.len() < 50_000 {
+                    m.insert(word.to_string());
+                }
+                None
+            }
+        }
+    }
+
+    /// Resolve phoneme cho một segment đơn từ dict, theo ngữ cảnh lang.
+    fn resolve_segment_phone(&self, segment: &str, lang: &str) -> Option<String> {
+        let lw = segment.to_lowercase();
+
+        if let Some(p) = self.cached_lookup_merged(&lw) {
+            return Some(p.replace("<en>", "").trim().to_string());
+        }
+
+        if let Some((vi, en)) = self.cached_lookup_common(&lw) {
+            let phone = if lang == "en" && !en.is_empty() {
+                en.replace("<en>", "").trim().to_string()
+            } else if !vi.is_empty() {
+                vi.trim().to_string()
+            } else {
+                en.replace("<en>", "").trim().to_string()
+            };
+            return Some(phone);
+        }
+
+        None
+    }
+
+    /// DP segmentation cho OOV word: segment dài nhất được ưu tiên; mỗi segment
+    /// phải có trong dict và có cả nguyên âm lẫn phụ âm.
+    fn segment_oov(&self, word: &str, lang: &str) -> Option<String> {
+        let cache_key = format!("{}_{}", word, lang);
+        {
+            let r = doc_cache(&self.segmentation_cache);
+            if let Some(cached) = r.get(&cache_key) {
+                return cached.clone();
+            }
+        }
+
+        let chars: Vec<char> = word.chars().collect();
+        let n = chars.len();
+
+        let mut dp: Vec<Option<String>> = vec![None; n + 1];
+        dp[0] = Some(String::new());
+
+        for i in 0..n {
+            if dp[i].is_none() {
+                continue;
+            }
+
+            for j in (i + 1..=n).rev() {
+                let segment: String = chars[i..j].iter().collect();
+
+                if !has_vowel_and_consonant(&segment) {
+                    continue;
+                }
+
+                if let Some(phone) = self.resolve_segment_phone(&segment, lang) {
+                    let prev = dp[i].as_ref().unwrap();
+                    let new_phone = if prev.is_empty() {
+                        phone
+                    } else {
+                        format!("{} {}", prev, phone)
+                    };
+                    dp[j] = dp[j].take().or(Some(new_phone));
+                }
+            }
+        }
+
+        let result = dp[n].clone();
+
+        {
+            let mut w = ghi_cache(&self.segmentation_cache);
+            if w.len() >= 5_000 {
+                w.clear();
+            }
+            w.insert(cache_key, result.clone());
+        }
+
+        result
+    }
+
+    /// Char-by-char fallback — last resort khi segment_oov cũng thất bại.
+    fn char_fallback(&self, content: &str, lang: &str) -> String {
+        content
+            .chars()
+            .map(|c| {
+                let cl = c.to_lowercase().to_string();
+                if let Some(cp) = self.cached_lookup_merged(&cl) {
+                    cp.replace("<en>", "").trim().to_string()
+                } else if let Some((v, e)) = self.cached_lookup_common(&cl) {
+                    let p = if lang == "en" && !e.is_empty() {
+                        e
+                    } else if !v.is_empty() {
+                        v
+                    } else {
+                        e
+                    };
+                    p.replace("<en>", "").trim().to_string()
+                } else {
+                    cl
+                }
+            })
+            .collect::<Vec<String>>()
+            .join("")
+    }
+
+    pub fn phonemize(&self, text: &str) -> String {
+        let mut tokens = Vec::new();
+
+        for cap in RE_TOKEN.captures_iter(text) {
+            if let Some(en_tag) = cap.get(1) {
+                let content = RE_TAG_STRIP
+                    .replace_all(en_tag.as_str(), "")
+                    .trim()
+                    .to_string();
+                for scall in RE_TAG_CONTENT.captures_iter(&content) {
+                    if let Some(sw) = scall.get(1) {
+                        let word = sw.as_str().to_string();
+                        let lw = word.to_lowercase();
+                        let mut phone_val = None;
+
+                        if let Some(p) = self.cached_lookup_merged(&lw) {
+                            phone_val = Some(p.replace("<en>", "").trim().to_string());
+                        } else if let Some((_, en)) = self.cached_lookup_common(&lw)
+                            && !en.is_empty()
+                        {
+                            phone_val = Some(en.replace("<en>", "").trim().to_string());
+                        }
+
+                        tokens.push(Token {
+                            lang: "en".to_string(),
+                            content: word,
+                            phone: phone_val,
+                            is_explicit_en: true,
+                        });
+                    } else if let Some(sp) = scall.get(2) {
+                        tokens.push(Token {
+                            lang: "punct".to_string(),
+                            content: sp.as_str().to_string(),
+                            phone: Some(sp.as_str().to_string()),
+                            is_explicit_en: true,
+                        });
+                    }
+                }
+            } else if let Some(word) = cap.get(2) {
+                let lw = word.as_str().to_lowercase();
+                if let Some(p) = self.cached_lookup_merged(&lw) {
+                    let lang = if p.contains("<en>") { "en" } else { "vi" };
+                    tokens.push(Token {
+                        lang: lang.to_string(),
+                        content: word.as_str().to_string(),
+                        phone: Some(p.replace("<en>", "").trim().to_string()),
+                        is_explicit_en: false,
+                    });
+                } else if let Some((vi, en)) = self.cached_lookup_common(&lw) {
+                    tokens.push(Token {
+                        lang: "common".to_string(),
+                        content: word.as_str().to_string(),
+                        phone: Some(format!(
+                            "\x1F{}\x1F{}\x1F",
+                            vi.trim(),
+                            en.replace("<en>", "").trim()
+                        )),
+                        is_explicit_en: false,
+                    });
+                } else {
+                    let has_vi_accent = lw.chars().any(|c| VI_ACCENTS.contains(c));
+                    tokens.push(Token {
+                        lang: if has_vi_accent {
+                            "vi".to_string()
+                        } else {
+                            "en".to_string()
+                        },
+                        content: word.as_str().to_string(),
+                        phone: None,
+                        is_explicit_en: false,
+                    });
+                }
+            } else if let Some(punct) = cap.get(3) {
+                tokens.push(Token {
+                    lang: "punct".to_string(),
+                    content: punct.as_str().to_string(),
+                    phone: Some(punct.as_str().to_string()),
+                    is_explicit_en: false,
+                });
+            }
+        }
+
+        self.propagate_language(&mut tokens);
+
+        let mut result = Vec::new();
+        for t in tokens {
+            if t.lang == "punct" {
+                if let Some(p) = map_punct(&t.content) {
+                    result.push(p.to_string());
+                }
+            } else {
+                let phone = if let Some(p) = t.phone {
+                    if p.starts_with('\x1F') && p.ends_with('\x1F') {
+                        let inner = &p[1..p.len() - 1];
+                        let sep = inner.find('\x1F').unwrap_or(inner.len());
+                        if t.lang == "en" {
+                            let mut p_val = if sep < inner.len() {
+                                inner[sep + 1..].to_string()
+                            } else {
+                                String::new()
+                            };
+                            if t.content.to_lowercase() == "a" && !t.is_explicit_en {
+                                p_val = "ɐ".to_string();
+                            }
+                            p_val
+                        } else {
+                            inner[..sep].to_string()
+                        }
+                    } else {
+                        let mut p_val = p;
+                        if t.lang == "en" && t.content.to_lowercase() == "a" && !t.is_explicit_en {
+                            p_val = "ɐ".to_string();
+                        }
+                        p_val
+                    }
+                } else {
+                    let lw = t.content.to_lowercase();
+                    self.segment_oov(&lw, &t.lang)
+                        .unwrap_or_else(|| self.char_fallback(&t.content, &t.lang))
+                };
+                result.push(phone.trim().to_string());
+            }
+        }
+
+        let mut joined = result
+            .join(" ")
+            .replace(" .", ".")
+            .replace(" ,", ",")
+            .replace(" !", "!")
+            .replace(" ?", "?")
+            .replace(" ;", ";")
+            .replace(" :", ":");
+        while joined.contains("..") {
+            joined = joined.replace("..", ".");
+        }
+        while joined.contains(",,") {
+            joined = joined.replace(",,", ",");
+        }
+        joined
+    }
+
+    fn propagate_language(&self, tokens: &mut [Token]) {
+        let n = tokens.len();
+        let mut i = 0;
+        while i < n {
+            if tokens[i].lang == "common" {
+                let start = i;
+                while i < n && tokens[i].lang == "common" {
+                    i += 1;
+                }
+                let end = i - 1;
+
+                let is_stop_punct = |t: &Token| -> bool {
+                    t.content
+                        .chars()
+                        .next()
+                        .map(|c| t.content.len() == c.len_utf8() && ".!?;:()[]{}".contains(c))
+                        .unwrap_or(false)
+                };
+
+                let mut left_anchor = None;
+                let mut left_dist = 999;
+                for l in (0..start).rev() {
+                    if is_stop_punct(&tokens[l]) {
+                        break;
+                    }
+                    if tokens[l].lang == "vi" || tokens[l].lang == "en" {
+                        left_anchor = Some(tokens[l].lang.clone());
+                        left_dist = start - l;
+                        break;
+                    }
+                }
+
+                let mut right_anchor = None;
+                let mut right_dist = 999;
+                for (r, tok) in tokens.iter().enumerate().take(n).skip(end + 1) {
+                    if is_stop_punct(tok) {
+                        break;
+                    }
+                    if tok.lang == "vi" || tok.lang == "en" {
+                        right_anchor = Some(tok.lang.clone());
+                        right_dist = r - end;
+                        break;
+                    }
+                }
+
+                let final_lang =
+                    if let (Some(l), Some(r)) = (left_anchor.as_ref(), right_anchor.as_ref()) {
+                        if right_dist <= left_dist {
+                            r.clone()
+                        } else {
+                            l.clone()
+                        }
+                    } else if let Some(l) = left_anchor {
+                        l
+                    } else if let Some(r) = right_anchor {
+                        r
+                    } else {
+                        "vi".to_string()
+                    };
+
+                for tok in &mut tokens[start..=end] {
+                    tok.lang = final_lang.clone();
+                }
+            } else {
+                i += 1;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod dictionary_validation_tests {
+    use super::{G2PEngine, PhonemeDict};
+    use std::io::ErrorKind;
+
+    fn write_dictionary(bytes: &[u8]) -> std::path::PathBuf {
+        let path =
+            std::env::temp_dir().join(format!("liva-sea-g2p-invalid-{}.bin", uuid::Uuid::new_v4()));
+        std::fs::write(&path, bytes).expect("write temporary dictionary");
+        path
+    }
+
+    /// Từ điển **hợp lệ** nhỏ nhất còn tra cứu được — 2 chuỗi, 1 bản ghi mỗi bảng.
+    ///
+    /// Vì sao cần: hai test từ chối bên dưới sẽ **xanh rỗng** nếu `new()` lỡ từ
+    /// chối *mọi* thứ. Không có một ca dương thì cả nhóm chỉ chứng minh được
+    /// "hàm này biết trả Err", chứ không chứng minh nó phân biệt đúng/sai.
+    ///
+    /// Bố cục (little-endian, vị trí chuỗi = 32 + offset):
+    /// `[0..32]` header · `[32..40]` pool `"abc\0xyz\0"` · `[40..48]` bảng offset
+    /// `[0, 4]` · `[48..56]` merged `(0 → 1)` · `[56..68]` common `(0 → 0, 1)`.
+    fn valid_dictionary() -> Vec<u8> {
+        let mut b = vec![0_u8; 68];
+        b[0..4].copy_from_slice(b"SEAP");
+        b[4..8].copy_from_slice(&1_u32.to_le_bytes()); // version
+        b[8..12].copy_from_slice(&2_u32.to_le_bytes()); // string_count
+        b[12..16].copy_from_slice(&1_u32.to_le_bytes()); // merged_count
+        b[16..20].copy_from_slice(&1_u32.to_le_bytes()); // common_count
+        b[20..24].copy_from_slice(&40_u32.to_le_bytes()); // string_offsets_pos
+        b[24..28].copy_from_slice(&48_u32.to_le_bytes()); // merged_pos
+        b[28..32].copy_from_slice(&56_u32.to_le_bytes()); // common_pos
+        b[32..40].copy_from_slice(b"abc\0xyz\0");
+        b[40..44].copy_from_slice(&0_u32.to_le_bytes());
+        b[44..48].copy_from_slice(&4_u32.to_le_bytes());
+        b[48..52].copy_from_slice(&0_u32.to_le_bytes()); // merged: word id 0
+        b[52..56].copy_from_slice(&1_u32.to_le_bytes()); // merged: phone id 1
+        b[56..60].copy_from_slice(&0_u32.to_le_bytes()); // common: word id 0
+        b[60..64].copy_from_slice(&0_u32.to_le_bytes()); // common: vi id 0
+        b[64..68].copy_from_slice(&1_u32.to_le_bytes()); // common: en id 1
+        b
+    }
+
+    /// Xoá file tạm kể cả khi assert giữa chừng panic — nếu không, mỗi lần test
+    /// đỏ lại bỏ lại rác trong `%TEMP%`.
+    struct FileTam(std::path::PathBuf);
+    impl Drop for FileTam {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+    fn dict_tam(bytes: &[u8]) -> FileTam {
+        FileTam(write_dictionary(bytes))
+    }
+    fn duong_dan(f: &FileTam) -> &str {
+        f.0.to_str().expect("UTF-8 temp path")
+    }
+
+    #[test]
+    fn rejects_out_of_bounds_dictionary_sections() {
+        let mut bytes = vec![0_u8; 32];
+        bytes[0..4].copy_from_slice(b"SEAP");
+        bytes[8..12].copy_from_slice(&1_u32.to_le_bytes());
+        bytes[20..24].copy_from_slice(&31_u32.to_le_bytes());
+
+        let path = write_dictionary(&bytes);
+        let result = PhonemeDict::new(path.to_str().expect("UTF-8 temp path"));
+        std::fs::remove_file(path).expect("remove temporary dictionary");
+
+        assert_eq!(
+            result
+                .err()
+                .expect("invalid section must be rejected")
+                .kind(),
+            ErrorKind::InvalidData
+        );
+    }
+
+    #[test]
+    fn rejects_string_offsets_outside_the_blob() {
+        let mut bytes = vec![0_u8; 36];
+        bytes[0..4].copy_from_slice(b"SEAP");
+        bytes[8..12].copy_from_slice(&1_u32.to_le_bytes());
+        bytes[20..24].copy_from_slice(&32_u32.to_le_bytes());
+        bytes[24..28].copy_from_slice(&36_u32.to_le_bytes());
+        bytes[28..32].copy_from_slice(&36_u32.to_le_bytes());
+        bytes[32..36].copy_from_slice(&100_u32.to_le_bytes());
+
+        let path = write_dictionary(&bytes);
+        let result = PhonemeDict::new(path.to_str().expect("UTF-8 temp path"));
+        std::fs::remove_file(path).expect("remove temporary dictionary");
+
+        assert_eq!(
+            result
+                .err()
+                .expect("invalid string offset must be rejected")
+                .kind(),
+            ErrorKind::InvalidData
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Ca DƯƠNG — làm cho hai test từ chối ở trên có nghĩa
+    // -----------------------------------------------------------------------
+
+    /// Từ điển hợp lệ phải nạp được **và tra cứu đúng**.
+    ///
+    /// Test này đi qua đúng ba hàm còn giữ `.unwrap()` sau khi
+    /// `PhonemeDict::new` đã xác thực xong — `get_string`, `lookup_merged`,
+    /// `lookup_common`. Các `unwrap()` đó nằm trên `try_into()` của lát cắt 4
+    /// byte mà `validate_dictionary_section` **đã chứng minh** là trong biên
+    /// (`position + count × record_size ≤ data.len()`, và `position ≥ 32`). Đây
+    /// là chỗ biến lập luận đó thành thứ chạy được.
+    #[test]
+    fn tu_dien_hop_le_nap_va_tra_cuu_dung() {
+        let f = dict_tam(&valid_dictionary());
+        let dict = PhonemeDict::new(duong_dan(&f)).expect("từ điển hợp lệ phải nạp được");
+
+        assert_eq!(dict.lookup_merged("abc"), Some("xyz"));
+        assert_eq!(dict.lookup_merged("khong-co"), None);
+        assert_eq!(dict.lookup_common("abc"), Some(("abc", "xyz")));
+        assert_eq!(dict.lookup_common("khong-co"), None);
+    }
+
+    /// Tra cứu bằng chuỗi rác không được panic — chỉ được trả `None`.
+    ///
+    /// `lookup_*` so sánh chuỗi bằng `<`/`==` trên `&str`, tức so theo **byte
+    /// UTF-8**. Đầu vào bất kỳ chỉ dẫn tới một nhánh khác của tìm nhị phân, và
+    /// mọi nhánh đều bị chặn bởi `merged_count`/`common_count`.
+    #[test]
+    fn tra_cuu_bang_chuoi_rac_tra_none_chu_khong_panic() {
+        let f = dict_tam(&valid_dictionary());
+        let dict = PhonemeDict::new(duong_dan(&f)).expect("từ điển hợp lệ phải nạp được");
+
+        for rac in [
+            "",
+            "\0",
+            "🙂🙃🎉",
+            "\u{1}\u{7}\u{1b}[31m",
+            "\u{202e}dảo chiều",
+            "a".repeat(100_000).as_str(),
+            "\u{fffd}",
+        ] {
+            assert_eq!(dict.lookup_merged(rac), None, "merged trên {rac:?}");
+            assert_eq!(dict.lookup_common(rac), None, "common trên {rac:?}");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // U7 — đầu vào rác trên đường thoại thật (`phonemize`)
+    // -----------------------------------------------------------------------
+
+    /// `phonemize` phải trả chuỗi cho **mọi** đầu vào, không panic.
+    ///
+    /// Đây là nghiệm thu của [U7] mà tài liệu yêu cầu: chuỗi rỗng · chỉ emoji ·
+    /// ký tự điều khiển · văn bản 100 KB. Chạy trên một từ điển tổng hợp chứ
+    /// không phải `models/vieneu/sea_g2p.bin`, nên test **hermetic** — chạy được
+    /// trên CI không có model, đúng nơi cần bắt hồi quy.
+    ///
+    /// [U7]: ../../../../docs/03-danh-gia/05-nang-cap-toan-dien.md
+    #[test]
+    fn phonemize_khong_panic_tren_dau_vao_rac() {
+        let f = dict_tam(&valid_dictionary());
+        let engine = G2PEngine::new(duong_dan(&f)).expect("từ điển hợp lệ phải nạp được");
+
+        let van_ban_100kb = "xin chào thế giới ".repeat(6_000); // ~108 KB
+        let truong_hop: Vec<(&str, &str)> = vec![
+            ("chuỗi rỗng", ""),
+            ("chỉ khoảng trắng", "   \t\n\r  "),
+            ("chỉ emoji", "🙂🙃🎉👍🏽🇻🇳"),
+            ("ký tự điều khiển", "\u{0}\u{1}\u{7}\u{8}\u{1b}[31m\u{7f}"),
+            ("dấu chấm câu trần", "!!!???...,,,;;;:::"),
+            ("chỉ chữ số", "0123456789"),
+            ("thẻ en không đóng", "<en>hello"),
+            ("thẻ en lồng nhau", "<en><en>hello</en>"),
+            ("đảo chiều bidi", "\u{202e}gnud iờn"),
+            ("thay thế Unicode", "\u{fffd}\u{fffd}"),
+            ("ghép tổ hợp", "e\u{301}\u{323}\u{300}\u{302}"),
+            ("100 KB", van_ban_100kb.as_str()),
+        ];
+
+        for (ten, dau_vao) in truong_hop {
+            let ket_qua = engine.phonemize(dau_vao);
+            // Không assert nội dung: từ điển tổng hợp chỉ có 2 từ nên hầu hết
+            // đầu vào ra chuỗi rỗng, và đó là hành vi ĐÚNG. Điều đang khẳng
+            // định là hàm **trả về** thay vì panic hoặc treo.
+            assert!(
+                ket_qua.len() < 10_000_000,
+                "{ten}: đầu ra phình bất thường ({} byte)",
+                ket_qua.len()
+            );
+        }
+    }
+
+    /// Nhiễm độc khoá **không** được làm câm TTS vĩnh viễn.
+    ///
+    /// Một luồng panic trong lúc giữ khoá cache sẽ khiến `RwLock` nhiễm độc.
+    /// Trước bản vá này, mọi `phonemize` sau đó đều panic tại cùng một dòng —
+    /// một panic đơn lẻ ở đâu đó biến thành **LIVA câm hẳn cho tới khi khởi
+    /// động lại**, chế độ hỏng khó lấy log nhất với beta tester offline.
+    ///
+    /// Xem lập luận vì sao `into_inner()` là đúng ở đây (chứ không phải đường
+    /// tắt) trong doc-comment của `doc_cache`.
+    #[test]
+    fn khoa_nhiem_doc_van_phonemize_duoc() {
+        use std::sync::Arc;
+
+        let f = dict_tam(&valid_dictionary());
+        let engine = Arc::new(G2PEngine::new(duong_dan(&f)).expect("từ điển hợp lệ phải nạp được"));
+
+        // Làm nhiễm độc thật: panic trong một luồng đang giữ khoá ghi.
+        let e = Arc::clone(&engine);
+        let _ = std::thread::spawn(move || {
+            let _g = super::ghi_cache(&e.merged_cache);
+            panic!("cố ý panic khi đang giữ khoá để nhiễm độc nó");
+        })
+        .join();
+
+        assert!(
+            engine.merged_cache.is_poisoned(),
+            "test chưa nhiễm độc được khoá — nó đang không kiểm cái nó tưởng"
+        );
+
+        // Điều đang khẳng định: vẫn phục vụ được sau khi nhiễm độc.
+        let _ = engine.phonemize("abc");
+        let _ = engine.phonemize("xin chào");
+    }
+}

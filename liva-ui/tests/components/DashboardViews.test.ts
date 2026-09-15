@@ -1,0 +1,606 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { mount, flushPromises } from "@vue/test-utils";
+import { ref } from "vue";
+
+// Mock absolute asset path
+vi.mock("/liva-logo.png", () => ({ default: "liva-logo.png" }));
+
+// Mock Tauri APIs
+const mockMinimize = vi.fn();
+const mockMaximize = vi.fn();
+const mockHide = vi.fn();
+const mockIsMaximized = vi.fn().mockResolvedValue(false);
+
+vi.mock("@tauri-apps/api/window", () => ({
+  getCurrentWindow: () => ({
+    minimize: () => mockMinimize(),
+    maximize: () => mockMaximize(),
+    unmaximize: vi.fn(),
+    hide: () => mockHide(),
+    isMaximized: () => mockIsMaximized(),
+  }),
+}));
+
+// Mock @tauri-apps/plugin-dialog
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  open: vi.fn().mockResolvedValue("C:\\models_dir"),
+}));
+
+// Mock @tauri-apps/plugin-process
+vi.mock("@tauri-apps/plugin-process", () => ({
+  exit: vi.fn(),
+}));
+
+const platformMock = {
+  platformName: "tauri" as const,
+  hasVaultSecret: vi.fn().mockResolvedValue(false),
+  storeVaultSecret: vi.fn().mockResolvedValue(undefined),
+  deleteVaultSecret: vi.fn().mockResolvedValue(undefined),
+};
+
+vi.mock("../../src/platform", () => ({
+  detectPlatform: () => platformMock,
+}));
+
+// Mock HardwareDetector
+vi.mock("../../src/utils/HardwareDetector", () => ({
+  detectOptimalEngine: () => "3D",
+  profileHardware: () => ({ recommendedEngine: "3D", isWeakGPU: false }),
+}));
+
+// Mock useGateway
+const userProfileRef = ref({
+  name: "Alice",
+  birthYear: "1990",
+  nationality: "VN",
+  language: "vi-VN",
+  hobbies: "reading",
+  preferences: "friendly",
+});
+const configDataRef = ref({
+  ai: {
+    provider: "local",
+    routerModel: "model-v1",
+    modelPath: "/path/to/model",
+    temperature: 0.7,
+    maxTokens: 2048,
+    systemPrompt: "hello",
+    apiKey: "abc",
+    baseURL: "http://localhost",
+  },
+  avatar: {
+    engineMode: "3D",
+    vrmModel: "avatar.vrm",
+    live2dModel: "pio.json",
+  },
+  voice: {
+    inputDevice: "default",
+    outputDevice: "default",
+    voiceName: "en-US-1",
+    sttEnabled: true,
+    ttsEnabled: true,
+  },
+  system: {
+    geolocationEnabled: true,
+    digestInterestsEnabled: true,
+    digestInterestsHour: 10,
+    digestInterestsMinute: 0,
+    digestInterestsDeliverUI: true,
+    digestInterestsDeliverTelegram: false,
+    digestInterestsDeliverZalo: false,
+    digestInterestsDeliverEmail: false,
+    digestFocusEnabled: true,
+    digestFocusHour: 18,
+    digestFocusMinute: 30,
+    digestFocusDeliverUI: true,
+    digestFocusDeliverTelegram: false,
+    digestFocusDeliverZalo: false,
+    digestFocusDeliverEmail: false,
+    digestFocusTopics: "AI, Tech",
+  }
+});
+const systemStatusRef = ref({
+  healthChecks: {
+    gateway: { status: "online" },
+    aiEngine: { status: "online" },
+    orchestrator: { status: "online" },
+    voiceEngine: { status: "online" },
+    memory: { status: "online" },
+    vramGuard: { status: "online" },
+    whisper: { status: "online" },
+  },
+  cpuUsage: 12,
+  ramUsage: 45,
+  vramUsage: 30,
+  latencyMs: 15,
+});
+const preflightReportRef = ref({
+  items: [
+    {
+      name: "Nhìn màn hình (vision:ask)",
+      available: false,
+      status: "build DEBUG",
+      consequence: "Cần cargo build --release.",
+    },
+    {
+      name: "Bot Telegram",
+      available: null,
+      status: "không đặt token — bot sẽ không chạy",
+      consequence: "",
+    },
+  ],
+});
+const isConnectedRef = ref(true);
+const memoryDataRef = ref({
+  facts: [
+    { key: "k1", value: "v1", importance: 0.5, updatedAt: "2026-06-22", category: "user" }
+  ],
+  events: [
+    { id: "e1", content: "event 1", timestamp: "2026-06-22" }
+  ],
+  vectors: [
+    { id: "v1", content: "vector 1", score: 0.9 }
+  ],
+  l0: [
+    { id: "l1", content: "l0 1" }
+  ],
+  l0_5: "L0.5 status content"
+});
+const tasksListRef = ref([
+  { id: "1", title: "task 1", status: "pending", priority: "high", category: "work" },
+]);
+const skillsListRef = ref([
+  { name: "skill 1", description: "desc", enabled: true, status: "active" },
+]);
+const voiceStatusRef = ref({
+  activeProfile: "vi-VN-HoaiMyNeural",
+  provider: "hybrid",
+  language: "vi-VN",
+  sampleRate: 16000,
+  trainingEnabled: false,
+});
+const voiceProfilesRef = ref([
+  { id: "vp1", name: "Hoai My", lang: "vi-VN" },
+  { id: "vp2", name: "Guy", lang: "en-US" }
+]);
+
+const registeredCallbacks = new Map<string, Function>();
+
+const gatewayMock = {
+  userProfile: userProfileRef,
+  configData: configDataRef,
+  systemStatus: systemStatusRef,
+  preflightReport: preflightReportRef,
+  isConnected: isConnectedRef,
+  memoryData: memoryDataRef,
+  tasksList: tasksListRef,
+  skillsList: skillsListRef,
+  voiceStatus: voiceStatusRef,
+  voiceProfiles: voiceProfilesRef,
+  // VoiceManagementView đọc bốn ref này ngay trong setup() (computed + watch);
+  // thiếu bất kỳ ref nào thì mount đổ ở "Cannot read properties of undefined
+  // (reading 'value')".
+  // ObservationConsentPanel (nhúng trong SettingsView) đọc ref này trong một
+  // computed ngay ở setup().
+  observationConsent: ref({ granted: false, active: false, updatedAt: null as number | null }),
+  vieneuVoices: ref<{ id: string; name: string }[]>([]),
+  vieneuCurrent: ref<string | null>(null),
+  vieneuEnabled: ref(false),
+  vieneuNotice: ref(""),
+  avatarModels3D: ref([
+    { filename: "models/avatar1.vrm", format: "vrm" },
+    { filename: "models/avatar2.fbx", format: "fbx" }
+  ]),
+  avatarModels2D: ref([
+    { filename: "models/live2d/hime.json", format: "live2d" }
+  ]),
+  init: vi.fn(),
+  destroy: vi.fn(),
+  sendMsg: vi.fn(),
+  updateConfig: vi.fn(),
+  onMemoryUpdated: vi.fn(),
+  offMemoryUpdated: vi.fn(),
+  onTaskPlanReply: vi.fn(),
+  onSkillCheckResult: vi.fn(),
+  onAllSkillsCheckComplete: vi.fn(),
+  offSkillCheckResult: vi.fn(),
+  offAllSkillsCheckComplete: vi.fn(),
+  onEnvConfigData: vi.fn((cb) => { registeredCallbacks.set("onEnvConfigData", cb); }),
+  offEnvConfigData: vi.fn(),
+  onMemoryResetResult: vi.fn((cb) => { registeredCallbacks.set("onMemoryResetResult", cb); }),
+  offMemoryResetResult: vi.fn(),
+};
+
+vi.mock("../../src/composables/useGateway", () => ({
+  useGateway: () => gatewayMock,
+}));
+
+// Mock useI18n
+vi.mock("../../src/composables/useI18n", () => ({
+  useI18n: () => ({
+    t: (key: string) => key === "lang_code" ? "en-US" : `translated_${key}`,
+    currentLang: ref("en-US"),
+  }),
+}));
+
+import { createPinia } from "pinia";
+import AISettings from "../../src/components/dashboard/AISettings.vue";
+import ApiManagementView from "../../src/components/dashboard/ApiManagementView.vue";
+import BankingDashboardView from "../../src/views/BankingDashboardView.vue";
+import BiAnalyticsView from "../../src/components/dashboard/BiAnalyticsView.vue";
+import ObsidianVaultView from "../../src/components/dashboard/ObsidianVaultView.vue";
+import MemoryViewer from "../../src/components/dashboard/MemoryViewer.vue";
+import SettingsView from "../../src/components/dashboard/SettingsView.vue";
+import SkillsView from "../../src/components/dashboard/SkillsView.vue";
+import SystemView from "../../src/components/dashboard/SystemView.vue";
+import TaskManager from "../../src/components/dashboard/TaskManager.vue";
+import TitleBar from "../../src/components/dashboard/TitleBar.vue";
+import VoiceManagementView from "../../src/components/dashboard/VoiceManagementView.vue";
+
+describe("Dashboard Views", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    registeredCallbacks.clear();
+    platformMock.hasVaultSecret.mockResolvedValue(false);
+    platformMock.storeVaultSecret.mockResolvedValue(undefined);
+  });
+
+  it("should mount and exercise AISettings.vue", async () => {
+    const wrapper = mount(AISettings);
+    expect(wrapper.exists()).toBe(true);
+
+    // Click provider buttons to toggle
+    const providerBtns = wrapper.findAll(".provider-btn");
+    if (providerBtns.length >= 2) {
+      await providerBtns[1].trigger("click"); // Switch to cloud
+      expect(wrapper.vm.provider).toBe("cloud");
+      await providerBtns[0].trigger("click"); // Switch back to local
+      expect(wrapper.vm.provider).toBe("local");
+    }
+
+    // Save config
+    const saveBtn = wrapper.find(".btn-primary");
+    if (saveBtn.exists()) {
+      (wrapper.vm as any).cloudApiKey = "new-cloud-secret";
+      await saveBtn.trigger("click");
+      await flushPromises();
+      expect(gatewayMock.updateConfig).toHaveBeenCalled();
+      const configPatch = gatewayMock.updateConfig.mock.calls.at(-1)?.[0];
+      expect(configPatch.ai).not.toHaveProperty("cloudApiKey");
+      expect(platformMock.storeVaultSecret).toHaveBeenCalledWith(
+        "ai/cloud_api_key",
+        "new-cloud-secret",
+      );
+    }
+  });
+
+  it("should mount and exercise ApiManagementView.vue", async () => {
+    const wrapper = mount(ApiManagementView);
+    expect(wrapper.exists()).toBe(true);
+    await flushPromises();
+    expect(gatewayMock.onEnvConfigData).not.toHaveBeenCalled();
+    expect(platformMock.hasVaultSecret).toHaveBeenCalledWith("ai/cloud_api_key");
+
+    const saveBtn = wrapper.find(".btn-primary");
+    if (saveBtn.exists()) {
+      (wrapper.vm as any).useCloudAI = true;
+      (wrapper.vm as any).aiApiKey = "new-ai-secret";
+      await saveBtn.trigger("click");
+      await flushPromises();
+      expect(platformMock.storeVaultSecret).toHaveBeenCalledWith(
+        "ai/cloud_api_key",
+        "new-ai-secret",
+      );
+      expect(gatewayMock.updateConfig).toHaveBeenCalled();
+      expect(gatewayMock.sendMsg).not.toHaveBeenCalledWith(
+        "save_env_config",
+        expect.any(Object),
+      );
+    }
+  });
+
+  it("should mount and exercise BankingDashboardView.vue", async () => {
+    const wrapper = mount(BankingDashboardView, {
+      global: {
+        plugins: [createPinia()],
+      },
+    });
+    expect(wrapper.exists()).toBe(true);
+    expect(wrapper.find(".banking-dashboard-container").exists()).toBe(true);
+    expect(wrapper.find(".row-bank-cards").exists()).toBe(true);
+    expect(wrapper.find(".row-charts").exists()).toBe(true);
+    expect(wrapper.find(".row-ledger").exists()).toBe(true);
+  });
+
+  it("should mount and exercise MemoryViewer.vue", async () => {
+    const wrapper = mount(MemoryViewer);
+    expect(wrapper.exists()).toBe(true);
+    const btn = wrapper.find(".btn-danger");
+    if (btn.exists()) {
+      await btn.trigger("click");
+    }
+  });
+
+  it("covers MemoryViewer filters, actions, formatting, and restart guard", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    memoryDataRef.value = {
+      facts: [
+        { key: "name", value: "Alice", importance: 0.5, updatedAt: "2026-06-22", category: "user" },
+        { key: "locked", value: "", locked: true },
+      ],
+      events: [{ eventId: "e1", rawUserMsg: "xin chao", rawAiReply: "hello", domain: "chat" }],
+      vectors: [{ vecId: "v1", content: "Alice likes books", type: "fact", domain: "user" }],
+      l0: [{ id: "l1", content: "working memory", role: "user" }],
+      l0_5: "session",
+    } as any;
+    const wrapper = mount(MemoryViewer);
+    const vm = wrapper.vm as any;
+
+    vm.factQuery = "alice";
+    vm.eventQuery = "chat";
+    vm.vectorQuery = "books";
+    vm.l0Query = "working";
+    expect(vm.filteredFacts).toHaveLength(1);
+    expect(vm.filteredEvents).toHaveLength(1);
+    expect(vm.filteredVectors).toHaveLength(1);
+    expect(vm.filteredL0).toHaveLength(1);
+    expect(vm.lockedCount).toBe(1);
+    expect(vm.l0_5Size).toBe("7 B");
+
+    vm.deleteFact("locked");
+    vm.deleteFact("name");
+    expect(gatewayMock.sendMsg).toHaveBeenCalledWith("delete_memory_fact", { key: "name" });
+    expect(vm.formatPercent(null)).toBe("100%");
+    expect(vm.formatPercent(0.456)).toBe("46%");
+    expect(vm.formatTime(null)).toBe("—");
+    expect(vm.formatISO(null)).toBe("—");
+
+    vm.refreshMemory();
+    expect(vm.isRefreshing).toBe(true);
+    await vi.advanceTimersByTimeAsync(600);
+    expect(vm.isRefreshing).toBe(false);
+    vm.triggerConsolidation();
+    expect(gatewayMock.sendMsg).toHaveBeenCalledWith("consolidate_memory", { force: true });
+    await vi.advanceTimersByTimeAsync(12600);
+
+    await vm.khoiDongLai();
+    expect(vm.dangHoiKhoiDongLai).toBe(true);
+    await vm.khoiDongLai();
+    await flushPromises();
+    expect(vm.loiKhoiDongLai).toContain("desktop app");
+
+    wrapper.unmount();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("should mount and exercise SettingsView.vue", async () => {
+    const wrapper = mount(SettingsView);
+    expect(wrapper.exists()).toBe(true);
+
+    // Trigger settings change to save settings
+    const input = wrapper.find('input[type="number"]');
+    if (input.exists()) {
+      await input.setValue(22);
+      await input.trigger("change");
+      expect(gatewayMock.updateConfig).toHaveBeenCalled();
+    }
+
+    // Trigger memory reset confirmations
+    const resetBtn = wrapper.find(".btn-danger");
+    if (resetBtn.exists()) {
+      await resetBtn.trigger("click"); // Opens confirm modal
+      
+      const confirmBtn = wrapper.find(".modal-actions .btn-danger");
+      if (confirmBtn.exists()) {
+        await confirmBtn.trigger("click");
+        expect(gatewayMock.sendMsg).toHaveBeenCalledWith(
+          "memory:delete_subject",
+          { dryRun: false },
+        );
+
+        const resetResultCb = registeredCallbacks.get("onMemoryResetResult");
+        if (resetResultCb) {
+          resetResultCb({ success: true });
+        }
+      }
+    }
+  });
+
+  it("covers SettingsView save, rollback, reset success, and reset timeout", async () => {
+    vi.useFakeTimers();
+    const wrapper = mount(SettingsView);
+    const vm = wrapper.vm as any;
+
+    for (const [index, input] of wrapper.findAll(".settings-section input").slice(0, 7).entries()) {
+      if (input.attributes("type") === "checkbox") {
+        await input.setValue(!input.element.checked);
+      } else {
+        await input.setValue(index + 1);
+      }
+      await vi.advanceTimersByTimeAsync(600);
+    }
+    const topics = wrapper.find("#digestFocusTopics");
+    await topics.setValue("AI, Rust");
+    await topics.trigger("blur");
+    await vi.advanceTimersByTimeAsync(600);
+
+    const saving = vm.saveSettings();
+    await vi.advanceTimersByTimeAsync(600);
+    await saving;
+    expect(gatewayMock.updateConfig).toHaveBeenCalled();
+    expect(vm.isSaving).toBe(false);
+
+    const geoBefore = vm.isGeoEnabled;
+    gatewayMock.updateConfig.mockImplementationOnce(() => { throw new Error("save failed"); });
+    await vm.saveSettings();
+    expect(vm.isGeoEnabled).toBe(!geoBefore);
+
+    vm.openResetConfirm();
+    vm.confirmReset();
+    const successCallback = gatewayMock.onMemoryResetResult.mock.calls.at(-1)?.[0];
+    successCallback({ success: true });
+    expect(vm.isResetting).toBe(false);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(vm.showResetConfirm).toBe(false);
+
+    vm.openResetConfirm();
+    vm.confirmReset();
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(vm.resetResult.success).toBe(false);
+    vm.cancelReset();
+    expect(vm.resetResult).toBeNull();
+
+    wrapper.unmount();
+    vi.useRealTimers();
+  });
+
+  it("covers TaskManager CRUD, filters, planning callback, and helpers", async () => {
+    vi.useFakeTimers();
+    tasksListRef.value = [
+      { id: "1", title: "pending", status: "pending", priority: "high", created_at: 1 },
+      { id: "2", title: "active", status: "in_progress", priority: "medium", created_at: 2 },
+      { id: "3", title: "done", status: "completed", priority: "low", created_at: 3 },
+    ] as any;
+    const wrapper = mount(TaskManager);
+    const vm = wrapper.vm as any;
+
+    expect(vm.normalizeStatus("In Progress")).toBe("in-progress");
+    expect(vm.normalizeStatus("finished")).toBe("done");
+    expect(vm.stats).toMatchObject({ total: 3, pending: 1, inProgress: 1, done: 1 });
+    vm._filter = "done";
+    expect(vm.filteredTasks).toHaveLength(1);
+
+    vm.newTitle = "new task";
+    vm.newDesc = "plan it";
+    vm.addTask();
+    expect(gatewayMock.sendMsg).toHaveBeenCalledWith("add_task", expect.objectContaining({ title: "new task" }));
+    await vi.advanceTimersByTimeAsync(500);
+    vm.quickAdd("quick");
+    vm.closePlanning();
+    vm.startPlanning(tasksListRef.value[0]);
+    vm.planInput = "next step";
+    vm.sendPlanMessage();
+    expect(gatewayMock.sendMsg).toHaveBeenCalledWith("task_plan_chat", expect.any(Object));
+    vm.executeTask(tasksListRef.value[0]);
+    vm.completeTask(tasksListRef.value[0]);
+    vm.deleteTask(tasksListRef.value[0].id);
+    vm.closePlanning();
+
+    const reply = gatewayMock.onTaskPlanReply.mock.calls.at(-1)?.[0];
+    vm.startPlanning(tasksListRef.value[1]);
+    reply({ taskId: "2", message: "done", done: true });
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(vm.activePlanId).toBeNull();
+    expect(vm.statusIcon("done")).toBe("✅");
+    expect(vm.priorityBadge("high")).toBe("badge-danger");
+    expect(vm.priorityBadge("low")).toBe("badge-info");
+    expect(vm.fmtDate()).toBe("");
+    expect(vm.fmtDate(1)).not.toBe("");
+
+    wrapper.unmount();
+    vi.useRealTimers();
+  });
+
+  it("should mount and exercise SkillsView.vue", async () => {
+    const wrapper = mount(SkillsView);
+    expect(wrapper.exists()).toBe(true);
+    const btn = wrapper.find("button.btn-primary");
+    if (btn.exists()) {
+      await btn.trigger("click");
+    }
+  });
+
+  it("should mount and exercise SystemView.vue", async () => {
+    const wrapper = mount(SystemView);
+    expect(wrapper.exists()).toBe(true);
+    expect(gatewayMock.sendMsg).toHaveBeenCalledWith("get_preflight_status");
+    expect(wrapper.get("[data-testid='preflight-report']").text()).toContain("Nhìn màn hình");
+    expect(wrapper.get("[data-testid='preflight-report']").text()).toContain("build DEBUG");
+    expect(wrapper.get("[data-testid='preflight-report']").text()).toContain("Cần cargo build --release");
+    expect(wrapper.get("[data-testid='preflight-report']").text()).toContain("Chưa cấu hình");
+  });
+
+  it("should mount and exercise TaskManager.vue", async () => {
+    const wrapper = mount(TaskManager);
+    expect(wrapper.exists()).toBe(true);
+    const input = wrapper.find('input[type="text"]');
+    if (input.exists()) {
+      await input.setValue("New Task Title");
+    }
+    const form = wrapper.find("form");
+    if (form.exists()) {
+      await form.trigger("submit.prevent");
+    }
+  });
+
+  it("should mount and exercise TitleBar.vue", async () => {
+    const wrapper = mount(TitleBar);
+    expect(wrapper.exists()).toBe(true);
+    const btns = wrapper.findAll(".titlebar-btn");
+    for (const btn of btns) {
+      await btn.trigger("click");
+    }
+  });
+
+  it("should mount and exercise VoiceManagementView.vue", async () => {
+    const wrapper = mount(VoiceManagementView);
+    expect(wrapper.exists()).toBe(true);
+
+    // Chọn nút theo nhãn, không theo thứ tự `.btn-primary`: khối VieNeu được chèn
+    // lên đầu view nên mọi chỉ số cứng đều trượt sang nút khác.
+    const byLabel = (label: string) =>
+      wrapper.findAll("button").find((btn) => btn.text().includes(label));
+
+    // Save voice config
+    const saveBtn = byLabel("Lưu voice");
+    if (saveBtn?.exists()) {
+      await saveBtn.trigger("click");
+      expect(gatewayMock.sendMsg).toHaveBeenCalledWith("update_config", expect.any(Object));
+    }
+
+    // Start training
+    const startTrainingBtn = byLabel("Start training");
+    if (startTrainingBtn?.exists()) {
+      await startTrainingBtn.trigger("click");
+      expect(gatewayMock.sendMsg).toHaveBeenCalledWith("start_voice_training", expect.any(Object));
+    }
+
+    // Stop training
+    const stopTrainingBtn = wrapper.find(".btn-danger");
+    if (stopTrainingBtn.exists()) {
+      await stopTrainingBtn.trigger("click");
+      expect(gatewayMock.sendMsg).toHaveBeenCalledWith("stop_voice_training");
+    }
+
+    // Click profile card
+    const profileCard = wrapper.find(".profile-card");
+    if (profileCard.exists()) {
+      await profileCard.trigger("click");
+      expect(gatewayMock.sendMsg).toHaveBeenCalledWith("select_voice_profile", expect.any(Object));
+    }
+  });
+
+  it("should mount and exercise BiAnalyticsView.vue", async () => {
+    const wrapper = mount(BiAnalyticsView);
+    expect(wrapper.exists()).toBe(true);
+    expect(wrapper.text()).toContain("Total Queries");
+
+    const timeBtns = wrapper.findAll(".time-btn");
+    if (timeBtns.length > 0) {
+      await timeBtns[0].trigger("click");
+    }
+  });
+
+  it("should mount and exercise ObsidianVaultView.vue", async () => {
+    const wrapper = mount(ObsidianVaultView);
+    expect(wrapper.exists()).toBe(true);
+    expect(wrapper.text()).toContain("teamwork_projects/obsidian_llm_wiki/vault/");
+
+    const chips = wrapper.findAll(".chip-btn");
+    if (chips.length > 1) {
+      await chips[1].trigger("click");
+    }
+  });
+});

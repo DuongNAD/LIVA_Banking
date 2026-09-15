@@ -1,0 +1,285 @@
+{
+  "schema_version": 1,
+  "updated": "2026-09-13",
+  "canonical_document": "docs/00-san-pham/tam-nhin-banking-harness.md",
+  "status_definitions": {
+    "working": "Đã tích hợp vào luồng sản phẩm và có bằng chứng kiểm chứng bằng automated tests.",
+    "partial": "Đã có mã nguồn chạy thật nhưng cần mở rộng độ bao phủ hoặc chưa đủ điều kiện bật mặc định.",
+    "experimental": "Có mã nguồn hoặc PoC thử nghiệm, chưa đưa vào luồng sản phẩm cốt lõi.",
+    "deprecated": "Năng lực di sản cá nhân, đã bị cô lập khỏi luồng nghiệp vụ ngân hàng và chuẩn bị loại bỏ.",
+    "missing": "Chưa có implementation trong mã nguồn sản phẩm.",
+    "blocked": "Bị khóa do phụ thuộc kỹ thuật hoặc chính sách tuân thủ ngân hàng."
+  },
+  "capabilities": [
+    {
+      "id": "banking.statement-parsing",
+      "title": "Bóc tách sao kê đa định dạng (Universal Multi-Format Ingestion)",
+      "domain": "banking",
+      "status": "partial",
+      "priority": "P0",
+      "target_phase": 1,
+      "current_state": "Đã hoàn thành parser cho 3 ngân hàng lớn nhất: VCB (Excel ô gộp), TCB (CSV BOM/Napas), BIDV (PDF bảng biểu); tự động sniff định dạng file; đang mở rộng sang 32+ ngân hàng còn lại và chuẩn SWIFT MT940.",
+      "evidence": [
+        "liva-native-core/src/banking/parser/vcb_excel.rs",
+        "liva-native-core/src/banking/parser/tcb_csv.rs",
+        "liva-native-core/src/banking/parser/bidv_pdf.rs",
+        "liva-native-core/src/banking/parser/mod.rs",
+        "liva-native-core/src/banking/tests.rs"
+      ],
+      "next_milestone": "Hoàn thiện parser chuẩn SWIFT MT940 (:61:, :86:) và ISO 20022 CAMT.053 XML."
+    },
+    {
+      "id": "banking.deterministic-reconciliation",
+      "title": "Động cơ đối soát xác định 3 chiều (Deterministic 3-Way Reconciliation)",
+      "domain": "banking",
+      "status": "working",
+      "priority": "P0",
+      "target_phase": 1,
+      "current_state": "Đã hoàn thiện giải thuật so khớp 3 tầng: Tier 1 Hash match O(1), Tier 2 Fuzzy heuristic (xử lý sai lệch phí 11.000đ), Tier 3 Composite split allocation solver; kiểm soát bất biến số học kế toán kép, 0% ảo giác.",
+      "evidence": [
+        "liva-native-core/src/banking/reconciliation/hash_matcher.rs",
+        "liva-native-core/src/banking/reconciliation/fuzzy_matcher.rs",
+        "liva-native-core/src/banking/reconciliation/split_solver.rs",
+        "liva-native-core/src/banking/reconciliation/mod.rs",
+        "liva-native-core/src/banking/tests.rs"
+      ],
+      "next_milestone": "Tối ưu hóa bảng băm AHash cho lô lớn hơn 100.000 dòng giao dịch phân tán đa tài khoản."
+    },
+    {
+      "id": "banking.erp-connectors",
+      "title": "Kết nối & Đồng bộ ERP Doanh nghiệp (ERP Integration Connectors)",
+      "domain": "banking",
+      "status": "partial",
+      "priority": "P0",
+      "target_phase": 2,
+      "current_state": "Đã có mô hình dữ liệu InternalLedgerEntry và bộ nạp fixture JSON; cơ chế Closed-Loop Confirmation đã thiết kế; chưa có live adapter REST/ODBC cho MISA AMIS và FAST Business Online.",
+      "evidence": [
+        "liva-native-core/src/banking/models.rs",
+        "fixtures/statements/open_invoices.json",
+        "liva-native-core/src/banking/tests.rs"
+      ],
+      "next_milestone": "Xây dựng module xuất file chứng từ kế toán chuẩn XML/Excel tương thích 1-click import cho MISA và FAST."
+    },
+    {
+      "id": "security.zero-egress",
+      "title": "Rào chắn an ninh cục bộ & Cách ly mạng (Zero-Egress Guardrails)",
+      "domain": "safety",
+      "status": "working",
+      "priority": "P0",
+      "target_phase": 1,
+      "current_state": "Cam kết 100% Zero Cloud Leakage; bộ lọc PII khử định danh CCCD (12 số), số tài khoản; kiểm toán mạng xác nhận 0 byte rò rỉ ra ngoài loopback 127.0.0.1; mã hóa AES-256-GCM niêm phong DPAPI.",
+      "evidence": [
+        "liva-native-core/src/banking/compliance/sanitizer.rs",
+        "liva-native-core/src/banking/compliance/security.rs",
+        "liva-native-core/src/crypto.rs",
+        "liva-native-core/src/banking/tests.rs"
+      ],
+      "next_milestone": "Hoàn thiện hồ sơ Đánh giá Tác động Chuyển dữ liệu (DPIA) gửi Cục A05 theo Nghị định 13."
+    },
+    {
+      "id": "compliance.audit-ledger",
+      "title": "Sổ cái kiểm toán chống giả mạo (Immutable Audit Ledger)",
+      "domain": "safety",
+      "status": "working",
+      "priority": "P0",
+      "target_phase": 1,
+      "current_state": "Đã hoàn thành chuỗi log kiểm toán forward-chaining sử dụng HMAC-SHA256; phát hiện tức thì hành vi can thiệp trái phép cơ sở dữ liệu SQLite cục bộ; đáp ứng Thông tư 09/2020/TT-NHNN Cấp 3-5.",
+      "evidence": [
+        "liva-native-core/src/banking/compliance/audit_ledger.rs",
+        "liva-native-core/src/banking/tests.rs"
+      ],
+      "next_milestone": "Tích hợp chữ ký số phần cứng PKI / Token USB của Kế toán trưởng vào chuỗi audit."
+    },
+    {
+      "id": "treasury.cashflow-sentinel",
+      "title": "Tháp canh giám sát & Dự báo dòng tiền (Treasury Sentinel & Forecast)",
+      "domain": "treasury",
+      "status": "partial",
+      "priority": "P1",
+      "target_phase": 2,
+      "current_state": "Đã có giao diện hiển thị số dư đa ngân hàng và biểu đồ chênh lệch; logic tính toán số dư thực tế hoạt động; mô hình dự báo Rolling Cash Flow 30-90 ngày đang được hoàn thiện thuật toán hồi quy.",
+      "evidence": [
+        "liva-ui/src/stores/bankingStore.ts",
+        "liva-ui/src/components/banking/ReconciliationTrendChart.vue",
+        "liva-native-core/src/commands/banking.rs"
+      ],
+      "next_milestone": "Tự động kích hoạt cảnh báo thâm hụt số dư trước 24-48 giờ dựa trên lịch công nợ phải thu/phải trả."
+    },
+    {
+      "id": "runtime.native-core",
+      "title": "Lõi Rust Native thống nhất (liva-native-core)",
+      "domain": "foundation",
+      "status": "working",
+      "priority": "P0",
+      "target_phase": 0,
+      "current_state": "Vận hành hoàn toàn bằng mã máy Rust compiled, nhúng SQLite WAL, llama.cpp in-process và ONNX Runtime; quản lý bộ nhớ nghiêm ngặt RAM <= 4GB.",
+      "evidence": [
+        "liva-native-core/src/boot.rs",
+        "liva-native-core/src/lib.rs",
+        "liva-desktop/src-tauri/src/lib.rs"
+      ],
+      "next_milestone": "Duy trì CI build profile release phục vụ môi trường On-Premise ngân hàng."
+    },
+    {
+      "id": "data.persistence-integrity",
+      "title": "Dữ liệu bền vững và bảo mật tầng cơ sở dữ liệu",
+      "domain": "foundation",
+      "status": "working",
+      "priority": "P0",
+      "target_phase": 0,
+      "current_state": "SQLite schema có WAL mode, dedicated writer actor, mã hóa trường nhạy cảm bằng AES-256-GCM v2 và khóa DPAPI/Argon2id.",
+      "evidence": [
+        "liva-native-core/src/db.rs",
+        "liva-native-core/src/db_actor.rs",
+        "liva-native-core/src/crypto.rs"
+      ],
+      "next_milestone": "Nâng cấp sao lưu định kỳ nén mã hóa theo tiêu chuẩn ngân hàng."
+    },
+    {
+      "id": "security.desktop-boundaries",
+      "title": "Ranh giới bảo mật ứng dụng Desktop & IPC",
+      "domain": "safety",
+      "status": "working",
+      "priority": "P0",
+      "target_phase": 0,
+      "current_state": "Tauri IPC phân quyền nghiêm ngặt theo principal; mã hóa Stronghold bảo vệ khóa giải mã trên thiết bị; cấm truy cập cửa sổ không xác thực.",
+      "evidence": [
+        "liva-native-core/src/authorization.rs",
+        "liva-desktop/src-tauri/src/lib.rs"
+      ],
+      "next_milestone": "Triển khai xác thực phần cứng SmartCard/PKI Token cho vai trò Checker."
+    },
+    {
+      "id": "governance.documentation",
+      "title": "Quản trị tài liệu chuẩn hóa và nguồn sự thật",
+      "domain": "governance",
+      "status": "working",
+      "priority": "P0",
+      "target_phase": 0,
+      "current_state": "Bộ tài liệu kỹ thuật đã hoàn thành chuyển dịch sang định vị LIVA Banking Harness; đồng bộ 100% số liệu đo kiểm thực chứng với hồ sơ INNOSTART 2026.",
+      "evidence": [
+        "scripts/docs-capabilities.mjs",
+        "docs/_meta/nguon-su-that.md"
+      ],
+      "next_milestone": "Tự động hóa kiểm tra tính nhất quán tài liệu trong CI."
+    },
+    {
+      "id": "experience.voice-conversation",
+      "title": "Hội thoại giọng nói song công di sản (Voice Stack)",
+      "domain": "legacy",
+      "status": "deprecated",
+      "priority": "P4",
+      "target_phase": 99,
+      "current_state": "Tính năng di sản cá nhân; đã bị cô lập khỏi luồng nghiệp vụ ngân hàng; không sử dụng trong môi trường kế toán / treasury.",
+      "evidence": [
+        "liva-native-core/src/webrtc/pipeline.rs"
+      ],
+      "next_milestone": "Loại bỏ hoàn toàn khỏi bản dựng phát hành doanh nghiệp."
+    },
+    {
+      "id": "experience.wake-word",
+      "title": "Wake word cá nhân (Hey Liva)",
+      "domain": "legacy",
+      "status": "deprecated",
+      "priority": "P4",
+      "target_phase": 99,
+      "current_state": "Tính năng di sản cá nhân; đã bị cô lập hoàn toàn khỏi luồng nghiệp vụ ngân hàng và giao diện Banking Workbench.",
+      "evidence": [
+        "liva-native-core/src/wake.rs",
+        "liva-native-core/src/wake_model.rs"
+      ],
+      "next_milestone": "Gỡ bỏ khỏi luồng khởi động mặc định của doanh nghiệp."
+    },
+    {
+      "id": "perception.screen-vision",
+      "title": "Thị giác màn hình thụ động (Screen Vision)",
+      "domain": "legacy",
+      "status": "deprecated",
+      "priority": "P4",
+      "target_phase": 99,
+      "current_state": "Tính năng di sản cá nhân; tiềm ẩn rủi ro lộ lọt thông tin; đã bị cô lập khỏi hệ thống ngân hàng.",
+      "evidence": [
+        "liva-native-core/src/vision/mod.rs"
+      ],
+      "next_milestone": "Gỡ bỏ hoàn toàn để vượt qua kiểm toán an ninh ngân hàng."
+    },
+    {
+      "id": "action.os-control",
+      "title": "Điều khiển âm lượng và media OS",
+      "domain": "legacy",
+      "status": "deprecated",
+      "priority": "P4",
+      "target_phase": 99,
+      "current_state": "Tính năng di sản cá nhân; không thuộc phạm vi quản trị nguồn vốn doanh nghiệp.",
+      "evidence": [
+        "liva-native-core/src/integrations/os_control.rs"
+      ],
+      "next_milestone": "Đóng gói thành module tùy chọn tách rời."
+    },
+    {
+      "id": "action.smart-home",
+      "title": "Điều khiển nhà thông minh",
+      "domain": "legacy",
+      "status": "deprecated",
+      "priority": "P4",
+      "target_phase": 99,
+      "current_state": "Tính năng di sản cá nhân; đã loại bỏ khỏi bản vẽ ngân hàng.",
+      "evidence": [
+        "liva-native-core/src/integrations/smart_home.rs"
+      ],
+      "next_milestone": "Gỡ bỏ mã nguồn thừa."
+    },
+    {
+      "id": "proactive.context-broker",
+      "title": "Bắt phím thụ động (Raw Keyboard Hook)",
+      "domain": "legacy",
+      "status": "deprecated",
+      "priority": "P4",
+      "target_phase": 99,
+      "current_state": "Vi phạm nghiêm trọng chính sách bảo mật ngân hàng nếu bật; đã bị khóa cứng phía sau feature cờ và loại bỏ khỏi sản phẩm.",
+      "evidence": [
+        "liva-native-core/src/passive/mod.rs"
+      ],
+      "next_milestone": "Xóa bỏ hoàn toàn để vượt qua kiểm toán an ninh ngân hàng."
+    },
+    {
+      "id": "personalization.voice-clone",
+      "title": "Clone giọng nói người dùng",
+      "domain": "legacy",
+      "status": "deprecated",
+      "priority": "P4",
+      "target_phase": 99,
+      "current_state": "Tính năng cá nhân; không có ứng dụng trong môi trường ngân hàng; bị đình chỉ.",
+      "evidence": [
+        "liva-native-core/src/tts/vieneu/mod.rs"
+      ],
+      "next_milestone": "Loại bỏ hoàn toàn."
+    },
+    {
+      "id": "devices.cross-device",
+      "title": "Đồng bộ đa thiết bị cá nhân",
+      "domain": "legacy",
+      "status": "deprecated",
+      "priority": "P4",
+      "target_phase": 99,
+      "current_state": "PoC cá nhân; vi phạm quy định Air-gapped on-premise của ngân hàng; bị đình chỉ.",
+      "evidence": [
+        "liva-native-core/src/websocket.rs"
+      ],
+      "next_milestone": "Loại bỏ khỏi cấu hình mặc định."
+    },
+    {
+      "id": "evolution.self-correction",
+      "title": "Tự sửa mã không có kiểm soát",
+      "domain": "legacy",
+      "status": "deprecated",
+      "priority": "P4",
+      "target_phase": 99,
+      "current_state": "Tính năng thử nghiệm cá nhân; bị cấm tuyệt đối theo Thông tư 09/2020/TT-NHNN vì nguy cơ sửa đổi mã nguồn trái phép.",
+      "evidence": [
+        "liva-native-core/src/evolution/mod.rs"
+      ],
+      "next_milestone": "Xóa bỏ mã nguồn sandbox."
+    }
+  ]
+}

@@ -1,0 +1,447 @@
+<script setup lang="ts">
+/**
+ * SystemView.vue — LIVA System Health Monitor (v2)
+ * =================================================
+ * 8 deep health probes with live latency, memory metrics,
+ * remote control status, and event telemetry.
+ */
+import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated } from "vue";
+import { useGateway } from "../../composables/useGateway";
+import { useI18n } from "../../composables/useI18n";
+import { profileHardware, type HardwareProfile } from "../../utils/HardwareDetector";
+
+// Hình dạng tối thiểu của payload system_status mà view này thật sự đọc tới
+// (SystemStatus trong liva-common chưa khai báo các trường mở rộng bên dưới).
+interface HealthProbe { status?: string; latencyMs?: number; detail?: string }
+interface HealthChecks {
+  gateway?: HealthProbe & { wsClients?: number; skillsLoaded?: number };
+  aiEngine?: HealthProbe;
+  orchestrator?: HealthProbe;
+  voiceEngine?: HealthProbe;
+  memory?: HealthProbe;
+  vramGuard?: HealthProbe & { isYielded?: boolean };
+  whisper?: HealthProbe;
+  remoteControl?: {
+    enabled?: boolean;
+    telegram?: { status?: string };
+    zalo?: { status?: string };
+  };
+}
+interface OsStats {
+  networkStatus?: string;
+  diskInfo?: string;
+  cpuModel?: string;
+  totalRamGB?: number;
+}
+interface TelemetryEntry { level: string; time: number | string; message: string }
+interface SystemStatusExt {
+  healthChecks?: HealthChecks;
+  osStats?: OsStats;
+  telemetry?: TelemetryEntry[];
+  engineMode?: string;
+  rssMemory?: number;
+  uptime?: number;
+  memoryUsage?: number;
+  model?: string;
+}
+
+const gateway = useGateway();
+const { t } = useI18n();
+const hardware = ref<HardwareProfile | null>(null);
+const hc = computed(() => (gateway.systemStatus.value as SystemStatusExt)?.healthChecks || null);
+const osStats = computed<OsStats>(() => (gateway.systemStatus.value as SystemStatusExt)?.osStats || {});
+const telemetry = computed<TelemetryEntry[]>(() => (gateway.systemStatus.value as SystemStatusExt)?.telemetry || []);
+const preflightReport = computed(() => gateway.preflightReport.value);
+
+// 'busy'    — lõi đang giữ lock (LLM sinh chữ, TTS đang phát). Đang CHẠY.
+// 'unknown' — không đo được (vd VRAM trên máy không NVIDIA). Khác hẳn 'offline':
+//             'offline' là "có mà tắt", 'unknown' là "không biết được".
+interface SvcCard {
+  id: string; name: string; icon: string;
+  status: 'online' | 'offline' | 'degraded' | 'loading' | 'standby' | 'not_configured' | 'busy' | 'unknown';
+  latencyMs: number; detail: string; port: string; critical: boolean;
+}
+
+const services = computed<SvcCard[]>(() => {
+  const h = hc.value;
+  const conn = gateway.isConnected.value;
+  if (!conn) return defaultCards('offline');
+  if (!h) return defaultCards('loading');
+  return [
+    // latencyMs `undefined` (→ -1 → ẩn) chứ KHÔNG phải 0: "0ms" là một con số
+    // đo được, mà ở đây chưa hề đo gì. Detail lấy thẳng từ backend để hai bên
+    // không tự dựng hai chuỗi khác nhau từ cùng dữ liệu.
+    card('gateway', '🔗', 'Gateway', h.gateway?.status, undefined, h.gateway?.detail, '8002', true),
+    // Lõi chạy IN-PROCESS, không nghe cổng nào riêng: cột "port" cũ (8100/8000)
+    // là cổng của kiến trúc Node.js đã bỏ từ lâu.
+    card('ai', '🧠', 'AI Engine', h.aiEngine?.status, h.aiEngine?.latencyMs, h.aiEngine?.detail, '--', true),
+    card('orchestrator', '⚡', 'Orchestrator', h.orchestrator?.status, -1, h.orchestrator?.detail, '--', true),
+    card('voice', '🎤', 'Voice Engine', h.voiceEngine?.status, h.voiceEngine?.latencyMs, h.voiceEngine?.detail, '8002', false),
+    card('memory', '💾', 'Memory DB', h.memory?.status, -1, h.memory?.detail, '--', true),
+    card('vram', '🎮', 'VRAM Guard', h.vramGuard?.status || (h.vramGuard?.isYielded ? 'degraded' : 'online'), -1, h.vramGuard?.detail, '--', false),
+    card('whisper', '🗣️', 'Whisper STT', h.whisper?.status, -1, h.whisper?.detail, '--', false),
+    card('telegram', '📡', 'Remote Control',
+      h.remoteControl?.enabled ? (h.remoteControl.telegram?.status === 'online' ? 'online' : 'standby') : 'not_configured',
+      -1,
+      h.remoteControl?.enabled
+        ? `TG: ${h.remoteControl.telegram?.status} · Zalo: ${h.remoteControl.zalo?.status}`
+        : t('sys_not_enabled'),
+      '--', false),
+  ];
+});
+
+function card(id: string, icon: string, name: string, status: string | undefined, latencyMs: number | undefined, detail: string | undefined, port: string, critical: boolean): SvcCard {
+  return { id, icon, name, status: (status || 'offline') as SvcCard['status'], latencyMs: latencyMs ?? -1, detail: detail || '--', port, critical };
+}
+
+function defaultCards(s: SvcCard['status']): SvcCard[] {
+  return [
+    card('gateway','🔗','Gateway',s,-1,s === 'loading' ? t('sys_checking') : 'Disconnected','8002',true),
+    card('ai','🧠','AI Engine',s,-1,'--','8100',true),
+    card('orchestrator','⚡','Orchestrator',s,-1,'--','--',true),
+    card('voice','🎤','Voice Engine',s,-1,'--','8002',false),
+    card('memory','💾','Memory DB',s,-1,'--','--',true),
+    card('vram','🎮','VRAM Guard',s,-1,'--','--',false),
+    card('whisper','🗣️','Whisper STT',s,-1,'--','--',false),
+    card('telegram','📡','Remote Control',s,-1,'--','--',false),
+  ];
+}
+
+// Overall health — 'busy' tính là khoẻ: lõi đang bận vì đang LÀM VIỆC.
+const KHOE = new Set(['online', 'busy']);
+const healthScore = computed(() => {
+  const crit = services.value.filter(s => s.critical);
+  const ok = crit.filter(s => KHOE.has(s.status)).length;
+  const pct = Math.round((ok / Math.max(crit.length, 1)) * 100);
+  return {
+    score: pct,
+    label: pct === 100 ? 'Healthy' : pct >= 50 ? 'Degraded' : 'Critical',
+    color: pct === 100 ? 'var(--color-success)' : pct >= 50 ? 'var(--color-warning)' : 'var(--color-danger)',
+  };
+});
+
+// Metrics
+const uptime = computed(() => {
+  const u = (gateway.systemStatus.value as SystemStatusExt)?.uptime;
+  if (!u) return '--';
+  const h = Math.floor(u / 3600), m = Math.floor((u % 3600) / 60), s = Math.floor(u % 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`;
+});
+const heapMB = computed(() => {
+  const v = (gateway.systemStatus.value as SystemStatusExt)?.memoryUsage;
+  return v ? `${Math.round(v / 1048576)} MB` : '--';
+});
+const rssMB = computed(() => {
+  const v = (gateway.systemStatus.value as SystemStatusExt)?.rssMemory;
+  return v ? `${Math.round(v / 1048576)} MB` : '--';
+});
+// Không có gRPC lẫn HTTP nào: lõi Rust chạy in-process trong vỏ Tauri, hoặc
+// sau WebSocket 8002 ở chế độ gateway. Nhãn "Native gRPC" cũ là di sản kiến
+// trúc Node.js đã bỏ.
+const engineMode = computed(() => (gateway.systemStatus.value as SystemStatusExt)?.engineMode === 'native' ? 'Native (in-process)' : '--');
+const aiModel = computed<string>(() => String((gateway.systemStatus.value as SystemStatusExt)?.model || '--'));
+
+// Khối "System Management" (4 nút) đã bị GỠ 26/07/2026.
+//
+// Cả bốn lệnh nó gửi — `force_gc`, `trigger_gitnexus_index`, `reload_skills`,
+// `reset_memory` — đều KHÔNG có nhánh nào trong `handle_command` (grep toàn
+// repo: 0 hit). Mỗi nút chỉ quay spinner theo `setTimeout` rồi tự tắt, nên bấm
+// xong người dùng tin là đã làm xong một việc chưa từng xảy ra.
+//
+// Vì sao gỡ chứ không nối:
+// - `force_gc` — Rust không có GC để ép chạy.
+// - `trigger_gitnexus_index` — công cụ của người phát triển, chạy bằng npm.
+// - `reload_skills` — "skills" là một danh sách tĩnh; không có gì để nạp lại.
+// - `reset_memory` — xoá không hoàn tác được, trải trên 17 bảng, phải thiết kế
+//   sao lưu trước. Lối vào của nó vẫn ở SettingsView (nơi đã có sẵn đường xử lý
+//   `{success, error}`), và lõi nay trả LỖI RÕ RÀNG thay vì im lặng hết giờ.
+//   Xoá từng ký ức thì đã dùng được: Dashboard → Memory.
+
+// Polling
+let timer: ReturnType<typeof setInterval> | null = null;
+const startPoll = () => { if (!timer) { gateway.sendMsg('get_system_status'); timer = setInterval(() => gateway.sendMsg('get_system_status'), 3000); } };
+const stopPoll = () => { if (timer) { clearInterval(timer); timer = null; } };
+onMounted(() => {
+  hardware.value = profileHardware();
+  gateway.sendMsg('get_preflight_status');
+});
+onActivated(startPoll);
+onDeactivated(stopPoll);
+onUnmounted(stopPoll);
+
+function badgeCls(s: string) { return s === 'online' ? 'badge-success' : s === 'busy' ? 'badge-success' : s === 'degraded' ? 'badge-warning' : s === 'loading' ? 'badge-info' : s === 'standby' ? 'badge-info' : s === 'unknown' ? 'badge-info' : s === 'not_configured' ? 'badge-warning' : 'badge-danger'; }
+// 'unknown' KHÔNG được hiện "Offline": đó là hai sự thật khác nhau, và gộp
+// chúng lại chính là kiểu nói dối mà bảng này vừa được sửa để thôi mắc phải.
+function badgeTxt(s: string) { return s === 'online' ? 'Online' : s === 'busy' ? 'Busy' : s === 'degraded' ? 'Degraded' : s === 'loading' ? 'Checking' : s === 'standby' ? 'Standby' : s === 'unknown' ? 'Unknown' : s === 'not_configured' ? 'N/A' : 'Offline'; }
+</script>
+
+<template>
+  <div class="system-view animate-fadeIn">
+    <div class="page-header">
+      <h1 class="section-title">📊 {{ t('sys_title') }}</h1>
+      <p class="page-desc">{{ t('sys_desc') }}</p>
+    </div>
+
+    <!-- Health Banner -->
+    <div class="health-banner" :style="{ '--hc': healthScore.color }">
+      <div class="h-ring">
+        <svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--border-default)" stroke-width="3"/>
+        <circle cx="18" cy="18" r="15.5" fill="none" :stroke="healthScore.color" stroke-width="3" stroke-linecap="round" :stroke-dasharray="`${healthScore.score * 0.975} 97.5`" transform="rotate(-90 18 18)" style="transition:stroke-dasharray .8s"/></svg>
+        <span class="h-score">{{ healthScore.score }}</span>
+      </div>
+      <div class="h-info">
+        <span class="h-label" :style="{ color: healthScore.color }">{{ healthScore.label === 'Healthy' ? t('sys_healthy') : healthScore.label }}</span>
+        <span class="h-sub">{{ services.filter(s => KHOE.has(s.status)).length }}/{{ services.length }} {{ t('sys_services') }}</span>
+      </div>
+      <div class="h-meta">
+        <div class="hm"><span class="hm-l">{{ t('sys_uptime') }}</span><span class="hm-v">{{ uptime }}</span></div>
+        <div class="hm"><span class="hm-l">{{ t('sys_engine') }}</span><span class="hm-v">{{ engineMode }}</span></div>
+        <div class="hm"><span class="hm-l">{{ t('sys_heap') }}</span><span class="hm-v">{{ heapMB }}</span></div>
+        <div class="hm"><span class="hm-l">{{ t('sys_rss') }}</span><span class="hm-v">{{ rssMB }}</span></div>
+        <div class="hm"><span class="hm-l">{{ t('sys_model') }}</span><span class="hm-v model-t" :title="aiModel">{{ aiModel }}</span></div>
+      </div>
+    </div>
+
+    <!-- Khối "System Operations Control" đã gỡ 26/07/2026 — xem ghi chú trong
+         <script>: cả 4 nút gửi lệnh mà lõi không có handler. -->
+
+    <!-- Service Cards -->
+    <div class="section-subtitle" style="margin-top:var(--space-lg)">{{ t('sys_service_health', { count: services.filter(s=>KHOE.has(s.status)).length }) }}</div>
+    <div class="svc-grid">
+      <div v-for="svc in services" :key="svc.id" :class="['svc-card', svc.status]">
+        <div :class="['svc-strip', svc.status]"></div>
+        <div class="svc-body">
+          <div class="svc-top">
+            <span class="svc-icon">{{ svc.icon }}</span>
+            <div class="svc-info"><h3 class="svc-name">{{ svc.name }}</h3><p class="svc-detail">{{ svc.detail }}</p></div>
+            <span :class="['dot', svc.status]"></span>
+          </div>
+          <div class="svc-bottom">
+            <span :class="['badge', badgeCls(svc.status)]">{{ badgeTxt(svc.status) }}</span>
+            <span class="svc-port" v-if="svc.port !== '--'">:{{ svc.port }}</span>
+            <span class="svc-lat" v-if="svc.latencyMs >= 0">{{ svc.latencyMs }}ms</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cùng dữ liệu với `liva-native-core --preflight`; frontend không tự
+         suy diễn lại trạng thái tài nguyên. -->
+    <div class="section-subtitle" style="margin-top:var(--space-lg)">Kiểm tra tài nguyên trước khi chạy</div>
+    <div class="card preflight-card" data-testid="preflight-report">
+      <div v-if="!preflightReport" class="preflight-empty">Đang kiểm tra môi trường chạy…</div>
+      <div v-else-if="!preflightReport.items.length" class="preflight-empty">Không nhận được dữ liệu preflight.</div>
+      <div v-else class="preflight-list">
+        <div v-for="item in preflightReport.items" :key="item.name" class="preflight-row">
+          <span :class="['preflight-mark', item.available === true ? 'ok' : item.available === false ? 'missing' : 'unknown']">
+            {{ item.available === true ? '✓' : item.available === false ? '✗' : '?' }}
+          </span>
+          <div class="preflight-body">
+            <div class="preflight-name">{{ item.name }}</div>
+            <div class="preflight-status">{{ item.status }}</div>
+            <div v-if="item.consequence" class="preflight-consequence">{{ item.consequence }}</div>
+          </div>
+          <span :class="['badge', item.available === true ? 'badge-success' : item.available === false ? 'badge-danger' : 'badge-warning']">
+            {{ item.available === true ? 'Sẵn sàng' : item.available === false ? 'Mất năng lực' : 'Chưa cấu hình' }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hardware -->
+    <div class="section-subtitle" style="margin-top:var(--space-lg)">{{ t('sys_hardware') }}</div>
+    <div class="card hw-card" v-if="hardware">
+      <div class="hw-grid">
+        <div class="hw-box">
+          <div class="hw-hdr"><span>🖥️</span><span class="hw-title">{{ t('sys_system').toUpperCase() }}</span></div>
+          <div class="hw-row"><span class="hw-l">OS</span><span class="hw-v">{{ hardware.os }}</span></div>
+          <div class="hw-row"><span class="hw-l">{{ t('sys_network') }}</span><span class="hw-v">{{ osStats.networkStatus || '...' }}</span></div>
+          <div class="hw-row"><span class="hw-l">{{ t('sys_disk') }}</span><span class="hw-v hw-sm" :title="osStats.diskInfo">{{ osStats.diskInfo || '...' }}</span></div>
+        </div>
+        <div class="hw-box">
+          <div class="hw-hdr"><span>⚡</span><span class="hw-title">{{ t('sys_cpu').toUpperCase() }}</span></div>
+          <div class="hw-row"><span class="hw-l">CPU</span><span class="hw-v hw-sm" :title="osStats.cpuModel">{{ osStats.cpuModel || '...' }}</span></div>
+          <div class="hw-row"><span class="hw-l">{{ t('sys_cores') }}</span><span class="hw-v">{{ hardware.cores }}</span></div>
+          <div class="hw-row"><span class="hw-l">{{ t('sys_ram') }}</span><span class="hw-v">{{ osStats.totalRamGB || hardware.ram }} GB</span></div>
+        </div>
+        <div class="hw-box">
+          <div class="hw-hdr"><span>🎮</span><span class="hw-title">{{ t('sys_gpu').toUpperCase() }}</span></div>
+          <div class="hw-row"><span class="hw-l">GPU</span><span class="hw-v hw-sm" :title="hardware.gpu">{{ hardware.gpu }}</span></div>
+          <div class="hw-row"><span class="hw-l">{{ t('sys_type') }}</span><span :class="['badge', hardware.isWeakGPU ? 'badge-warning' : 'badge-success']" style="font-size:10px">{{ hardware.isWeakGPU ? 'ONBOARD' : 'DISCRETE' }}</span></div>
+          <div class="hw-row"><span class="hw-l">{{ t('sys_api') }}</span><span class="hw-v">{{ hardware.webglVersion }}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Telemetry -->
+    <div class="section-subtitle" style="margin-top:var(--space-lg)">{{ t('sys_event') }}</div>
+    <div class="card logs-card">
+      <div v-if="!telemetry.length" class="empty-logs">✅ {{ t('sys_stable') }}</div>
+      <div v-else class="log-list">
+        <div v-for="(log, i) in telemetry" :key="i" :class="['log-item', log.level]">
+          <span class="log-t">{{ new Date(log.time).toLocaleTimeString() }}</span>
+          <span class="log-m">{{ log.message }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.system-view { padding: var(--space-lg); overflow-y: auto; height: 100%; }
+
+.preflight-card { padding: var(--space-sm) var(--space-md); }
+.preflight-list { display: flex; flex-direction: column; }
+.preflight-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: var(--space-sm); align-items: start; padding: var(--space-sm) 0; border-bottom: 1px solid var(--border-subtle); }
+.preflight-row:last-child { border-bottom: 0; }
+.preflight-mark { font-size: 16px; font-weight: 800; line-height: 20px; }
+.preflight-mark.ok { color: var(--color-success); }
+.preflight-mark.missing { color: var(--color-danger); }
+.preflight-mark.unknown { color: var(--color-warning); }
+.preflight-body { min-width: 0; }
+.preflight-name { color: var(--text-primary); font-size: 13px; font-weight: 700; }
+.preflight-status { color: var(--text-secondary); font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
+.preflight-consequence { color: var(--text-muted); font-size: 11px; line-height: 1.45; margin-top: 4px; }
+.preflight-empty { color: var(--text-muted); font-size: 12px; padding: var(--space-sm) 0; }
+
+/* Control Card & Actions */
+.control-card { padding: var(--space-md); margin-bottom: var(--space-md); }
+.control-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-sm); }
+.btn-control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition-fast);
+  position: relative;
+  outline: none;
+  width: 100%;
+}
+.btn-control:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--accent-start);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-glow);
+}
+.btn-control:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.btn-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+.btn-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.btn-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.btn-desc {
+  font-size: 10px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.btn-danger-action:hover:not(:disabled) {
+  border-color: var(--color-danger) !important;
+  box-shadow: 0 0 16px rgba(248, 81, 73, 0.15) !important;
+}
+.control-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-default);
+  border-top-color: var(--accent-start);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  position: absolute;
+  right: 12px;
+  top: 12px;
+}
+.page-header { margin-bottom: var(--space-md); }
+.page-desc { color: var(--text-secondary); font-size: 13px; margin-top: 4px; }
+
+/* Banner */
+.health-banner { display:flex; align-items:center; gap:var(--space-lg); padding:var(--space-lg); background:var(--bg-secondary); border:1px solid var(--border-default); border-radius:var(--radius-lg); position:relative; overflow:hidden; }
+.health-banner::before { content:''; position:absolute; top:-40px; right:-40px; width:120px; height:120px; background:var(--hc); opacity:.06; border-radius:50%; filter:blur(40px); }
+.h-ring { position:relative; width:64px; height:64px; flex-shrink:0; }
+.h-ring svg { width:100%; height:100%; }
+.h-score { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:16px; font-weight:800; color:var(--text-primary); }
+.h-info { display:flex; flex-direction:column; gap:2px; }
+.h-label { font-size:18px; font-weight:700; text-transform:uppercase; letter-spacing:1px; }
+.h-sub { font-size:12px; color:var(--text-secondary); }
+.h-meta { margin-left:auto; display:flex; gap:var(--space-md); flex-wrap:wrap; }
+.hm { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+.hm-l { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; font-weight:600; }
+.hm-v { font-size:12px; font-weight:600; color:var(--text-primary); }
+.model-t { max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Service Grid */
+.svc-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:var(--space-sm); }
+.svc-card { display:flex; background:var(--bg-secondary); border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; transition:all var(--transition-fast); }
+.svc-card:hover { border-color:rgba(124,58,237,.3); box-shadow:var(--shadow-glow); }
+.svc-strip { width:3px; flex-shrink:0; }
+.svc-strip.online { background:var(--color-success); }
+.svc-strip.degraded { background:var(--color-warning); }
+.svc-strip.loading,.svc-strip.standby { background:var(--color-info); animation:pulse 1.5s infinite; }
+.svc-strip.offline { background:var(--color-danger); }
+.svc-strip.not_configured { background:var(--text-muted); }
+.svc-body { flex:1; padding:10px 12px; display:flex; flex-direction:column; gap:8px; }
+.svc-top { display:flex; align-items:center; gap:var(--space-sm); }
+.svc-icon { font-size:20px; }
+.svc-info { flex:1; min-width:0; }
+.svc-name { font-size:12px; font-weight:600; color:var(--text-primary); }
+.svc-detail { font-size:10px; color:var(--text-muted); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.dot.online { background:var(--color-success); box-shadow:0 0 6px var(--color-success); }
+.dot.degraded { background:var(--color-warning); animation:pulse 1.5s infinite; }
+.dot.loading,.dot.standby { background:var(--color-info); animation:pulse 1s infinite; }
+.dot.offline { background:var(--color-danger); }
+.dot.not_configured { background:var(--text-muted); }
+.svc-bottom { display:flex; align-items:center; gap:var(--space-sm); }
+.svc-port { font-size:10px; color:var(--text-muted); font-family:'JetBrains Mono',monospace; }
+.svc-lat { margin-left:auto; font-size:10px; font-family:'JetBrains Mono',monospace; color:var(--color-success); font-weight:600; }
+
+/* Hardware */
+.hw-card { padding:var(--space-md); }
+.hw-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:var(--space-md); }
+@media(max-width:768px) { .hw-grid { grid-template-columns:1fr; } .health-banner { flex-wrap:wrap; } .h-meta { margin-left:0; width:100%; justify-content:space-around; } }
+.hw-box { display:flex; flex-direction:column; gap:6px; padding:var(--space-sm) var(--space-md); background:var(--bg-inset); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); }
+.hw-hdr { display:flex; align-items:center; gap:6px; margin-bottom:2px; }
+.hw-title { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted); }
+.hw-row { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.hw-l { font-size:11px; color:var(--text-muted); white-space:nowrap; }
+.hw-v { font-size:11px; font-weight:500; color:var(--text-primary); text-align:right; }
+.hw-sm { max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Logs */
+.logs-card { padding:var(--space-md); max-height:180px; overflow-y:auto; background:var(--bg-inset); }
+.empty-logs { font-size:12px; color:var(--color-success); text-align:center; padding:var(--space-sm) 0; }
+.log-list { display:flex; flex-direction:column; gap:4px; }
+.log-item { display:flex; gap:var(--space-md); font-size:11px; font-family:'JetBrains Mono',monospace; padding:3px 6px; border-radius:3px; }
+.log-item.info { color:var(--text-primary); }
+.log-item.warning,.log-item.warn { color:var(--color-warning); background:rgba(255,171,0,.08); }
+.log-item.error { color:var(--color-danger); background:rgba(255,86,48,.08); }
+.log-t { color:var(--text-muted); flex-shrink:0; }
+.log-m { word-break:break-all; }
+</style>
