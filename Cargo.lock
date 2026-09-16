@@ -3538,6 +3538,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92daf443525c4cce67b150400bc2316076100ce0b3686209eb8cf3c31612e6f0"
 
 [[package]]
+name = "liva-banking"
+version = "0.1.0"
+dependencies = [
+ "calamine",
+ "csv",
+ "hex",
+ "liva-ledger",
+ "liva-money",
+ "proptest",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 1.0.69",
+ "uuid",
+]
+
+[[package]]
 name = "liva-desktop"
 version = "1.0.0"
 dependencies = [
@@ -3596,6 +3614,9 @@ dependencies = [
  "hkdf 0.13.0",
  "hyper 0.14.32",
  "image",
+ "liva-banking",
+ "liva-ledger",
+ "liva-money",
  "llama-cpp-2",
  "lopdf",
  "ndarray 0.15.6",

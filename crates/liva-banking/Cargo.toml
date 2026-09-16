@@ -1,0 +1,23 @@
+[package]
+name = "liva-banking"
+version = "0.1.0"
+edition = "2021"
+authors = ["LIVA Banking Core Team"]
+description = "Decoupled core banking, multi-bank statement parsers, 3-tier deterministic reconciliation engine, Maker-Checker governance, and Merkle RFC 6962 audit trail"
+license = "Proprietary"
+
+[dependencies]
+liva-money = { path = "../liva-money" }
+liva-ledger = { path = "../liva-ledger" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+sha2 = "0.10"
+hex = "0.4"
+csv = "1.3"
+calamine = "0.26"
+uuid = { version = "1.0", features = ["v4"] }
+regex = "1.10"
+
+[dev-dependencies]
+proptest = "1.4"

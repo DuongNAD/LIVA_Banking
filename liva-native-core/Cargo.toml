@@ -28,6 +28,9 @@ r2d2 = "0.8.10"
 r2d2_sqlite = "0.24.0"
 aes-gcm = "0.10"
 hex = "0.4"
+liva-banking = { path = "../crates/liva-banking" }
+liva-money = { path = "../crates/liva-money" }
+liva-ledger = { path = "../crates/liva-ledger" }
 bytemuck = "1.16"
 bytes = "1.5.0"
 rand = "0.8"
