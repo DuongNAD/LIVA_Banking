@@ -288,7 +288,7 @@ impl Money {
 
         let total_ratio_128 = total_ratio as i128;
         let is_neg = self.amount < 0;
-        let abs_amount = self.amount.abs();
+        let abs_amount = self.amount.checked_abs().ok_or(MoneyError::Overflow)?;
 
         for (idx, &ratio) in ratios.iter().enumerate() {
             if ratio == 0 {
@@ -336,7 +336,7 @@ impl Money {
     /// e.g. `750.000.000 VND` or `-15.000.000 VND` with dot `.` thousand separators.
     pub fn to_vietnamese_display(&self) -> String {
         let is_negative = self.amount < 0;
-        let abs_val = self.amount.abs();
+        let abs_val = self.amount.unsigned_abs();
         let s = abs_val.to_string();
 
         let mut formatted = String::new();

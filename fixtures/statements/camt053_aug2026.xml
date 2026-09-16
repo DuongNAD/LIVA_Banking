@@ -1,0 +1,608 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <BkToCstmrStmt>
+    <GrpHdr>
+      <MsgId>MSG-LIVA-20260901-001</MsgId>
+      <CreDtTm>2026-09-01T08:00:00Z</CreDtTm>
+    </GrpHdr>
+    <Stmt>
+      <Id>STMT-2026-08-VCB-001</Id>
+      <ElctrncSeqNb>1</ElctrncSeqNb>
+      <CreDtTm>2026-09-01T08:00:00Z</CreDtTm>
+      <FrToDt>
+        <FrDtTm>2026-08-01T00:00:00Z</FrDtTm>
+        <ToDtTm>2026-08-31T23:59:59Z</ToDtTm>
+      </FrToDt>
+      <Acct>
+        <Id>
+          <Othr>
+            <Id>0011001234567</Id>
+            <SchmeNm>
+              <Cd>BBAN</Cd>
+            </SchmeNm>
+          </Othr>
+        </Id>
+        <Ccy>VND</Ccy>
+        <Nm>CONG TY TNHH LIVA SOLUTIONS</Nm>
+        <Svcr>
+          <FinInstnId>
+            <BICFI>BFTVVNVX</BICFI>
+            <Nm>VIETCOMBANK</Nm>
+          </FinInstnId>
+        </Svcr>
+      </Acct>
+      <!-- Opening Balance -->
+      <Bal>
+        <Tp>
+          <CdOrPrtry>
+            <Cd>OPBD</Cd>
+          </CdOrPrtry>
+        </Tp>
+        <Amt Ccy="VND">1450230000</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Dt>
+          <Dt>2026-08-01</Dt>
+        </Dt>
+      </Bal>
+      <!-- Transaction 1 (Credit) -->
+      <Ntry>
+        <Amt Ccy="VND">12500000</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-08-03</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-08-03</Dt>
+        </ValDt>
+        <AcctSvcrRef>FT2621500001</AcctSvcrRef>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E-20260803-001</EndToEndId>
+              <TxId>FT2621500001</TxId>
+            </Refs>
+            <AmtDtls>
+              <TxAmt>
+                <Amt Ccy="VND">12500000</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Cong ty TNHH Thuong mai Dich vu An Phat</Nm>
+              </Dbtr>
+            </RltdPties>
+            <RmtInf>
+              <Ustrd>Napas VietQR TT HD101 Tu Cong ty TNHH Thuong mai Dich vu An Phat</Ustrd>
+              <Strd>
+                <CdtrRefInf>
+                  <Ref>HD101</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <!-- Transaction 2 (Credit) -->
+      <Ntry>
+        <Amt Ccy="VND">18000000</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-08-05</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-08-05</Dt>
+        </ValDt>
+        <AcctSvcrRef>FT2621700002</AcctSvcrRef>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E-20260805-002</EndToEndId>
+              <TxId>FT2621700002</TxId>
+            </Refs>
+            <AmtDtls>
+              <TxAmt>
+                <Amt Ccy="VND">18000000</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Cong ty Co phan Xay dung va Dia oc Hoa Binh</Nm>
+              </Dbtr>
+            </RltdPties>
+            <RmtInf>
+              <Ustrd>Ban hang theo hop dong HD102</Ustrd>
+              <Strd>
+                <CdtrRefInf>
+                  <Ref>HD102</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <!-- Transaction 3 (Credit) -->
+      <Ntry>
+        <Amt Ccy="VND">24000000</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-08-08</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-08-08</Dt>
+        </ValDt>
+        <AcctSvcrRef>FT2622000003</AcctSvcrRef>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E-20260808-003</EndToEndId>
+              <TxId>FT2622000003</TxId>
+            </Refs>
+            <AmtDtls>
+              <TxAmt>
+                <Amt Ccy="VND">24000000</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Cong ty TNHH Cong nghe Thong tin FPT Smart Cloud</Nm>
+              </Dbtr>
+            </RltdPties>
+            <RmtInf>
+              <Ustrd>TT HD103 FPT Smart Cloud</Ustrd>
+              <Strd>
+                <CdtrRefInf>
+                  <Ref>HD103</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <!-- Transaction 4 (Debit - Rent) -->
+      <Ntry>
+        <Amt Ccy="VND">50000000</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-08-10</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-08-10</Dt>
+        </ValDt>
+        <AcctSvcrRef>VN26222DEB01</AcctSvcrRef>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E-20260810-004</EndToEndId>
+              <TxId>VN26222DEB01</TxId>
+            </Refs>
+            <AmtDtls>
+              <TxAmt>
+                <Amt Ccy="VND">50000000</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Cdtr>
+                <Nm>Cong ty Co phan Dau tu Toa nha LIVA</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RmtInf>
+              <Ustrd>Thanh toan tien thue van phong thang 8/2026</Ustrd>
+              <Strd>
+                <CdtrRefInf>
+                  <Ref>VP-AUG26</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <!-- Transaction 5 (Credit) -->
+      <Ntry>
+        <Amt Ccy="VND">32000000</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-08-12</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-08-12</Dt>
+        </ValDt>
+        <AcctSvcrRef>FT2622400004</AcctSvcrRef>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E-20260812-005</EndToEndId>
+              <TxId>FT2622400004</TxId>
+            </Refs>
+            <AmtDtls>
+              <TxAmt>
+                <Amt Ccy="VND">32000000</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Cong ty Co phan Tap doan Masan</Nm>
+              </Dbtr>
+            </RltdPties>
+            <RmtInf>
+              <Ustrd>Masan chuyen tien thanh toan HD104</Ustrd>
+              <Strd>
+                <CdtrRefInf>
+                  <Ref>HD104</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <!-- Transaction 6 (Credit) -->
+      <Ntry>
+        <Amt Ccy="VND">45000000</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-08-15</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-08-15</Dt>
+        </ValDt>
+        <AcctSvcrRef>FT2622700005</AcctSvcrRef>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E-20260815-006</EndToEndId>
+              <TxId>FT2622700005</TxId>
+            </Refs>
+            <AmtDtls>
+              <TxAmt>
+                <Amt Ccy="VND">45000000</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Cong ty TNHH Thep Viet Nhat</Nm>
+              </Dbtr>
+            </RltdPties>
+            <RmtInf>
+              <Ustrd>Thanh toan tien hang hop dong HD105</Ustrd>
+              <Strd>
+                <CdtrRefInf>
+                  <Ref>HD105</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <!-- Transaction 7 (Debit - Purchase) -->
+      <Ntry>
+        <Amt Ccy="VND">35000000</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-08-16</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-08-16</Dt>
+        </ValDt>
+        <AcctSvcrRef>VN26228DEB02</AcctSvcrRef>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E-20260816-007</EndToEndId>
+              <TxId>VN26228DEB02</TxId>
+            </Refs>
+            <AmtDtls>
+              <TxAmt>
+                <Amt Ccy="VND">35000000</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Cdtr>
+                <Nm>Cong ty TNHH Phan phoi Synnex FPT</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RmtInf>
+              <Ustrd>Chi tra tien mua thiet bi may chu dot 1</Ustrd>
+              <Strd>
+                <CdtrRefInf>
+                  <Ref>PO-SERVER01</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <!-- Transaction 8 (Credit) -->
+      <Ntry>
+        <Amt Ccy="VND">16500000</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-08-18</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-08-18</Dt>
+        </ValDt>
+        <AcctSvcrRef>FT2623000006</AcctSvcrRef>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E-20260818-008</EndToEndId>
+              <TxId>FT2623000006</TxId>
+            </Refs>
+            <AmtDtls>
+              <TxAmt>
+                <Amt Ccy="VND">16500000</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Cong ty Co phan Sua Viet Nam (Vinamilk)</Nm>
+              </Dbtr>
+            </RltdPties>
+            <RmtInf>
+              <Ustrd>Vinamilk thanh toan hoa don HD106</Ustrd>
+              <Strd>
+                <CdtrRefInf>
+                  <Ref>HD106</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <!-- Transaction 9 (Credit) -->
+      <Ntry>
+        <Amt Ccy="VND">28000000</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-08-22</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-08-22</Dt>
+        </ValDt>
+        <AcctSvcrRef>FT2623400007</AcctSvcrRef>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E-20260822-009</EndToEndId>
+              <TxId>FT2623400007</TxId>
+            </Refs>
+            <AmtDtls>
+              <TxAmt>
+                <Amt Ccy="VND">28000000</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Cong ty TNHH Logistics Van tai Bien Dong</Nm>
+              </Dbtr>
+            </RltdPties>
+            <RmtInf>
+              <Ustrd>Logistics Bien Dong TT HD107</Ustrd>
+              <Strd>
+                <CdtrRefInf>
+                  <Ref>HD107</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <!-- Transaction 10 (Credit) -->
+      <Ntry>
+        <Amt Ccy="VND">37500000</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-08-25</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-08-25</Dt>
+        </ValDt>
+        <AcctSvcrRef>FT2623700008</AcctSvcrRef>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E-20260825-010</EndToEndId>
+              <TxId>FT2623700008</TxId>
+            </Refs>
+            <AmtDtls>
+              <TxAmt>
+                <Amt Ccy="VND">37500000</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Cong ty Co phan Hoa chat Duc Giang</Nm>
+              </Dbtr>
+            </RltdPties>
+            <RmtInf>
+              <Ustrd>Duc Giang TT HD108</Ustrd>
+              <Strd>
+                <CdtrRefInf>
+                  <Ref>HD108</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <!-- Transaction 11 (Credit) -->
+      <Ntry>
+        <Amt Ccy="VND">52000000</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-08-27</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-08-27</Dt>
+        </ValDt>
+        <AcctSvcrRef>FT2623900009</AcctSvcrRef>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E-20260827-011</EndToEndId>
+              <TxId>FT2623900009</TxId>
+            </Refs>
+            <AmtDtls>
+              <TxAmt>
+                <Amt Ccy="VND">52000000</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Cong ty TNHH Xuat nhap khau Hoang Gia</Nm>
+              </Dbtr>
+            </RltdPties>
+            <RmtInf>
+              <Ustrd>XNK Hoang Gia TT HD109</Ustrd>
+              <Strd>
+                <CdtrRefInf>
+                  <Ref>HD109</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <!-- Transaction 12 (Debit - Salary / Advance) -->
+      <Ntry>
+        <Amt Ccy="VND">20000000</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-08-28</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-08-28</Dt>
+        </ValDt>
+        <AcctSvcrRef>VN26240DEB03</AcctSvcrRef>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E-20260828-012</EndToEndId>
+              <TxId>VN26240DEB03</TxId>
+            </Refs>
+            <AmtDtls>
+              <TxAmt>
+                <Amt Ccy="VND">20000000</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Cdtr>
+                <Nm>Nguyen Van A</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RmtInf>
+              <Ustrd>Tam ung cong tac phi du an thang 8/2026</Ustrd>
+              <Strd>
+                <CdtrRefInf>
+                  <Ref>ADV-202608</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <!-- Transaction 13 (Credit) -->
+      <Ntry>
+        <Amt Ccy="VND">19000000</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-08-29</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-08-29</Dt>
+        </ValDt>
+        <AcctSvcrRef>FT2624100010</AcctSvcrRef>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E-20260829-013</EndToEndId>
+              <TxId>FT2624100010</TxId>
+            </Refs>
+            <AmtDtls>
+              <TxAmt>
+                <Amt Ccy="VND">19000000</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Cong ty Co phan Thiet bi Y te Phuong Dong</Nm>
+              </Dbtr>
+            </RltdPties>
+            <RmtInf>
+              <Ustrd>Y te Phuong Dong thanh toan HD110</Ustrd>
+              <Strd>
+                <CdtrRefInf>
+                  <Ref>HD110</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <!-- Transaction 14 (Debit - Bank Fee) -->
+      <Ntry>
+        <Amt Ccy="VND">22000</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-08-31</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-08-31</Dt>
+        </ValDt>
+        <AcctSvcrRef>VCBFEE20260831</AcctSvcrRef>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E-20260831-014</EndToEndId>
+              <TxId>VCBFEE20260831</TxId>
+            </Refs>
+            <AmtDtls>
+              <TxAmt>
+                <Amt Ccy="VND">22000</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Cdtr>
+                <Nm>VIETCOMBANK</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RmtInf>
+              <Ustrd>Phi quan ly tai khoan va dich vu SMS Banking thang 8/2026</Ustrd>
+              <Strd>
+                <CdtrRefInf>
+                  <Ref>FEE-SMS-AUG26</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <!-- Closing Balance -->
+      <Bal>
+        <Tp>
+          <CdOrPrtry>
+            <Cd>CLBD</Cd>
+          </CdOrPrtry>
+        </Tp>
+        <Amt Ccy="VND">1629708000</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Dt>
+          <Dt>2026-08-31</Dt>
+        </Dt>
+      </Bal>
+    </Stmt>
+  </BkToCstmrStmt>
+</Document>

@@ -27,6 +27,7 @@
     "@vue/test-utils": "2.2.7",
     "@vue/tsconfig": "^0.9.1",
     "jsdom": "^29.0.2",
+    "lightningcss-darwin-arm64": "^1.33.0",
     "prettier": "^3.8.2",
     "typescript": "~6.0.2",
     "vite": "^8.1.5",

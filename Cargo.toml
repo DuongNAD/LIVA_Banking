@@ -2,10 +2,19 @@
 members = [
     "liva-desktop/src-tauri",
     "liva-native-core",
+    "crates/liva-core",
     "crates/liva-money",
-    "crates/liva-ledger"
+    "crates/liva-ledger",
+    "crates/liva-audit",
+    "crates/liva-match",
+    "crates/liva-normalize",
+    "crates/liva-ingest",
+    "apps/liva-server"
 ]
 resolver = "2"
+
+[workspace.lints.clippy]
+float_arithmetic = "deny"
 
 # Cargo links test binaries under a fresh hash every `cargo test` run and never collects the old
 # ones, so full debug info grows target/debug without bound — it reached 149 GB here, 26 GB of that

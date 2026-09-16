@@ -1,0 +1,22 @@
+[package]
+name = "liva-normalize"
+version = "0.1.0"
+edition = "2021"
+authors = ["LIVA Banking Core Team"]
+description = "Deterministic normalization engine for banking statements in LIVA Banking"
+license = "Proprietary"
+
+[lints]
+workspace = true
+
+[dependencies]
+liva-money = { path = "../liva-money" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+regex = "1.10"
+unicode-normalization = "0.1"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+
+[dev-dependencies]
+proptest = "1.4"

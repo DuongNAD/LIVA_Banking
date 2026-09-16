@@ -1,0 +1,24 @@
+[package]
+name = "liva-match"
+version = "0.1.0"
+edition = "2021"
+authors = ["LIVA Banking Core Team"]
+description = "Deterministic zero-hallucination reconciliation matching engine and fee splitter for LIVA Banking"
+license = "Proprietary"
+
+[lints]
+workspace = true
+
+[dependencies]
+liva-money = { path = "../liva-money" }
+liva-ledger = { path = "../liva-ledger" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+unicode-normalization = "0.1"
+regex = "1.10"
+strsim = "0.11"
+uuid = { version = "1.0", features = ["v4"] }
+
+[dev-dependencies]
+proptest = "1.4"

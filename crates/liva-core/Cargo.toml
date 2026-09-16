@@ -1,15 +1,16 @@
 [package]
-name = "liva-money"
+name = "liva-core"
 version = "0.1.0"
 edition = "2021"
 authors = ["LIVA Banking Core Team"]
-description = "Deterministic zero-float scaled integer money engine for LIVA Banking"
+description = "Core financial primitives, checked arithmetic, and accounting invariants for LIVA Banking"
 license = "Proprietary"
 
 [lints]
 workspace = true
 
 [dependencies]
+liva-money = { path = "../liva-money" }
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"
 

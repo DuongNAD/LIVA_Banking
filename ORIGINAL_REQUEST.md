@@ -524,3 +524,105 @@ Xây dựng crate `crates/liva-recon` tích hợp `liva-money` và `liva-ledger`
 - [ ] `crates/liva-recon` chạy qua bộ test đối soát 3 tầng (Tier 1, Tier 2, Tier 3) với tỷ lệ khớp chính xác và hàng đợi HITL cách ly đúng quy cách.
 - [ ] `cargo test -j 2 -- --test-threads 2` vượt qua 100% unit tests và proptests trên các crate mới.
 </USER_REQUEST>
+
+## 2026-09-15T09:28:28Z
+
+<USER_REQUEST>
+# Teamwork Project Prompt
+
+Requested team: Full multi-agent team (Architecture, Rust Core/Math, Parser/Integrations, Local AI, QA)
+
+Nâng cấp kiến trúc LIVA Banking Harness, thiết lập nền tảng monorepo đa crate hoàn chỉnh và hoàn thành Milestone M1 & M2 (Sprint 0 đến Sprint 4): Bộ lõi tính toán số học chuẩn kế toán VAS, engine đối soát 2 tầng (Tier 1 Exact & Tier 2 Fuzzy/Fee), cây kiểm toán Merkle Tree RFC 6962, bộ trích xuất sao kê 6 ngân hàng Việt Nam kèm CAMT.053/MT940 và mô hình trích xuất thực thể cục bộ SLM NER.
+
+Working directory: /Users/duongnad/Documents/project/LIVA_Banking
+Integrity mode: development
+
+## Requirements
+
+### R1. Workspace Modularization & Exact Math Engine
+- Tổ chức workspace monorepo với các crates độc lập: `crates/liva-money` (số học u64 cents không float, quy tắc làm tròn VAS, kiểm tra bất biến sổ cái), `crates/liva-audit` (cây băm Merkle Tree RFC 6962 append-only, HMAC-SHA256 log chuỗi, hàm xuất và xác minh inclusion proof).
+- Cung cấp module `liva-match` hỗ trợ: Tier 1 (khớp chính xác O(1) qua hash key chuẩn hóa trong cửa sổ thời gian ±24h) và Tier 2 (khớp mờ Jaro-Winkler với tiếng Việt không dấu, nhận diện và tách phí chuyển khoản theo bảng phí ngân hàng hạch toán TK 6425).
+
+### R2. Banking Statement Ingest & Normalization Engine
+- Cung cấp crate `crates/liva-ingest` và `crates/liva-normalize` có khả năng tự động nhận diện mẫu biểu, trích xuất dữ liệu giao dịch từ 6 ngân hàng Việt Nam (Vietcombank, Techcombank, BIDV, VietinBank, MBBank, Agribank) từ các định dạng XLSX, CSV, chuẩn quốc tế CAMT.053 (XML), MT940 và tài liệu PDF text-layer.
+- Chuẩn hóa toàn bộ ngày tháng sang ISO 8601, tiền tệ chuẩn VND/u64 cents, mã tham chiếu chuẩn và tên đối tác viết hoa không dấu.
+
+### R3. Local SLM NER Extraction for Transaction Memo
+- Cung cấp crate `crates/liva-nlp` tích hợp mô hình ngôn ngữ nhỏ chạy cục bộ (llama.cpp GGUF Q4_K_M) để phân tích diễn giải thanh toán tiếng Việt (Napas247, VietQR, UNC, POS).
+- Trích xuất cấu trúc JSON đảm bảo ngữ pháp (grammar-constrained JSON) gồm: số hóa đơn (`invoice_no`), mã đơn hàng (`order_no`), tên đối tác chuẩn hóa, cờ phí (`fee_flag`), và điểm tự tin (`confidence`). Các bản ghi có độ tin cậy < 0.6 được gắn cờ chuyển sang hàng đợi kiểm duyệt HITL.
+
+### R4. Verification & Hardening Infrastructure
+- Cung cấp bộ test suites tự động bao gồm: proptest kiểm tra tính toán tiền tệ và bất biến sổ cái, golden file tests đối soát với dữ liệu sao kê mẫu trong `fixtures/statements/`, và integration tests đo lường thông lượng khớp giao dịch.
+- Đảm bảo cơ chế app-layer Zero-Egress guard (không mở socket ra ngoài ngoại trừ loopback 127.0.0.1) và cấu hình mã hóa lưu trữ CSDL SQLCipher AES-256.
+
+## Verification Resources
+- Tập tin mẫu kiểm thử sẵn có trong kho: `fixtures/statements/` (`vcb_aug2026.xlsx`, `tcb_aug2026.csv`, `bidv_aug2026.pdf`, `vcb_adversarial_merged.xlsx`) và `fixtures/erp_ledger/open_invoices.json`.
+
+## Acceptance Criteria
+
+### Correctness & Financial Integrity
+- [ ] `cargo test -p liva-money` chạy thành công với proptest >= 100.000 mẫu ngẫu nhiên không xảy ra tràn số (overflow) và không có sai lệch float (zero float drift).
+- [ ] Invariant bảo toàn số dư: `closing_cents == opening_cents + SUM(credit) - SUM(debit)` được kiểm chứng tự động và luôn đúng trên toàn bộ phiên đối soát.
+- [ ] `cargo test -p liva-audit` chứng minh Merkle Tree tuân thủ RFC 6962; thay đổi bất kỳ 1 byte nào trong dữ liệu đã chốt phiên sẽ khiến kiểm tra xác minh Root Hash thất bại 100%.
+
+### Parsing & Matching Precision
+- [ ] Parse thành công 100% các file sao kê mẫu trong `fixtures/statements/` (VCB, TCB, BIDV) và CAMT.053/MT940 mà không làm rơi dòng hay sai lệch số tiền.
+- [ ] Thuật toán Tier 1 và Tier 2 đạt tỷ lệ khớp chính xác (precision) >= 97% trên tập dữ liệu fixtures tiêu chuẩn.
+- [ ] Bộ tách phí (Fee Splitter) nhận diện và hạch toán đúng các khoản phí chênh lệch (1.100 - 22.000 VND và VAT) vào tài khoản chi phí 6425.
+
+### SLM & System Performance
+- [ ] SLM NER trích xuất thực thể đúng schema JSON định nghĩa sẵn và đạt thông lượng >= 25 tokens/s trên CPU AVX2/AVX512.
+- [ ] Toàn bộ mã nguồn vượt qua kiểm tra `cargo clippy -- -D warnings` và `cargo check -j 2`.
+- [ ] Socket allowlist chặn hoàn toàn các kết nối mạng ngoại vi (chỉ chấp nhận 127.0.0.1).
+
+</USER_REQUEST>
+
+## 2026-09-15T17:24:18Z
+
+<USER_REQUEST>
+Requested team: Full team đa tác tử (Architect, Backend Rust Engineer, Test/QA Engineer)
+
+Nâng cấp nền tảng kiến trúc LIVA Banking Harness từ Desktop Standalone sang On-Premise Client-Server V2 (Sprint 0 & Sprint 1): khởi tạo `apps/liva-server` (Axum/Tokio), hoàn thiện hệ thống migrations PostgreSQL với DB triggers bảo vệ `audit_logs` append-only, chuẩn hóa `liva-core::Money` checked arithmetic và mở rộng `liva-ingest` xử lý sao kê đa định dạng chống trùng lặp.
+
+Working directory: /Users/duongnad/Documents/project/LIVA_Banking
+Integrity mode: development
+
+## Requirements
+
+### R1. Kiến trúc Monorepo & Khởi tạo Service `apps/liva-server`
+Khởi tạo crate `apps/liva-server` trong Cargo workspace sử dụng Axum và Tokio làm trung tâm điều phối cho mạng LAN nội bộ; cấu hình kết nối cơ sở dữ liệu tập trung qua SQLx; triển khai cấu trúc handler/router module hóa và endpoint kiểm tra trạng thái dịch vụ (healthcheck).
+
+### R2. Chuẩn hóa Schema Cơ sở dữ liệu & Bất biến Audit Trail
+Thiết lập các bản migration SQLx (PostgreSQL / SQLite tương thích) cho các thực thể: `legal_entities`, `fiscal_periods`, `counterparties`, `counterparty_aliases`, `holidays`, `bank_accounts`, `bank_profiles`, `bank_transactions`, `quarantine_items`, và `audit_logs`. Cài đặt Database Trigger bảo vệ bảng `audit_logs` ở chế độ append-only (cấm UPDATE và DELETE), liên kết các bản ghi bằng chuỗi hash chain (`prev_hash` và `row_hash`).
+
+### R3. Hoàn thiện Động cơ Tiền tệ `liva-core` (Checked Arithmetic & Continuity Invariant)
+Chuẩn hóa struct `Money` hỗ trợ đơn vị `i64 minor unit`, scale đa tiền tệ (VND scale=0, USD scale=2), phủ toàn bộ phép toán số học an toàn (`checked_add`, `checked_sub`, `checked_mul_ratio` với Banker's rounding) tuyệt đối cấm số thực float (`clippy::float_arithmetic`). Cài đặt hàm kiểm tra bất biến số dư liên tục giữa các kỳ: `Opening(Period N) == Closing(Period N-1)`.
+
+### R4. Engine Ingest Đa định dạng & Cơ chế Chống Trùng lặp
+Cập nhật crate `liva-ingest` để đọc và chuẩn hóa dữ liệu sao kê ngân hàng từ file Excel (.xlsx thông qua calamine) và CSV theo cấu hình cột linh hoạt từ `bank_profiles`. Triển khai cơ chế sinh `statement_fingerprint` (SHA-256 nội dung + kỳ sao kê) và `txn_hash` cho từng dòng giao dịch để ngăn chặn triệt để tình trạng nạp trùng lặp sao kê hoặc chồng kỳ.
+
+### R5. Ràng buộc Hạ tầng & Giới hạn Tài nguyên (Defense-in-Depth & RAM Guardrails)
+Tuân thủ nghiêm ngặt quy tắc Zero-Egress: tuyệt đối không phát sinh traffic ra ngoài Internet. Mọi lệnh biên dịch và kiểm thử Rust phải tuân thủ RAM guardrails: luôn truyền `-j 2` cho `cargo check`/`cargo build`/`cargo test` và `-- --test-threads 2`. Giữ an toàn Git: ranh giới can thiệp mã nguồn dừng ở staging (`git add`), không tự ý commit hay push remote.
+
+## Acceptance Criteria
+
+### Tính Đúng đắn Số học & Bất biến Số dư
+- [ ] `cargo test -p liva-core -j 2 -- --test-threads 2` vượt qua 100% unit tests và property-based tests (`proptest`).
+- [ ] Phép tính tiền tệ `Money` không bao giờ panic hoặc tràn số âm trong phạm vi `i64`; từ chối thực hiện phép tính nếu sai lệch loại tiền tệ (`MoneyError::CurrencyMismatch`).
+- [ ] Hàm kiểm tra bất biến số dư phát hiện chính xác mọi độ lệch Δ ≠ 0 giữa số dư đầu kỳ N và cuối kỳ N-1.
+
+### Ingest & Khử trùng lặp (Idempotency)
+- [ ] `liva-ingest` parse thành công các file mẫu thực tế trong `fixtures/statements/` (VCB .xlsx, TCB .csv, v.v.) mà không phát sinh lỗi hoảng loạn (panic).
+- [ ] Import lại cùng một file sao kê hoặc dòng giao dịch trùng lặp kích hoạt cơ chế nhận diện `statement_fingerprint` / `txn_hash` và từ chối nạp đè.
+
+### Cơ sở Dữ liệu & Audit Log Bất biến
+- [ ] Các tệp migration SQLx áp dụng thành công và tạo đầy đủ bảng, khóa ngoại và ràng buộc `CHECK (maker_id != checker_id)` trên `quarantine_items`.
+- [ ] Trigger bảo vệ trên bảng `audit_logs` lập tức ném lỗi ngoại lệ ngăn chặn mọi thao tác `UPDATE` hoặc `DELETE`.
+- [ ] Mỗi bản ghi mới trong `audit_logs` tính toán chính xác chuỗi hash liên tục bảo đảm tính toàn vẹn kiểm toán.
+
+### Biên dịch & Tích hợp Workspace
+- [ ] Toàn bộ workspace biên dịch thành công không có lỗi (`cargo check -j 2`).
+- [ ] Crate `apps/liva-server` khởi động được máy chủ Axum trên cổng nội bộ và phản hồi endpoint health check hợp lệ.
+
+</USER_REQUEST>
+

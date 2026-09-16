@@ -238,6 +238,7 @@ pub fn own_cpu_percent(
 }
 
 /// Mẫu đo trước đó: `(idle, kernel, user, own)`.
+#[cfg(windows)]
 static LAST_CPU_SAMPLE: Mutex<Option<(u64, u64, u64, u64)>> = Mutex::new(None);
 
 /// `(CPU ngoài LIVA, CPU của chính LIVA)` — phần trăm, từ **một** lần lấy mẫu.
