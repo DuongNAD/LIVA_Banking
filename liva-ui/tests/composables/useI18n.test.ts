@@ -54,6 +54,7 @@ describe('useI18n — Translation vi-VN', () => {
     expect(t('connected')).toBe('Đã kết nối');
     expect(t('lang_code')).toBe('vi-VN');
     expect(t('nav_avatar')).toBe('Avatar');
+    expect(t('sys_thinking')).toBe('Đang nghĩ....');
   });
 });
 
@@ -65,6 +66,7 @@ describe('useI18n — Translation en-US', () => {
     expect(t('connected')).toBe('Connected');
     expect(t('lang_code')).toBe('en-US');
     expect(t('nav_avatar')).toBe('Avatar');
+    expect(t('sys_thinking')).toBe('Thinking....');
   });
 });
 

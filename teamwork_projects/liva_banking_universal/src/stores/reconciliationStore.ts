@@ -32,6 +32,7 @@ import {
   DEMO_GOOGLE_SHEETS_TEXT,
   base64ToUint8Array,
 } from '../engine/demoData';
+import sqlDatabaseSeed from '../data/sqlDatabaseSeed.json';
 
 export const useReconciliationStore = defineStore('reconciliation', {
   state: () => ({
@@ -53,7 +54,16 @@ export const useReconciliationStore = defineStore('reconciliation', {
   }),
 
   getters: {
-    matchRate: (state) => state.reconciliationSummary?.matchRate ?? 99.8,
+    matchRate: (state): number => {
+      const summary = state.reconciliationSummary;
+      if (!summary) return 0;
+      if (summary.matchRate !== undefined && summary.matchRate !== null) {
+        return Number(Number(summary.matchRate).toFixed(1));
+      }
+      const total = summary.totalBankTransactions ?? state.bankTransactions.length;
+      if (total <= 0) return 0;
+      return Number(((summary.matchedCount / total) * 100).toFixed(1));
+    },
     matchedCount: (state) => state.reconciliationSummary?.matchedCount ?? 0,
     tier1Count: (state) => state.reconciliationSummary?.tier1Count ?? 0,
     tier2Count: (state) => state.reconciliationSummary?.tier2Count ?? 0,
@@ -80,9 +90,78 @@ export const useReconciliationStore = defineStore('reconciliation', {
       this.ledgerEntries = parseLedgerCsv(csvText);
     },
 
+    loadFromSqlDatabase(customData?: any) {
+      const data = customData || sqlDatabaseSeed;
+      if (!data || !data.bankStatements || !data.invoices) return;
+
+      const mappedTxs: RawStatementRow[] = data.bankStatements.map((stmt: any) => {
+        const debit = Number(stmt.debit_amount || 0);
+        const credit = Number(stmt.credit_amount || 0);
+        const bookingDateStr = String(stmt.booking_date || '2026-08-15 09:00:00');
+        const [datePart, timePart] = bookingDateStr.split(' ');
+
+        return {
+          id: stmt.id,
+          date: datePart || '2026-08-15',
+          time: timePart || '09:00:00',
+          txDate: Math.floor(new Date(bookingDateStr).getTime() / 1000) || 1788200000,
+          txCode: stmt.txn_ref,
+          docRef: stmt.invoice_ref || undefined,
+          debit,
+          credit,
+          netAmount: credit - debit,
+          amount: credit > 0 ? credit : debit,
+          txType: credit > 0 ? 'CREDIT' : 'DEBIT',
+          balance: Number(stmt.balance_after || 0),
+          balanceAfter: Number(stmt.balance_after || 0),
+          narration: stmt.description,
+          counterparty: stmt.partner_name || '',
+          counterpartyAccount: stmt.counterpart_account || '',
+          bankCode: (stmt.bank_code || 'GENERIC') as BankCode,
+        };
+      });
+
+      const mappedLedgers: LedgerEntry[] = data.invoices.map((inv: any) => ({
+        id: inv.id,
+        docNo: inv.invoice_no,
+        entryDate: inv.issue_date,
+        entryTimestamp: Math.floor(new Date(inv.issue_date).getTime() / 1000) || 1788200000,
+        partnerCode: inv.partner_code,
+        partnerName: inv.partner_name,
+        amount: Number(inv.expected_amount),
+        entryType: (inv.direction === 'PAYABLE' ? 'DEBIT' : 'CREDIT') as 'DEBIT' | 'CREDIT',
+        description: `Hóa đơn bán hàng / cung ứng dịch vụ ${inv.invoice_no} đối tác ${inv.partner_name}`,
+        status: 'UNMATCHED' as const,
+      }));
+
+      this.bankTransactions = mappedTxs;
+      this.ledgerEntries = mappedLedgers;
+      this.activeDatasetName = `Cơ Sở Dữ Liệu SQL Ngân Hàng (${mappedTxs.length} Giao Dịch, ${mappedLedgers.length} Hóa Đơn - 5 Ngân Hàng)`;
+      this.activeBankCode = 'ALL';
+
+      const totalCredit = mappedTxs.reduce((sum, tx) => sum + tx.credit, 0);
+      const totalDebit = mappedTxs.reduce((sum, tx) => sum + tx.debit, 0);
+      const opening = 80_000_000_000;
+      const closing = opening + totalCredit - totalDebit;
+
+      this.balanceInvariantReport = verifyBalanceInvariants(
+        opening,
+        closing,
+        totalCredit,
+        totalDebit
+      );
+
+      this.executeReconciliation();
+    },
+
     loadSampleDataset(
-      datasetKey: 'VCB' | 'TCB' | 'BIDV' | 'ALL' | 'SHEETS' | 'CITAD' | 'NAPAS' | 'BILATERAL'
+      datasetKey: 'VCB' | 'TCB' | 'BIDV' | 'ALL' | 'SHEETS' | 'CITAD' | 'NAPAS' | 'BILATERAL' | 'SQL'
     ) {
+      if (datasetKey === 'SQL') {
+        this.loadFromSqlDatabase();
+        return;
+      }
+
       // Ensure ledger entries are loaded
       if (this.ledgerEntries.length === 0) {
         this.ledgerEntries = parseLedgerCsv(DEMO_LEDGER_CSV);
@@ -429,6 +508,29 @@ export const useReconciliationStore = defineStore('reconciliation', {
       });
 
       return true;
+    },
+
+    applyReconciliationSummary(summary: Partial<ReconciliationSummary>) {
+      if (!this.reconciliationSummary) {
+        this.reconciliationSummary = {
+          totalBankTransactions: summary.totalBankTransactions ?? this.bankTransactions.length,
+          totalLedgerEntries: summary.totalLedgerEntries ?? this.ledgerEntries.length,
+          matchedCount: summary.matchedCount ?? 0,
+          tier1Count: summary.tier1Count ?? 0,
+          tier2Count: summary.tier2Count ?? 0,
+          tier3Count: summary.tier3Count ?? 0,
+          hitlQuarantineCount: summary.hitlQuarantineCount ?? 0,
+          matchRate: summary.matchRate ?? 0,
+          totalMatchedAmount: summary.totalMatchedAmount ?? 0,
+          totalFeeDisentangled: summary.totalFeeDisentangled ?? 0,
+          matches: summary.matches ?? [],
+          quarantined: summary.quarantined ?? [],
+          unallocatedBankTransactions: summary.unallocatedBankTransactions ?? [],
+          unallocatedLedgerEntries: summary.unallocatedLedgerEntries ?? [],
+        };
+      } else {
+        Object.assign(this.reconciliationSummary, summary);
+      }
     },
   },
 });

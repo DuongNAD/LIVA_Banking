@@ -1,0 +1,70 @@
+# LIVA Banking — Dynamic 4-Tier Maker-Checker Policy Configuration
+# Statutory Compliance with Circular 09/2020/TT-NHNN Articles 16 & 18 (Dual Control / 4-Eyes Principle)
+
+metadata:
+  name: "Standard 4-Tier Commercial Banking Maker-Checker Matrix"
+  version: "1.0.0"
+  circular_reference: "Circular 09/2020/TT-NHNN Articles 16 & 18"
+
+tiers:
+  - tier_level: 1
+    name: "Tier 1: Micro-Variance Auto Approval"
+    min_amount_vnd: 0
+    max_amount_vnd: 10000000              # < 10M VND
+    approval_mode: "AUTO"
+    required_checkers: 0
+    allowed_checker_roles_stage1:
+      - "SYSTEM_AUTOMATION"
+    allowed_checker_roles_stage2: []
+    statutory_reference: "Thông tư 09/2020/TT-NHNN Điều 16 (Hạn mức tự động vi mô)"
+
+  - tier_level: 2
+    name: "Tier 2: Standard Single-Checker Approval"
+    min_amount_vnd: 10000000              # 10M VND
+    max_amount_vnd: 100000000             # 100M VND
+    approval_mode: "SINGLE_CHECKER"
+    required_checkers: 1
+    allowed_checker_roles_stage1:
+      - "OPERATOR_CHECKER"
+      - "SENIOR_CHECKER"
+      - "CHIEF_ACCOUNTANT"
+    allowed_checker_roles_stage2: []
+    statutory_reference: "Thông tư 09/2020/TT-NHNN Điều 16 (Kiểm soát 1 cấp nghiệp vụ)"
+
+  - tier_level: 3
+    name: "Tier 3: Senior Checker Escalation"
+    min_amount_vnd: 100000000             # 100M VND
+    max_amount_vnd: 500000000             # 500M VND
+    approval_mode: "SENIOR_CHECKER"
+    required_checkers: 1
+    allowed_checker_roles_stage1:
+      - "SENIOR_CHECKER"
+      - "CHIEF_ACCOUNTANT"
+      - "TREASURY_DIRECTOR"
+    allowed_checker_roles_stage2: []
+    statutory_reference: "Thông tư 09/2020/TT-NHNN Điều 16 & 18 (Kiểm soát cấp quản lý)"
+
+  - tier_level: 4
+    name: "Tier 4: Dual-Checker 4-Eyes Dual Control"
+    min_amount_vnd: 500000000             # >= 500M VND (or critical AML risk)
+    max_amount_vnd: null
+    approval_mode: "DUAL_CHECKER"
+    required_checkers: 2
+    allowed_checker_roles_stage1:
+      - "SENIOR_CHECKER"
+      - "CHIEF_ACCOUNTANT"
+    allowed_checker_roles_stage2:
+      - "CHIEF_ACCOUNTANT"
+      - "TREASURY_DIRECTOR"
+      - "BRANCH_MANAGER"
+    statutory_reference: "Thông tư 09/2020/TT-NHNN Điều 18 (Kiểm soát kép bắt buộc giao dịch trọng yếu)"
+
+sod_rules:
+  enforce_maker_neq_checker: true
+  enforce_checker1_neq_checker2: true
+  lock_on_partial_approval: true
+
+token_governance:
+  token_ttl_seconds: 900                 # 15 minutes (900 seconds)
+  single_use: true
+  hmac_key_label: "LIVA_BANKING_AUDIT_HMAC_KEY"

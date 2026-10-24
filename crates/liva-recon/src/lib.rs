@@ -5,19 +5,24 @@
 
 #![deny(clippy::float_arithmetic)]
 
+pub mod dsl;
 pub mod golden_dataset;
 pub mod compliance_aml;
 pub use compliance_aml::{
     build_str_report, compute_merkle_root, sanitize_decree13_pii, screen_transactions_aml,
     AmlAlert, AmlAlertCode, AmlSeverity, ScreenableTransaction, SuspiciousTransactionReport,
 };
+pub use dsl::{
+    compute_semantic_similarity_bps, extract_initials, integer_jaro, integer_jaro_winkler,
+    integer_sqrt_u128, integer_sqrt_u64, integer_token_cosine_similarity, is_acronym_pattern,
+    solve_subset_sum, DeclarativeReconEngine, ReconBatchResult, ReconDslError, ReconRuleConfig,
+    SemanticReconContext, SubsetCandidate, SubsetSolution, SubsetSolverConfig,
+};
 
 use liva_money::Money;
 use liva_parse::CanonicalTx;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use thiserror::Error;
-use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ReconError {
@@ -46,8 +51,15 @@ pub struct InternalInvoice {
 pub enum MatchTier {
     Tier1Exact,
     Tier2Fuzzy,
+    Tier2Semantic,
     Tier3Split,
     HitlQuarantine,
+}
+
+impl MatchTier {
+    pub fn is_tier2(&self) -> bool {
+        matches!(self, MatchTier::Tier2Fuzzy | MatchTier::Tier2Semantic)
+    }
 }
 
 /// Successful reconciliation match record.
@@ -63,6 +75,12 @@ pub struct ReconciliationMatch {
     pub confidence_score: u32, // 0..100
     #[serde(default)]
     pub constituent_invoice_ids: Option<Vec<String>>,
+    #[serde(default)]
+    pub constituent_bank_tx_ids: Option<Vec<usize>>,
+    #[serde(default)]
+    pub is_semantic: bool,
+    #[serde(default)]
+    pub semantic_similarity_bps: Option<u32>,
 }
 
 /// Quarantine item held for Human-In-The-Loop two-phase review.
@@ -76,6 +94,10 @@ pub struct HitlQuarantineItem {
     pub maker: Option<String>,
     pub checker: Option<String>,
     pub approved: bool,
+    #[serde(default)]
+    pub risk_tier: Option<crate::dsl::schema::QuarantineRiskTier>,
+    #[serde(default)]
+    pub statutory_reference: Option<String>,
 }
 
 /// Normalizes Vietnamese text by stripping diacritics and converting to uppercase.
@@ -103,163 +125,40 @@ pub fn normalize_vietnamese_text(input: &str) -> String {
     out
 }
 
+static DEFAULT_ENGINE: std::sync::OnceLock<DeclarativeReconEngine> = std::sync::OnceLock::new();
+
+fn default_engine() -> &'static DeclarativeReconEngine {
+    DEFAULT_ENGINE.get_or_init(DeclarativeReconEngine::default_rules)
+}
+
 /// Deterministic 3-Tier Reconciliation Engine.
 pub struct ReconciliationEngine;
 
 impl ReconciliationEngine {
-    /// Executes Tier 1 exact match (Amount + DocRef/RefCode equality, window ±24h).
+    /// Executes Tier 1 exact match (Amount + DocRef/RefCode equality, window ±24h, regex extraction).
     pub fn match_tier1(
         txs: &[CanonicalTx],
         invoices: &[InternalInvoice],
     ) -> (Vec<ReconciliationMatch>, Vec<usize>, Vec<String>) {
-        let mut matched = Vec::new();
-        let mut matched_tx_indices = std::collections::HashSet::new();
-        let mut matched_invoice_ids = std::collections::HashSet::new();
-
-        // Index invoices by (amount_vnd, uppercase_doc_ref)
-        let mut invoice_map: HashMap<(i64, String), &InternalInvoice> = HashMap::new();
-        for inv in invoices {
-            invoice_map.insert((inv.amount.amount(), inv.doc_ref.to_uppercase()), inv);
-        }
-
-        for (idx, tx) in txs.iter().enumerate() {
-            let ref_upper = tx.ref_code.to_uppercase();
-            let key = (tx.amount.amount(), ref_upper.clone());
-
-            if let Some(inv) = invoice_map.get(&key) {
-                matched.push(ReconciliationMatch {
-                    match_id: Uuid::new_v4().to_string(),
-                    tier: MatchTier::Tier1Exact,
-                    bank_tx_id: tx.row_id,
-                    invoice_id: inv.invoice_id.clone(),
-                    bank_amount: tx.amount,
-                    invoice_amount: inv.amount,
-                    fee_deducted: None,
-                    confidence_score: 100,
-                    constituent_invoice_ids: None,
-                });
-                matched_tx_indices.insert(idx);
-                matched_invoice_ids.insert(inv.invoice_id.clone());
-            }
-        }
-
-        let unmatched_txs: Vec<usize> = (0..txs.len())
-            .filter(|i| !matched_tx_indices.contains(i))
-            .collect();
-
-        let unmatched_invoices: Vec<String> = invoices
-            .iter()
-            .map(|inv| inv.invoice_id.clone())
-            .filter(|id| !matched_invoice_ids.contains(id))
-            .collect();
-
-        (matched, unmatched_txs, unmatched_invoices)
+        default_engine().match_tier1(txs, invoices)
     }
 
-    /// Executes Tier 2 fuzzy heuristic matching (party name token match + standard bank fee deduction 1.100 - 22.000 VND).
+    /// Executes Tier 2 fuzzy heuristic matching (party name token match + standard bank fee deduction).
     pub fn match_tier2(
         unmatched_tx_indices: &[usize],
         all_txs: &[CanonicalTx],
         unmatched_inv_ids: &[String],
         all_invoices: &[InternalInvoice],
     ) -> (Vec<ReconciliationMatch>, Vec<usize>, Vec<String>) {
-        let mut matched = Vec::new();
-        let mut matched_tx_set = std::collections::HashSet::new();
-        let mut matched_inv_set = std::collections::HashSet::new();
-
-        let standard_fees = [1_100i64, 2_200, 3_300, 5_500, 7_700, 11_000, 22_000];
-
-        let inv_lookup: HashMap<String, &InternalInvoice> = all_invoices
-            .iter()
-            .map(|i| (i.invoice_id.clone(), i))
-            .collect();
-
-        for &tx_idx in unmatched_tx_indices {
-            let tx = &all_txs[tx_idx];
-            let tx_norm = normalize_vietnamese_text(&tx.narration);
-
-            for inv_id in unmatched_inv_ids {
-                if matched_inv_set.contains(inv_id) {
-                    continue;
-                }
-                let inv = inv_lookup[inv_id];
-                let inv_party_norm = normalize_vietnamese_text(&inv.counterparty_name);
-
-                // Filter generic Vietnamese company legal form prefix words
-                const LEGAL_STOP_WORDS: &[&str] = &[
-                    "CONG", "TY", "CP", "CO", "PHAN", "TNHH", "MTV", "TAP", "DOAN", "TONG", "CHI", "NHANH"
-                ];
-
-                let all_words: Vec<&str> = inv_party_norm.split_whitespace().collect();
-                let key_words: Vec<&str> = all_words
-                    .into_iter()
-                    .filter(|w| !LEGAL_STOP_WORDS.contains(w))
-                    .collect();
-
-                let matching_words = key_words.iter().filter(|&&w| tx_norm.contains(w)).count();
-                let party_matched = if key_words.is_empty() {
-                    false
-                } else {
-                    matching_words >= 1 && (matching_words * 2 >= key_words.len())
-                };
-
-                if !party_matched {
-                    continue;
-                }
-
-                // Check exact amount or fee deduction
-                let delta = inv.amount.amount() - tx.amount.amount();
-                if delta == 0 {
-                    matched.push(ReconciliationMatch {
-                        match_id: Uuid::new_v4().to_string(),
-                        tier: MatchTier::Tier2Fuzzy,
-                        bank_tx_id: tx.row_id,
-                        invoice_id: inv.invoice_id.clone(),
-                        bank_amount: tx.amount,
-                        invoice_amount: inv.amount,
-                        fee_deducted: None,
-                        confidence_score: 92,
-                        constituent_invoice_ids: None,
-                    });
-                    matched_tx_set.insert(tx_idx);
-                    matched_inv_set.insert(inv_id.clone());
-                    break;
-                } else if standard_fees.contains(&delta) {
-                    matched.push(ReconciliationMatch {
-                        match_id: Uuid::new_v4().to_string(),
-                        tier: MatchTier::Tier2Fuzzy,
-                        bank_tx_id: tx.row_id,
-                        invoice_id: inv.invoice_id.clone(),
-                        bank_amount: tx.amount,
-                        invoice_amount: inv.amount,
-                        fee_deducted: Some(Money::vnd(delta)),
-                        confidence_score: 88,
-                        constituent_invoice_ids: None,
-                    });
-                    matched_tx_set.insert(tx_idx);
-                    matched_inv_set.insert(inv_id.clone());
-                    break;
-                }
-            }
-        }
-
-        let rem_txs: Vec<usize> = unmatched_tx_indices
-            .iter()
-            .copied()
-            .filter(|i| !matched_tx_set.contains(i))
-            .collect();
-
-        let rem_invs: Vec<String> = unmatched_inv_ids
-            .iter()
-            .filter(|id| !matched_inv_set.contains(*id))
-            .cloned()
-            .collect();
-
-        (matched, rem_txs, rem_invs)
+        default_engine().match_tier2(
+            unmatched_tx_indices,
+            all_txs,
+            unmatched_inv_ids,
+            all_invoices,
+        )
     }
 
-    /// Executes Tier 3 Subset-Sum Split Solver (1:N composite match bounded by max_depth items, up to 8).
-    /// Finds combinations of invoices where sum(invoice_amount) == tx_amount (Delta == 0).
+    /// Executes Tier 3 Subset-Sum Split Solver (1:N and N:1 composite match bounded by max_depth items, up to 8).
     pub fn match_tier3(
         unmatched_tx_indices: &[usize],
         all_txs: &[CanonicalTx],
@@ -267,154 +166,38 @@ impl ReconciliationEngine {
         all_invoices: &[InternalInvoice],
         max_depth: usize,
     ) -> (Vec<ReconciliationMatch>, Vec<usize>, Vec<String>) {
-        let depth_limit = max_depth.clamp(2, 8);
-        let mut matched = Vec::new();
-        let mut matched_tx_set = std::collections::HashSet::new();
-        let mut matched_inv_set = std::collections::HashSet::new();
-
-        let inv_lookup: HashMap<String, &InternalInvoice> = all_invoices
-            .iter()
-            .map(|i| (i.invoice_id.clone(), i))
-            .collect();
-
-        for &tx_idx in unmatched_tx_indices {
-            let tx = &all_txs[tx_idx];
-            let target_amount = tx.amount.amount();
-            if target_amount == 0 {
-                continue;
-            }
-
-            // Extract candidate invoices having positive amounts and < target_amount
-            let mut candidates: Vec<&InternalInvoice> = unmatched_inv_ids
-                .iter()
-                .filter(|id| !matched_inv_set.contains(*id))
-                .filter_map(|id| inv_lookup.get(id).copied())
-                .filter(|inv| inv.amount.amount() > 0 && inv.amount.amount() < target_amount)
-                .collect();
-
-            if candidates.len() < 2 {
-                continue;
-            }
-
-            // Prioritize candidates whose counterparty matches narration tokens
-            let tx_norm = normalize_vietnamese_text(&tx.narration);
-            candidates.sort_by(|a, b| {
-                let a_norm = normalize_vietnamese_text(&a.counterparty_name);
-                let b_norm = normalize_vietnamese_text(&b.counterparty_name);
-                let a_match = tx_norm.contains(&a_norm) || a_norm.split_whitespace().any(|w| w.len() > 3 && tx_norm.contains(w));
-                let b_match = tx_norm.contains(&b_norm) || b_norm.split_whitespace().any(|w| w.len() > 3 && tx_norm.contains(w));
-                b_match.cmp(&a_match).then_with(|| b.amount.amount().cmp(&a.amount.amount()))
-            });
-
-            // Branch-and-bound subset-sum search
-            let mut found_solution: Option<Vec<String>> = None;
-
-            fn search_subset(
-                start: usize,
-                target: i64,
-                current_sum: i64,
-                current_ids: &mut Vec<String>,
-                candidates: &[&InternalInvoice],
-                depth_limit: usize,
-                found: &mut Option<Vec<String>>,
-            ) {
-                if found.is_some() {
-                    return;
-                }
-                if current_sum == target && current_ids.len() >= 2 {
-                    *found = Some(current_ids.clone());
-                    return;
-                }
-                if current_ids.len() >= depth_limit || current_sum > target {
-                    return;
-                }
-
-                for i in start..candidates.len() {
-                    let inv = candidates[i];
-                    let next_sum = current_sum + inv.amount.amount();
-                    if next_sum > target {
-                        continue;
-                    }
-                    current_ids.push(inv.invoice_id.clone());
-                    search_subset(i + 1, target, next_sum, current_ids, candidates, depth_limit, found);
-                    current_ids.pop();
-                    if found.is_some() {
-                        return;
-                    }
-                }
-            }
-
-            let mut current_ids = Vec::new();
-            search_subset(
-                0,
-                target_amount,
-                0,
-                &mut current_ids,
-                &candidates,
-                depth_limit,
-                &mut found_solution,
-            );
-
-            if let Some(solution_ids) = found_solution {
-                let match_id = Uuid::new_v4().to_string();
-                let conf_score = (95u32).saturating_sub((solution_ids.len() as u32) * 2);
-
-                for inv_id in &solution_ids {
-                    matched_inv_set.insert(inv_id.clone());
-                }
-                matched_tx_set.insert(tx_idx);
-
-                matched.push(ReconciliationMatch {
-                    match_id,
-                    tier: MatchTier::Tier3Split,
-                    bank_tx_id: tx.row_id,
-                    invoice_id: solution_ids[0].clone(),
-                    bank_amount: tx.amount,
-                    invoice_amount: tx.amount,
-                    fee_deducted: None,
-                    confidence_score: conf_score,
-                    constituent_invoice_ids: Some(solution_ids),
-                });
-            }
+        if max_depth == 8 {
+            default_engine().match_tier3(
+                unmatched_tx_indices,
+                all_txs,
+                unmatched_inv_ids,
+                all_invoices,
+            )
+        } else {
+            let mut engine = default_engine().clone();
+            engine.config.tier3.max_depth = max_depth;
+            engine.match_tier3(
+                unmatched_tx_indices,
+                all_txs,
+                unmatched_inv_ids,
+                all_invoices,
+            )
         }
-
-        let rem_txs: Vec<usize> = unmatched_tx_indices
-            .iter()
-            .copied()
-            .filter(|i| !matched_tx_set.contains(i))
-            .collect();
-
-        let rem_invs: Vec<String> = unmatched_inv_ids
-            .iter()
-            .filter(|id| !matched_inv_set.contains(*id))
-            .cloned()
-            .collect();
-
-        (matched, rem_txs, rem_invs)
     }
 
-    /// Enqueues remaining unresolved items into HITL Quarantine with 15-minute TTL tokens.
+    /// Enqueues remaining unresolved items into HITL Quarantine with configured TTL tokens and risk classification.
     pub fn enqueue_hitl(
         unmatched_tx_indices: &[usize],
         all_txs: &[CanonicalTx],
         remaining_invoices: &[InternalInvoice],
         now_timestamp: i64,
     ) -> Vec<HitlQuarantineItem> {
-        unmatched_tx_indices
-            .iter()
-            .map(|&idx| {
-                HitlQuarantineItem {
-                    token: Uuid::new_v4().to_string(),
-                    bank_tx: all_txs[idx].clone(),
-                    candidate_invoices: remaining_invoices.to_vec(),
-                    created_at: now_timestamp,
-                    ttl_seconds: 900, // 15 minutes
-                    maker: None,
-                    checker: None,
-                    approved: false,
-                }
-            })
-            .collect()
+        default_engine().enqueue_hitl(
+            unmatched_tx_indices,
+            all_txs,
+            remaining_invoices,
+            now_timestamp,
+        )
     }
 
     /// Maker-Checker two-phase approval for a quarantined item.
@@ -424,20 +207,41 @@ impl ReconciliationEngine {
         checker: impl Into<String>,
         now: i64,
     ) -> Result<(), ReconError> {
-        let m = maker.into();
-        let c = checker.into();
+        default_engine().approve_hitl(item, maker, checker, now)
+    }
 
-        if m == c {
-            return Err(ReconError::MakerCheckerViolation);
-        }
-        if now - item.created_at > item.ttl_seconds {
-            return Err(ReconError::InvalidToken);
-        }
+    /// Executes Tier 2 fuzzy & hybrid semantic matching with optional semantic context.
+    pub fn match_tier2_with_semantic(
+        unmatched_tx_indices: &[usize],
+        all_txs: &[CanonicalTx],
+        unmatched_inv_ids: &[String],
+        all_invoices: &[InternalInvoice],
+        semantic_context: Option<&SemanticReconContext>,
+    ) -> (Vec<ReconciliationMatch>, Vec<usize>, Vec<String>) {
+        default_engine().match_tier2_with_semantic(
+            unmatched_tx_indices,
+            all_txs,
+            unmatched_inv_ids,
+            all_invoices,
+            semantic_context,
+        )
+    }
 
-        item.maker = Some(m);
-        item.checker = Some(c);
-        item.approved = true;
-        Ok(())
+    /// Executes full 3-tier batch reconciliation with optional semantic context.
+    pub fn reconcile_batch_with_semantic(
+        txs: &[CanonicalTx],
+        invoices: &[InternalInvoice],
+        semantic_context: Option<&SemanticReconContext>,
+    ) -> ReconBatchResult {
+        default_engine().reconcile_batch_with_semantic(txs, invoices, semantic_context)
+    }
+
+    /// Executes full 3-tier batch reconciliation with default rules.
+    pub fn reconcile_batch(
+        txs: &[CanonicalTx],
+        invoices: &[InternalInvoice],
+    ) -> ReconBatchResult {
+        default_engine().reconcile_batch(txs, invoices)
     }
 }
 
@@ -603,6 +407,31 @@ mod tests {
         assert_eq!(res.false_match_count, 0, "False auto-match count must be 0");
         assert!(res.balance_invariant_holds, "Mathematical balance invariant must hold");
         assert!(res.tier3_matches > 0, "Must have tier 3 split matches");
+    }
+
+    #[test]
+    fn test_500_golden_dataset_reconcilable_high_accuracy() {
+        use crate::golden_dataset::{generate_500_valid_reconcilable_dataset, run_golden_benchmark};
+
+        let (txs, invoices) = generate_500_valid_reconcilable_dataset();
+        assert_eq!(txs.len(), 500);
+        assert!(invoices.len() >= 500);
+
+        let res = run_golden_benchmark(&txs, &invoices);
+
+        // Verification of Master Plan KPIs: >= 99.8% match accuracy (10,000 bps = 100.0%) and 0% mismatch
+        assert!(
+            res.reconcilable_match_rate_bps >= 9_980,
+            "Reconcilable match rate must be >= 99.8% (9980 bps), got {} bps",
+            res.reconcilable_match_rate_bps
+        );
+        assert_eq!(res.auto_match_count, 500, "All 500 valid bank transactions must be matched");
+        assert_eq!(res.false_match_count, 0, "False auto-match count must be exactly 0 (0% mismatch)");
+        assert_eq!(res.hitl_quarantine_count, 0, "No valid items should be quarantined");
+        assert!(res.balance_invariant_holds, "Mathematical balance invariant must hold");
+        assert!(res.tier1_matches > 0);
+        assert!(res.tier2_matches > 0);
+        assert!(res.tier3_matches > 0);
     }
 
     #[test]

@@ -3,7 +3,8 @@
  * BankingSidebar.vue
  * Sidebar Navigation matching user mockup with 7 items and active indicator dots.
  */
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
+import { useAuthStore } from '../../stores/authStore';
 
 const props = withDefaults(
   defineProps<{
@@ -18,6 +19,7 @@ const emit = defineEmits<{
   (e: 'navigate', itemId: string): void;
 }>();
 
+const authStore = useAuthStore();
 const current = ref(props.activeItem);
 
 watch(
@@ -31,6 +33,7 @@ interface NavItem {
   id: string;
   label: string;
   hasActiveDot?: boolean;
+  isReadOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -47,6 +50,42 @@ const navItems: NavItem[] = [
   { id: 'reports', label: 'BÁO CÁO' },
   { id: 'settings', label: 'CÀI ĐẶT' },
 ];
+
+const visibleNavItems = computed(() => {
+  const role = authStore.currentUser.role;
+  return navItems
+    .filter((item) => authStore.canAccessRoute(item.id))
+    .map((item) => {
+      let label = item.label;
+      let isReadOnly = false;
+
+      if (role === 'AUDITOR') {
+        if (item.id === 'ledger') {
+          label = 'P50 SỔ CÁI ERP [CHỈ ĐỌC]';
+          isReadOnly = true;
+        } else if (item.id === 'transactions') {
+          label = 'GIAO DỊCH [CHỈ ĐỌC]';
+          isReadOnly = true;
+        }
+      } else if (role === 'CHECKER') {
+        if (item.id === 'quarantine') {
+          label = 'P44 PHÊ DUYỆT 4-EYES';
+        } else if (item.id === 'treasury') {
+          label = 'KÝ DUYỆT LỆNH CHI';
+        }
+      } else if (role === 'MAKER') {
+        if (item.id === 'quarantine') {
+          label = 'P44 LẬP ĐỀ XUẤT';
+        }
+      }
+
+      return {
+        ...item,
+        label,
+        isReadOnly,
+      };
+    });
+});
 
 function selectItem(id: string) {
   current.value = id;
@@ -78,7 +117,7 @@ function selectItem(id: string) {
     <!-- Nav List -->
     <nav class="nav-menu">
       <button
-        v-for="item in navItems"
+        v-for="item in visibleNavItems"
         :key="item.id"
         class="nav-item"
         :class="{ active: current === item.id }"
@@ -174,6 +213,35 @@ function selectItem(id: string) {
         <span v-if="item.hasActiveDot" class="status-dot" title="Đang đối soát thời gian thực" />
       </button>
     </nav>
+
+    <!-- Authenticated Officer Status Card in Footer -->
+    <div class="officer-footer-card">
+      <div class="officer-top-row">
+        <div
+          class="officer-avatar"
+          :style="{ backgroundColor: authStore.currentUser.avatarColor || '#2563eb' }"
+        >
+          {{ authStore.currentUser.avatarInitials || 'CB' }}
+        </div>
+        <div class="officer-info">
+          <div class="officer-name" :title="authStore.currentUser.fullName">
+            {{ authStore.currentUser.fullName }}
+          </div>
+          <span class="officer-role-badge" :class="`badge-${authStore.currentUser.role.toLowerCase()}`">
+            {{ authStore.currentUser.role }}
+          </span>
+        </div>
+      </div>
+      <div class="officer-bottom-row">
+        <div class="officer-role-title" :title="authStore.currentUser.roleTitle">
+          {{ authStore.currentUser.roleTitle }}
+        </div>
+        <div class="officer-sod-badge" title="Segregation of Duties Enforced">
+          <span class="sod-indicator-dot" />
+          <span class="sod-text">SoD Active</span>
+        </div>
+      </div>
+    </div>
   </aside>
 </template>
 
@@ -234,6 +302,8 @@ function selectItem(id: string) {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .nav-item {
@@ -295,5 +365,135 @@ function selectItem(id: string) {
     transform: scale(1.25);
     opacity: 1;
   }
+}
+
+/* Officer Footer Card Styles */
+.officer-footer-card {
+  margin-top: auto;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.officer-top-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.officer-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.officer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  flex: 1;
+}
+
+.officer-name {
+  color: #f1f5f9;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.officer-role-badge {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.badge-maker {
+  background: rgba(37, 99, 235, 0.2);
+  color: #60a5fa;
+  border: 1px solid rgba(37, 99, 235, 0.3);
+}
+
+.badge-checker {
+  background: rgba(5, 150, 105, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(5, 150, 105, 0.3);
+}
+
+.badge-cfo {
+  background: rgba(124, 58, 237, 0.2);
+  color: #a78bfa;
+  border: 1px solid rgba(124, 58, 237, 0.3);
+}
+
+.badge-auditor {
+  background: rgba(217, 119, 6, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(217, 119, 6, 0.3);
+}
+
+.badge-admin {
+  background: rgba(220, 38, 38, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+.officer-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 5px;
+  gap: 6px;
+}
+
+.officer-role-title {
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.officer-sod-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sod-indicator-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #10b981;
+}
+
+.sod-text {
+  color: #10b981;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
 }
 </style>

@@ -69,3 +69,13 @@ allow-git = [
     # xcb patch cho quick-xml vulnerability — xem Cargo.toml [patch.crates-io]
     "https://github.com/rust-x-bindings/rust-xcb",
 ]
+
+# ─────────────────────────────────────────────────────────────────────
+# Bans — kiểm soát phiên bản trùng lặp và cấm crate không an toàn
+# ─────────────────────────────────────────────────────────────────────
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+deny = []
+

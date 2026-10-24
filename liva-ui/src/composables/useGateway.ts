@@ -1,6 +1,7 @@
 import { ref, shallowRef } from "vue";
 import { logger } from "../utils/logger";
 import { unpack } from "msgpackr";
+import { getConfiguredBackendUrl } from "../platform";
 import type {
   LivaConfig,
   AIConfig,
@@ -558,7 +559,18 @@ const connect = () => {
   const isRemote = host && host !== 'localhost' && host !== '127.0.0.1';
 
   let wsUrl: string;
-  if (isHttps || isRemote) {
+  const configuredBackend = getConfiguredBackendUrl();
+  if (configuredBackend) {
+    try {
+      const parsed = new URL(configuredBackend);
+      const proto = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${proto}//${parsed.host}/ws`;
+    } catch {
+      const clean = configuredBackend.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+      const proto = configuredBackend.startsWith('https://') ? 'wss:' : 'ws:';
+      wsUrl = `${proto}//${clean}/ws`;
+    }
+  } else if (isHttps || isRemote) {
     const proto = isHttps ? 'wss:' : 'ws:';
     wsUrl = `${proto}//${window.location.host}/ws`;
   } else {

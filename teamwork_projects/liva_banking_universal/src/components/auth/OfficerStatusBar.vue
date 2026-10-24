@@ -74,13 +74,6 @@ const MAX_SESSION_SECONDS = 14400; // 4 hours (14,400s)
 const sessionSeconds = ref(0);
 let sessionTimer: any = null;
 
-const sessionElapsedFormatted = computed(() => {
-  const hrs = Math.floor(sessionSeconds.value / 3600).toString().padStart(2, '0');
-  const mins = Math.floor((sessionSeconds.value % 3600) / 60).toString().padStart(2, '0');
-  const secs = (sessionSeconds.value % 60).toString().padStart(2, '0');
-  return `${hrs}:${mins}:${secs}`;
-});
-
 const remainingSeconds = computed(() => Math.max(0, MAX_SESSION_SECONDS - sessionSeconds.value));
 const sessionRemainingFormatted = computed(() => {
   const hrs = Math.floor(remainingSeconds.value / 3600).toString().padStart(2, '0');

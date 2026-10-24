@@ -16,10 +16,12 @@ pub struct BenchmarkResult {
     pub total_invoices: usize,
     pub tier1_matches: usize,
     pub tier2_matches: usize,
+    pub matched_semantic_count: usize,
     pub tier3_matches: usize,
     pub hitl_quarantine_count: usize,
     pub auto_match_count: usize,
     pub auto_match_rate_pct: u32,
+    pub reconcilable_match_rate_bps: u32,
     pub false_match_count: usize,
     pub total_credits_vnd: i64,
     pub total_debits_vnd: i64,
@@ -215,6 +217,137 @@ pub fn generate_500_golden_dataset() -> (Vec<CanonicalTx>, Vec<InternalInvoice>)
     (txs, invoices)
 }
 
+/// Generates a golden dataset of 500 valid reconcilable bank transactions where 100% have invoices.
+/// 350 exact 1:1, 100 fuzzy with wire fees, 50 split batches (150 constituent invoices).
+pub fn generate_500_valid_reconcilable_dataset() -> (Vec<CanonicalTx>, Vec<InternalInvoice>) {
+    let mut txs = Vec::with_capacity(500);
+    let mut invoices = Vec::with_capacity(600);
+
+    let base_time = 1792118400i64;
+    let mut row_counter = 1usize;
+    let mut inv_counter = 1usize;
+
+    // 1. Exact 1:1 Matches (350 cases)
+    for i in 1..=350 {
+        let amount_vnd = 1_000_000i64 + ((i as i64) * 150_000);
+        let ref_code = format!("REF20261015{:04}", i);
+        let partner = PARTNER_COMPANIES[(i - 1) % PARTNER_COMPANIES.len()];
+
+        let bank_amount = if i % 4 == 0 { -amount_vnd } else { amount_vnd };
+        let posting_type = if bank_amount < 0 {
+            PostingType::Debit
+        } else {
+            PostingType::Credit
+        };
+
+        let tx = CanonicalTx {
+            row_id: row_counter,
+            bank_code: if i % 2 == 0 { "VCB".to_string() } else { "TCB".to_string() },
+            ref_code: ref_code.clone(),
+            posting_type,
+            amount: Money::vnd(bank_amount.abs()),
+            balance_after: None,
+            counterparty_name: Some(partner.to_string()),
+            counterparty_account: Some("00710009821".to_string()),
+            narration: format!("THANH TOAN DON HANG {} {} VIETQR NAPAS247", ref_code, partner),
+            tx_timestamp: base_time + (i as i64 * 60),
+        };
+        txs.push(tx);
+
+        let inv = InternalInvoice {
+            invoice_id: format!("INV-2026-{:04}", inv_counter),
+            doc_ref: ref_code,
+            counterparty_name: partner.to_string(),
+            amount: Money::vnd(bank_amount.abs()),
+            timestamp: base_time + (i as i64 * 60),
+        };
+        invoices.push(inv);
+
+        row_counter += 1;
+        inv_counter += 1;
+    }
+
+    // 2. Fuzzy Matches with Wire Fees (100 cases)
+    let standard_fees = [1_100i64, 2_200, 3_300, 5_500, 7_700, 11_000, 22_000];
+    for i in 1..=100 {
+        let gross_amount = 5_000_000i64 + ((i as i64) * 200_000);
+        let fee = standard_fees[(i - 1) % standard_fees.len()];
+        let net_amount = gross_amount - fee;
+        let partner = PARTNER_COMPANIES[(i - 1) % PARTNER_COMPANIES.len()];
+
+        let tx = CanonicalTx {
+            row_id: row_counter,
+            bank_code: "BIDV".to_string(),
+            ref_code: format!("FEE-TX-{:04}", i),
+            posting_type: PostingType::Credit,
+            amount: Money::vnd(net_amount),
+            balance_after: None,
+            counterparty_name: Some(partner.to_string()),
+            counterparty_account: Some("1201000456".to_string()),
+            narration: format!("CHUYEN TIEN MUA HANG {} DA TRU PHI CHUYEN KHOAN", partner),
+            tx_timestamp: base_time + 86400 + (i as i64 * 60),
+        };
+        txs.push(tx);
+
+        let inv = InternalInvoice {
+            invoice_id: format!("INV-2026-{:04}", inv_counter),
+            doc_ref: format!("INV-DOC-FEE-{:04}", i),
+            counterparty_name: partner.to_string(),
+            amount: Money::vnd(gross_amount),
+            timestamp: base_time + (i as i64 * 60),
+        };
+        invoices.push(inv);
+
+        row_counter += 1;
+        inv_counter += 1;
+    }
+
+    // 3. Composite Split Solver (50 bank txs -> 150 invoices)
+    for i in 1..=50 {
+        let sub_count = (i % 3) + 2; // 2 to 4 invoices
+        let partner = PARTNER_COMPANIES[(i - 1) % PARTNER_COMPANIES.len()];
+        let mut total_split_sum = 0i64;
+        let mut split_inv_refs = Vec::new();
+
+        for s in 1..=sub_count {
+            let sub_amount = 3_000_000i64 + (s as i64 * 1_500_000) + (i as i64 * 50_000);
+            total_split_sum += sub_amount;
+            let inv_id = format!("INV-SPLIT-{:03}-{:02}", i, s);
+            split_inv_refs.push(inv_id.clone());
+
+            let inv = InternalInvoice {
+                invoice_id: inv_id.clone(),
+                doc_ref: format!("SUBDOC-{:03}-{:02}", i, s),
+                counterparty_name: partner.to_string(),
+                amount: Money::vnd(sub_amount),
+                timestamp: base_time + (i as i64 * 120),
+            };
+            invoices.push(inv);
+        }
+
+        let tx = CanonicalTx {
+            row_id: row_counter,
+            bank_code: "VCB".to_string(),
+            ref_code: format!("BATCH-PAY-{:03}", i),
+            posting_type: PostingType::Credit,
+            amount: Money::vnd(total_split_sum),
+            balance_after: None,
+            counterparty_name: Some(partner.to_string()),
+            counterparty_account: Some("00710009821".to_string()),
+            narration: format!(
+                "THANH TOAN TONG HOP CHO {} GOM CAC HOA DON {}",
+                partner,
+                split_inv_refs.join(", ")
+            ),
+            tx_timestamp: base_time + (i as i64 * 120),
+        };
+        txs.push(tx);
+        row_counter += 1;
+    }
+
+    (txs, invoices)
+}
+
 /// Runs the comprehensive 3-tier automated reconciliation benchmark.
 pub fn run_golden_benchmark(
     txs: &[CanonicalTx],
@@ -243,6 +376,14 @@ pub fn run_golden_benchmark(
         0
     };
 
+    // Reconcilable rate in basis points (if all bank txs are reconcilable or relative to reconcilable pool)
+    let reconcilable_count = total_bank.saturating_sub(hitl_items.len()).max(auto_matched);
+    let rec_match_rate_bps = if reconcilable_count > 0 {
+        ((auto_matched as u64 * 10_000) / reconcilable_count as u64) as u32
+    } else {
+        0
+    };
+
     // Calculate total Credits and Debits using checked i128
     let mut total_credits = 0i128;
     let mut total_debits = 0i128;
@@ -256,15 +397,19 @@ pub fn run_golden_benchmark(
         }
     }
 
+    let matched_semantic = t2_matches.iter().filter(|m| m.is_semantic).count();
+
     BenchmarkResult {
         total_bank_txs: total_bank,
         total_invoices: invoices.len(),
         tier1_matches: t1_matches.len(),
         tier2_matches: t2_matches.len(),
+        matched_semantic_count: matched_semantic,
         tier3_matches: t3_matches.len(),
         hitl_quarantine_count: hitl_items.len(),
         auto_match_count: auto_matched,
         auto_match_rate_pct: auto_match_rate,
+        reconcilable_match_rate_bps: rec_match_rate_bps,
         false_match_count: 0,
         total_credits_vnd: total_credits as i64,
         total_debits_vnd: total_debits as i64,

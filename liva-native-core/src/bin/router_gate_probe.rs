@@ -36,8 +36,8 @@ use liva_native_core::db::MEMORY_VECTOR_DIM;
 use liva_native_core::llm::LlamaRouterManager;
 use liva_native_core::llm::engine::VisionImage;
 use liva_native_core::{
-    DEFAULT_EXPERT_MODEL, DEFAULT_MODELS_DIR, DEFAULT_ROUTER_MODEL, config_file_path,
-    configured_mmproj_path, configured_models_dir, configured_router_model_path,
+    DEFAULT_EXPERT_MODEL, DEFAULT_ROUTER_MODEL, config_file_path, configured_mmproj_path,
+    configured_models_dir, configured_router_model_path,
 };
 
 fn stream_print(piece: &str) -> bool {
@@ -78,7 +78,7 @@ fn resolve_expert_model_path() -> PathBuf {
             return dir.join(expert);
         }
     }
-    PathBuf::from(DEFAULT_MODELS_DIR).join(DEFAULT_EXPERT_MODEL)
+    configured_models_dir().join(DEFAULT_EXPERT_MODEL)
 }
 
 fn resolve_router_model_path() -> PathBuf {
@@ -86,7 +86,7 @@ fn resolve_router_model_path() -> PathBuf {
         return p;
     }
     configured_router_model_path()
-        .unwrap_or_else(|| PathBuf::from(DEFAULT_MODELS_DIR).join(DEFAULT_ROUTER_MODEL))
+        .unwrap_or_else(|| configured_models_dir().join(DEFAULT_ROUTER_MODEL))
 }
 
 fn resolve_mmproj_path() -> Option<PathBuf> {
@@ -94,7 +94,7 @@ fn resolve_mmproj_path() -> Option<PathBuf> {
         return Some(p);
     }
     configured_mmproj_path().or_else(|| {
-        let fallback = PathBuf::from(DEFAULT_MODELS_DIR)
+        let fallback = configured_models_dir()
             .join("gemma-4-E4B-it-qat-GGUF")
             .join("mmproj-F16.gguf");
         if fallback.exists() {

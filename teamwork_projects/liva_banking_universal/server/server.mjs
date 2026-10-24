@@ -9,12 +9,44 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DatabaseSync } from 'node:sqlite';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3001;
-const JWT_SECRET = process.env.JWT_SECRET || 'liva-enterprise-super-secret-key-2026-circular-09';
+
+// ============================================================================
+// 1. JWT Secret Initialization & Cryptographic Ephemeral Fallback
+// ============================================================================
+let JWT_SECRET = process.env.JWT_SECRET;
+let isEphemeralJwtSecret = false;
+
+if (!JWT_SECRET || typeof JWT_SECRET !== 'string' || JWT_SECRET.trim() === '') {
+  // Production Fail-Closed Safety Guard
+  if (process.env.NODE_ENV === 'production') {
+    console.error(
+      '\x1b[31m%s\x1b[0m',
+      '[CRITICAL SECURITY ERROR] Refusing to start LIVA Banking Universal Server in production mode without explicit JWT_SECRET!'
+    );
+    console.error(
+      'Please provision a cryptographically secure JWT_SECRET (min 256-bit entropy) via environment variables or secret vault.'
+    );
+    process.exit(1);
+  }
+
+  // Development & Test Mode: Cryptographically Secure Ephemeral Fallback
+  isEphemeralJwtSecret = true;
+  JWT_SECRET = crypto.randomBytes(32).toString('hex');
+
+  console.warn(
+    '\x1b[33m%s\x1b[0m',
+    '[SECURITY WARNING] process.env.JWT_SECRET is not configured! ' +
+      'A cryptographically secure dynamic ephemeral secret has been generated for this session. ' +
+      'Issued tokens will become invalid upon server restart. ' +
+      'For persistent multi-workstation sessions, set JWT_SECRET in your .env or environment.'
+  );
+}
 
 // ==========================================
 // 1. JWT Implementation (HMAC-SHA256)
@@ -202,48 +234,117 @@ function broadcastEvent(event, data) {
 }
 
 // ==========================================
-// 3. Centralized Shared Database (In-Memory + State)
+// 3. Centralized Shared Database (SQLite + In-Memory Fallback)
 // ==========================================
+const SQLITE_DB_PATH = path.resolve(__dirname, '..', '..', '..', 'data', 'liva_banking.db');
+const SEED_SQL_PATH = path.resolve(__dirname, '..', '..', '..', 'data', 'liva_banking_seed.sql');
+
+let sqliteDb = null;
+try {
+  if (fs.existsSync(SQLITE_DB_PATH)) {
+    sqliteDb = new DatabaseSync(SQLITE_DB_PATH);
+  }
+} catch (err) {
+  // Graceful fallback if SQLite is inaccessible
+}
+
 let DB = {
   accounts: [
     {
       id: 'acc_vcb_01',
       bankCode: 'VCB',
+      channelCode: 'CITAD',
       bankName: 'Ngân hàng TMCP Ngoại thương Việt Nam (Vietcombank)',
+      channelName: 'Kênh Thanh toán Điện tử Liên ngân hàng CITAD (NHNN)',
+      clearingAuthority: 'Ngân hàng Nhà nước Việt Nam (Sở Giao dịch NHNN)',
       accountNumber: '0071001234567',
       accountName: 'CONG TY TNHH LIVA SOLUTIONS',
-      balance: 3450000000,
+      balance: 25000000000,
+      balanceVnd: 25000000000,
+      availableBalanceVnd: 25000000000,
       currency: 'VND',
       inflows: 1710000000,
+      inflowMonthVnd: 1710000000,
       outflows: 514500000,
+      outflowMonthVnd: 514500000,
+      minReserveVnd: 1000000000,
+      brandColor: '#005a3c',
       status: 'ACTIVE',
       lastReconciledAt: '2026-08-31T17:00:00Z',
+      clearingMechanism: 'RTGS Thanh toán Điện tử Liên ngân hàng IBPS/CITAD',
+      cutoffTime: '16:30 (Phiên chiều NHNN)',
     },
     {
       id: 'acc_tcb_01',
       bankCode: 'TCB',
+      channelCode: 'NAPAS',
       bankName: 'Ngân hàng TMCP Kỹ thương Việt Nam (Techcombank)',
+      channelName: 'Kênh Chuyển mạch Tài chính & Bù trừ Điện tử NAPAS 24/7',
+      clearingAuthority: 'Công ty Cổ phần Thanh toán Quốc gia Việt Nam (NAPAS)',
       accountNumber: '19034567890123',
       accountName: 'CONG TY TNHH LIVA SOLUTIONS',
-      balance: 1250000000,
+      balance: 15000000000,
+      balanceVnd: 15000000000,
+      availableBalanceVnd: 15000000000,
       currency: 'VND',
       inflows: 800000000,
+      inflowMonthVnd: 800000000,
       outflows: 2200000,
+      outflowMonthVnd: 2200000,
+      minReserveVnd: 500000000,
+      brandColor: '#0284c7',
       status: 'ACTIVE',
       lastReconciledAt: '2026-08-31T17:00:00Z',
+      clearingMechanism: 'Bù trừ Tự động ACH & Chuyển tiền nhanh 24/7 (VietQR)',
+      cutoffTime: '24/7/365 (Thời gian thực)',
     },
     {
       id: 'acc_bidv_01',
       bankCode: 'BIDV',
+      channelCode: 'BILATERAL',
       bankName: 'Ngân hàng TMCP Đầu tư & Phát triển VN (BIDV)',
+      channelName: 'Kênh Thanh toán Song phương & Tài khoản Vostro / Nostro',
+      clearingAuthority: 'Hệ thống Ngân hàng Đại lý & Định chế Tài chính Thành viên',
       accountNumber: '12410001234567',
       accountName: 'CONG TY TNHH LIVA SOLUTIONS',
       balance: 486130000,
+      balanceVnd: 486130000,
+      availableBalanceVnd: 486130000,
       currency: 'VND',
       inflows: 420000000,
+      inflowMonthVnd: 420000000,
       outflows: 419500000,
+      outflowMonthVnd: 419500000,
+      minReserveVnd: 300000000,
+      brandColor: '#d97706',
       status: 'ACTIVE',
       lastReconciledAt: '2026-08-31T17:00:00Z',
+      clearingMechanism: 'Kết nối Kênh Thanh toán Song phương Trực tiếp',
+      cutoffTime: '17:00 (Hàng ngày)',
+    },
+    {
+      id: 'acc_swift_01',
+      bankCode: 'SWIFT',
+      channelCode: 'SWIFT',
+      bankName: 'Hiệp hội Viễn thông Tài chính Quốc tế (SWIFT Alliance)',
+      channelName: 'Kênh Chuyển tiền & Điện báo Quốc tế SWIFT',
+      clearingAuthority: 'Hiệp hội Viễn thông Tài chính Liên ngân hàng Quốc tế (SWIFT)',
+      accountNumber: 'SWIFT-NOSTRO-USD-EUR',
+      accountName: 'CONG TY TNHH LIVA SOLUTIONS',
+      balance: 420000000,
+      balanceVnd: 420000000,
+      availableBalanceVnd: 420000000,
+      currency: 'VND',
+      inflows: 350000000,
+      inflowMonthVnd: 350000000,
+      outflows: 180000000,
+      outflowMonthVnd: 180000000,
+      minReserveVnd: 200000000,
+      brandColor: '#7c3aed',
+      status: 'ACTIVE',
+      lastReconciledAt: '2026-08-31T17:00:00Z',
+      clearingMechanism: 'Điện báo ISO 20022 MX (pacs.008/009)',
+      cutoffTime: '23:00 (Theo giờ chuẩn GMT)',
     },
   ],
   vouchers: [
@@ -274,7 +375,71 @@ let DB = {
     leaves: [],
     history: [],
   },
+  reconciliationSummary: {
+    totalRecords: 0,
+    matchedCount: 0,
+    unmatchedCount: 0,
+    matchRate: 0.0,
+    lastReconciledAt: null,
+  },
+  amlAlerts: [],
 };
+
+// Helper: flexible account resolution
+function findAccount(sourceIdent) {
+  if (!sourceIdent && DB.accounts.length > 0) return DB.accounts[0];
+  const ident = String(sourceIdent).trim().toLowerCase();
+  let acc = DB.accounts.find((a) => a.id && a.id.toLowerCase() === ident);
+  if (acc) return acc;
+  acc = DB.accounts.find((a) => a.accountNumber && a.accountNumber.toLowerCase() === ident);
+  if (acc) return acc;
+  acc = DB.accounts.find(
+    (a) => (a.bankCode && a.bankCode.toLowerCase() === ident) ||
+           (a.channelCode && a.channelCode.toLowerCase() === ident)
+  );
+  if (acc) return acc;
+  acc = DB.accounts.find(
+    (a) => (a.accountNumber && ident.includes(a.accountNumber.toLowerCase())) ||
+           (a.bankCode && ident.includes(a.bankCode.toLowerCase())) ||
+           (a.channelCode && ident.includes(a.channelCode.toLowerCase())) ||
+           (a.id && ident.includes(a.id.toLowerCase()))
+  );
+  if (acc) return acc;
+  acc = DB.accounts.find(
+    (a) => (a.channelCode && ident.includes(a.channelCode.toLowerCase())) ||
+           (a.bankCode && ident.includes(a.bankCode.toLowerCase()))
+  );
+  return acc || DB.accounts[0] || null;
+}
+
+// Helper: generate full real-time system state snapshot
+function createSystemSnapshot() {
+  return {
+    accounts: DB.accounts,
+    vouchers: DB.vouchers,
+    merkleRoot: DB.merkleLedger.currentRootHash,
+    merkleLedger: {
+      currentRootHash: DB.merkleLedger.currentRootHash,
+      leavesCount: DB.merkleLedger.leaves.length,
+      historyCount: DB.merkleLedger.history.length,
+    },
+    reconciliationSummary: DB.reconciliationSummary,
+    metrics: {
+      totalLiquidityVnd: DB.accounts.reduce(
+        (sum, acc) => sum + (acc.balance !== undefined ? acc.balance : acc.balanceVnd || 0),
+        0
+      ),
+      pendingVouchersCount: DB.vouchers.filter((v) => v.status === 'PENDING_APPROVAL').length,
+      approvedVouchersCount: DB.vouchers.filter((v) => v.status === 'APPROVED').length,
+      reconciliationMatchRate: DB.reconciliationSummary?.matchRate ?? 0,
+      activeAmlAlertsCount: DB.amlAlerts ? DB.amlAlerts.length : 0,
+    },
+    dailyBurnVnd: Math.round(
+      DB.accounts.reduce((sum, acc) => sum + (acc.outflowMonthVnd || acc.outflows || 0), 0) / 30
+    ),
+    timestamp: new Date().toISOString(),
+  };
+}
 
 // ==========================================
 // 4. HTTP Server & Route Handler
@@ -306,6 +471,11 @@ const server = http.createServer((req, res) => {
     });
 
     res.write(': connected\n\n');
+
+    // Transmit immediate State Snapshot to newly connected client
+    const snapshot = createSystemSnapshot();
+    res.write(`event: state:snapshot\ndata: ${JSON.stringify(snapshot)}\n\n`);
+
     sseClients.add(res);
 
     const keepAliveTimer = setInterval(() => {
@@ -584,13 +754,45 @@ const server = http.createServer((req, res) => {
         return sendJson(400, { success: false, error: 'Lệnh chi không ở trạng thái chờ phê duyệt.' });
       }
 
+      // Solvency check & account deduction (Circular 09/2020 & Accounting Invariant)
+      const voucherAmount = Math.round(Number(voucher.amount !== undefined ? voucher.amount : voucher.amountVnd || 0));
+      if (!Number.isFinite(voucherAmount) || voucherAmount <= 0) {
+        return sendJson(400, { success: false, error: 'Số tiền lệnh chi không hợp lệ.' });
+      }
+
+      const sourceAccount = findAccount(voucher.sourceAccount);
+      if (!sourceAccount) {
+        return sendJson(400, { success: false, error: 'Không tìm thấy tài khoản nguồn trích nợ.' });
+      }
+
+      const currentBalance = Math.round(Number(sourceAccount.balance !== undefined ? sourceAccount.balance : sourceAccount.balanceVnd || 0));
+      if (currentBalance < voucherAmount) {
+        return sendJson(400, {
+          success: false,
+          error: `Số dư khả dụng không đủ để phê duyệt lệnh chi. Số dư hiện tại: ${currentBalance.toLocaleString('vi-VN')} VND, Số tiền lệnh: ${voucherAmount.toLocaleString('vi-VN')} VND.`,
+        });
+      }
+
+      // Deduct balance and update outflows
+      const newBalance = currentBalance - voucherAmount;
+      sourceAccount.balance = newBalance;
+      sourceAccount.balanceVnd = newBalance;
+      if (sourceAccount.availableBalanceVnd !== undefined) {
+        sourceAccount.availableBalanceVnd = newBalance;
+      }
+      sourceAccount.outflows = (sourceAccount.outflows || 0) + voucherAmount;
+      if (sourceAccount.outflowMonthVnd !== undefined) {
+        sourceAccount.outflowMonthVnd = (sourceAccount.outflowMonthVnd || 0) + voucherAmount;
+      }
+
       // Compute Cryptographic Merkle Leaf Hash
-      const leafPayload = `${voucher.id || voucher.voucherId}|${voucher.amount || voucher.amountVnd}|${voucher.targetAccount || voucher.beneficiaryAccount}|${Date.now()}`;
+      const approvedTime = new Date().toISOString();
+      const leafPayload = `${voucher.voucherId || voucher.id}|${voucher.makerId || 'usr_maker_01'}|${authUser.id || authUser.sub}|${voucherAmount}|APPROVED|${approvedTime}`;
       const leafHash = crypto.createHash('sha256').update(leafPayload).digest('hex');
 
       // Update Voucher State
       voucher.status = 'APPROVED';
-      voucher.approvedAt = new Date().toISOString();
+      voucher.approvedAt = approvedTime;
       voucher.checkerId = authUser.id || authUser.sub;
       voucher.checkerName = authUser.name || authUser.fullName;
       voucher.merkleLeafHash = leafHash;
@@ -608,8 +810,12 @@ const server = http.createServer((req, res) => {
         rootHash: combinedHash,
         timestamp: voucher.approvedAt,
         approvedBy: voucher.checkerName,
+        sourceAccount: sourceAccount.accountNumber || sourceAccount.id,
+        deductedAmount: voucherAmount,
+        remainingBalance: newBalance,
       });
 
+      // Dual SSE broadcast: voucher:approved and account:updated
       broadcastEvent('voucher:approved', {
         voucher,
         voucherId: voucher.voucherId || voucher.id,
@@ -618,11 +824,34 @@ const server = http.createServer((req, res) => {
         merkleRoot: combinedHash,
       });
 
+      broadcastEvent('account:updated', {
+        accountId: sourceAccount.id,
+        bankCode: sourceAccount.bankCode,
+        channelCode: sourceAccount.channelCode,
+        accountNumber: sourceAccount.accountNumber,
+        balance: newBalance,
+        balanceVnd: newBalance,
+        availableBalanceVnd: newBalance,
+        outflows: sourceAccount.outflows,
+        outflowMonthVnd: sourceAccount.outflowMonthVnd,
+        deductedAmount: voucherAmount,
+        voucherId: voucher.voucherId || voucher.id,
+        lastUpdated: voucher.approvedAt,
+      });
+
       return sendJson(200, {
         success: true,
         message: 'Lệnh chi đã được phê duyệt và ghi nhận vào Merkle Audit Ledger bất biến.',
         voucher,
         merkleRoot: combinedHash,
+        sourceAccount: {
+          id: sourceAccount.id,
+          bankCode: sourceAccount.bankCode,
+          channelCode: sourceAccount.channelCode,
+          accountNumber: sourceAccount.accountNumber,
+          balance: newBalance,
+          balanceVnd: newBalance,
+        },
       });
     }
 
@@ -678,11 +907,181 @@ const server = http.createServer((req, res) => {
     }
 
     // ------------------------------------------
+    // Route 10: Live Reconciliation Summary
+    // ------------------------------------------
+    if (req.method === 'GET' && pathname === '/api/reconciliation/summary') {
+      return sendJson(200, { success: true, summary: DB.reconciliationSummary });
+    }
+
+    if (req.method === 'POST' && pathname === '/api/reconciliation/summary') {
+      const authUser = getAuthUser();
+      if (!authUser) return sendJson(401, { success: false, error: 'Chưa đăng nhập.' });
+
+      const { totalRecords = 0, matchedCount = 0, unmatchedCount = 0 } = body;
+      const matchRate = totalRecords > 0 ? Math.round((matchedCount / totalRecords) * 10000) / 100 : 0;
+
+      DB.reconciliationSummary = {
+        totalRecords: Number(totalRecords),
+        matchedCount: Number(matchedCount),
+        unmatchedCount: Number(unmatchedCount),
+        matchRate,
+        lastReconciledAt: new Date().toISOString(),
+      };
+
+      broadcastEvent('reconciliation:summary', DB.reconciliationSummary);
+
+      return sendJson(200, { success: true, summary: DB.reconciliationSummary });
+    }
+
+    // ------------------------------------------
+    // Route 11: Live AML Alerts
+    // ------------------------------------------
+    if (req.method === 'GET' && pathname === '/api/aml/alerts') {
+      return sendJson(200, { success: true, alerts: DB.amlAlerts });
+    }
+
+    if (req.method === 'POST' && pathname === '/api/aml/alerts') {
+      const authUser = getAuthUser();
+      if (!authUser) return sendJson(401, { success: false, error: 'Chưa đăng nhập.' });
+
+      const alertId = body.alertId || body.id || `alt_${Date.now()}`;
+      const newAlert = {
+        alertId,
+        id: alertId,
+        ruleId: body.ruleId || 'STR-CIRCULAR-09',
+        severity: body.severity || 'HIGH',
+        triggerType: body.triggerType || body.type || 'SUSPICIOUS_TRANSACTION',
+        message: body.message || body.description || 'Cảnh báo giao dịch đáng ngờ',
+        details: body.details || {},
+        status: 'OPEN',
+        createdAt: new Date().toISOString(),
+      };
+
+      DB.amlAlerts.unshift(newAlert);
+      broadcastEvent('aml:alert', newAlert);
+
+      return sendJson(201, { success: true, alert: newAlert });
+    }
+
+    // ------------------------------------------
+    // Route 12: SQL Database Statistics
+    // ------------------------------------------
+    if (req.method === 'GET' && pathname === '/api/database/stats') {
+      if (sqliteDb) {
+        const totalStmts = sqliteDb.prepare('SELECT count(*) as c FROM bank_statements').get()?.c || 0;
+        const totalInvs = sqliteDb.prepare('SELECT count(*) as c FROM invoices').get()?.c || 0;
+        const totalVouchers = sqliteDb.prepare('SELECT count(*) as c FROM payment_vouchers').get()?.c || 0;
+        const totalAlerts = sqliteDb.prepare('SELECT count(*) as c FROM aml_alerts').get()?.c || 0;
+        const totalLiquidity = sqliteDb.prepare('SELECT sum(balance_vnd) as s FROM accounts').get()?.s || 0;
+        return sendJson(200, {
+          success: true,
+          mode: 'SQLITE_PERSISTENT',
+          databasePath: SQLITE_DB_PATH,
+          stats: {
+            accountsCount: 5,
+            statementsCount: totalStmts,
+            invoicesCount: totalInvs,
+            vouchersCount: totalVouchers,
+            amlAlertsCount: totalAlerts,
+            totalLiquidityVnd: totalLiquidity,
+          },
+        });
+      }
+      return sendJson(200, {
+        success: true,
+        mode: 'IN_MEMORY',
+        stats: {
+          accountsCount: DB.accounts.length,
+          statementsCount: 0,
+          invoicesCount: 0,
+          vouchersCount: DB.vouchers.length,
+          amlAlertsCount: DB.amlAlerts.length,
+          totalLiquidityVnd: DB.accounts.reduce((acc, a) => acc + (a.balance || 0), 0),
+        },
+      });
+    }
+
+    // ------------------------------------------
+    // Route 13: SQL Statements Query
+    // ------------------------------------------
+    if (req.method === 'GET' && pathname === '/api/database/statements') {
+      if (sqliteDb) {
+        const limit = Number(url.searchParams?.get('limit') || 200);
+        const bank = url.searchParams?.get('bank');
+        let query = 'SELECT * FROM bank_statements';
+        const params = [];
+        if (bank && bank !== 'ALL') {
+          query += ' WHERE bank_code = ?';
+          params.push(bank);
+        }
+        query += ' ORDER BY booking_date DESC LIMIT ?';
+        params.push(limit);
+        const rows = sqliteDb.prepare(query).all(...params);
+        return sendJson(200, { success: true, count: rows.length, statements: rows });
+      }
+      return sendJson(200, { success: true, count: 0, statements: [] });
+    }
+
+    // ------------------------------------------
+    // Route 14: SQL Invoices Query
+    // ------------------------------------------
+    if (req.method === 'GET' && pathname === '/api/database/invoices') {
+      if (sqliteDb) {
+        const limit = Number(url.searchParams?.get('limit') || 100);
+        const rows = sqliteDb.prepare('SELECT * FROM invoices LIMIT ?').all(limit);
+        return sendJson(200, { success: true, count: rows.length, invoices: rows });
+      }
+      return sendJson(200, { success: true, count: 0, invoices: [] });
+    }
+
+    // ------------------------------------------
+    // Route 15: SQL Accounts Query
+    // ------------------------------------------
+    if (req.method === 'GET' && pathname === '/api/database/accounts') {
+      if (sqliteDb) {
+        const rows = sqliteDb.prepare('SELECT * FROM accounts').all();
+        return sendJson(200, { success: true, count: rows.length, accounts: rows });
+      }
+      return sendJson(200, { success: true, count: DB.accounts.length, accounts: DB.accounts });
+    }
+
+    // ------------------------------------------
+    // Route 16: SQL Dump Download
+    // ------------------------------------------
+    if (req.method === 'GET' && pathname === '/api/database/sql-dump') {
+      if (fs.existsSync(SEED_SQL_PATH)) {
+        const sqlContent = fs.readFileSync(SEED_SQL_PATH, 'utf-8');
+        res.writeHead(200, {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="liva_banking_seed.sql"',
+        });
+        return res.end(sqlContent);
+      }
+      return sendJson(404, { success: false, error: 'Chưa khởi tạo tệp seed SQL.' });
+    }
+
+    // ------------------------------------------
     // 404 Not Found
     // ------------------------------------------
     return sendJson(404, { error: `Endpoint ${pathname} không tồn tại.` });
   });
 });
+
+// Safe server close wrapper to terminate active SSE streams and prevent hanging test runners
+const origServerClose = server.close.bind(server);
+server.close = function (cb) {
+  for (const client of sseClients) {
+    try {
+      client.end();
+      client.destroy();
+    } catch {}
+  }
+  sseClients.clear();
+  if (typeof server.closeAllConnections === 'function') {
+    server.closeAllConnections();
+  }
+  return origServerClose(cb);
+};
 
 // Direct execution check to prevent port conflicts in test runners
 const isDirectRun = Boolean(
@@ -700,5 +1099,18 @@ if (isDirectRun || process.env.RUN_SERVER === 'true') {
   });
 }
 
-export { server, USERS, DB, signJwt, verifyJwt, broadcastEvent, sseClients, PORT, base64UrlEncode, base64UrlDecode };
+export {
+  server,
+  USERS,
+  DB,
+  signJwt,
+  verifyJwt,
+  broadcastEvent,
+  sseClients,
+  PORT,
+  base64UrlEncode,
+  base64UrlDecode,
+  JWT_SECRET,
+  isEphemeralJwtSecret,
+};
 export default server;

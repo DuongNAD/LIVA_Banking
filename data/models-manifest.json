@@ -128,9 +128,26 @@
       "required": false,
       "broken": "Không ảnh hưởng gì khi thiếu. Đi kèm chat-alt.",
       "note": "Projector PHẢI khớp router: mmproj của model này không dùng được cho model kia."
+    },
+    "chat-expert": {
+      "name": "Chat — banking expert (Qwen3 14B Q5_K_M)",
+      "required": false,
+      "broken": "Không ảnh hưởng gì khi thiếu: hệ thống lùi về router model hoặc fallback tất định khi phân tích chuyên sâu.",
+      "note": "Qwen3 14B Q5_K_M model for local financial advisory, AML compliance explanation, and credit risk narrative synthesis."
     }
   },
   "files": [
+    {
+      "group": "chat-expert",
+      "profile": "banking-expert",
+      "llm": true,
+      "dest": "Qwen_Qwen3-14B-Q5_K_M.gguf",
+      "bytes": 10514570272,
+      "exactSize": true,
+      "manual": "Tải thủ công từ HuggingFace (Qwen/Qwen3-14B-GGUF) hoặc đặt file Qwen_Qwen3-14B-Q5_K_M.gguf vào E:\\AI_Models\\.",
+      "note": "Qwen3 14B Q5_K_M model for local financial advisory, AML compliance explanation, and credit risk narrative synthesis.",
+      "sha256": "bf19bf5c77c530762012f71215b62aa8f0bae08111ee0d537b8496479e17cfa3"
+    },
     {
       "group": "chat-alt",
       "profile": "none",

@@ -17,8 +17,8 @@
     Default: 5173 (Vite dev server). Supported alternatives: 4173 (preview), 8080 (production).
 
 .PARAMETER Domain
-    Assigned ngrok domain.
-    Default: 'rd_3JHcwHJK1iUTdwx1D22XRMeUA5K.ngrok-free.app'.
+    Assigned ngrok domain (optional).
+    Default: empty (or resolved from $env:LIVA_NGROK_DOMAIN / $env:NGROK_DOMAIN).
 
 .PARAMETER ConfigFile
     Path to ngrok configuration file.
@@ -48,7 +48,11 @@ param (
     [int]$Port = 5173,
 
     [Parameter()]
-    [string]$Domain = 'rd_3JHcwHJK1iUTdwx1D22XRMeUA5K.ngrok-free.app',
+    [string]$Domain = $(
+        if ($env:LIVA_NGROK_DOMAIN) { $env:LIVA_NGROK_DOMAIN }
+        elseif ($env:NGROK_DOMAIN) { $env:NGROK_DOMAIN }
+        else { '' }
+    ),
 
     [Parameter()]
     [string]$ConfigFile = 'deploy/ngrok/ngrok-treasury-workbench.yml',
@@ -94,6 +98,21 @@ function Test-NgrokBinary {
     }
     $version = (ngrok version 2>&1).Trim()
     Write-Host "[OK] Detected ngrok binary: $version" -ForegroundColor Green
+    return $true
+}
+
+function Test-NgrokAuthtoken {
+    if ($env:NGROK_AUTHTOKEN) {
+        Write-Host "[OK] Detected NGROK_AUTHTOKEN in environment." -ForegroundColor Green
+        return $true
+    }
+    $defaultNgrokConfig = Join-Path $env:LOCALAPPDATA "ngrok\ngrok.yml"
+    if (Test-Path $defaultNgrokConfig) {
+        Write-Host "[OK] Detected default ngrok configuration in user profile." -ForegroundColor Green
+        return $true
+    }
+    Write-Host "[WARN] NGROK_AUTHTOKEN environment variable is not set." -ForegroundColor Yellow
+    Write-Host "       Set `$env:NGROK_AUTHTOKEN = '<your-token>' or run 'ngrok config add-authtoken <token>'." -ForegroundColor DarkYellow
     return $true
 }
 
@@ -177,6 +196,7 @@ function Start-Tunnel {
     Show-Header
 
     if (-not (Test-NgrokBinary)) { exit 1 }
+    Test-NgrokAuthtoken | Out-Null
     if (-not (Test-RamGuard)) { exit 1 }
     if (-not (Test-Configuration)) { exit 1 }
     $null = Test-UpstreamPort -CheckPort $Port
@@ -243,6 +263,10 @@ function Start-Tunnel {
                 Write-Host "  * Upstream    : $($_.config.addr)" -ForegroundColor White
                 Write-Host "  * Protocol    : $($_.proto)" -ForegroundColor White
             }
+            if ($status.tunnels.Count -gt 0) {
+                $pubUrl = $status.tunnels[0].public_url
+                Write-Host "  * Origin Auth : Set `$env:LIVA_WS_ALLOWED_ORIGINS = '$pubUrl' to authorize WebSocket connections" -ForegroundColor Cyan
+            }
             Write-Host "  * Web Inspector: http://127.0.0.1:4040" -ForegroundColor Cyan
             Write-Host "  * PID File    : $PidFile (PID: $($proc.Id))" -ForegroundColor Gray
             Write-Host "  * Log File    : $LogFile" -ForegroundColor Gray
@@ -255,7 +279,7 @@ function Start-Tunnel {
                 $logContent | ForEach-Object { Write-Host "       $_" -ForegroundColor DarkYellow }
                 if ($logContent -match "ERR_NGROK_313|ERR_NGROK_314") {
                     Write-Host ""
-                    Write-Host "[DIAGNOSTIC] The configured domain resource 'rd_3JHcwHJK1iUTdwx1D22XRMeUA5K' requires a paid plan or static domain activation on ngrok dashboard." -ForegroundColor Yellow
+                    Write-Host "[DIAGNOSTIC] The configured domain resource '$Domain' requires a paid plan or static domain activation on ngrok dashboard." -ForegroundColor Yellow
                     Write-Host "             To launch an immediate ephemeral remote access tunnel for testing, run:" -ForegroundColor Cyan
                     Write-Host "             .\scripts\deploy-ngrok-tunnel.ps1 -Action start -FallbackEphemeral" -ForegroundColor White
                 }
@@ -352,16 +376,19 @@ function Inspect-Tunnel {
 switch ($Action.ToLower()) {
     'test' {
         Show-Header
-        Write-Host "[TEST PHASE 1/4] Checking ngrok binary..." -ForegroundColor Cyan
+        Write-Host "[TEST PHASE 1/5] Checking ngrok binary..." -ForegroundColor Cyan
         $binOk = Test-NgrokBinary
         Write-Host ""
-        Write-Host "[TEST PHASE 2/4] Checking RAM guardrails..." -ForegroundColor Cyan
+        Write-Host "[TEST PHASE 2/5] Checking authtoken credentials..." -ForegroundColor Cyan
+        $tokenOk = Test-NgrokAuthtoken
+        Write-Host ""
+        Write-Host "[TEST PHASE 3/5] Checking RAM guardrails..." -ForegroundColor Cyan
         $ramOk = Test-RamGuard
         Write-Host ""
-        Write-Host "[TEST PHASE 3/4] Validating YAML configuration syntax..." -ForegroundColor Cyan
+        Write-Host "[TEST PHASE 4/5] Validating YAML configuration syntax..." -ForegroundColor Cyan
         $cfgOk = Test-Configuration
         Write-Host ""
-        Write-Host "[TEST PHASE 4/4] Checking upstream Treasury Workbench port..." -ForegroundColor Cyan
+        Write-Host "[TEST PHASE 5/5] Checking upstream Treasury Workbench port..." -ForegroundColor Cyan
         $portOk = Test-UpstreamPort -CheckPort $Port
         Write-Host ""
         if ($binOk -and $ramOk -and $cfgOk) {

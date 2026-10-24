@@ -1,0 +1,25 @@
+[package]
+name = "liva-compliance"
+version = "0.1.0"
+edition = "2021"
+authors = ["LIVA Banking Security & Compliance Team"]
+description = "Declarative AML Surveillance, Dynamic 4-Tier Maker-Checker Policy Engine, RFC 6962 Merkle Audit Trail, and Decree 13 PII Sanitization"
+license = "Proprietary"
+publish = false
+
+[dependencies]
+liva-money = { path = "../liva-money" }
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+serde_json = "1.0"
+sha2 = "0.10"
+hmac = "0.12"
+subtle = "2.6"
+hex = "0.4"
+thiserror = "1.0"
+regex = "1.10"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+proptest = "1.4"

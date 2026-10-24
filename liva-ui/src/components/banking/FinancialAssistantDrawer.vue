@@ -192,7 +192,7 @@ const promptSuggestions = [
           <span class="status-mode-text">
             {{ voiceState === 'PASSIVE' ? 'Sẵn sàng lắng nghe ("Hey Liva")' :
                voiceState === 'LISTENING' ? 'Đang lắng nghe câu hỏi...' :
-               voiceState === 'PROCESSING' ? 'Đang phân tích số liệu tài chính...' :
+               voiceState === 'PROCESSING' ? 'Đang nghĩ....' :
                'Đang phát phản hồi thoại...' }}
           </span>
         </div>
@@ -240,6 +240,26 @@ const promptSuggestions = [
               >
                 {{ btn.label }}
               </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Thinking Indicator Bubble -->
+        <div
+          v-if="voiceState === 'PROCESSING'"
+          class="message-bubble-wrapper msg-assistant"
+        >
+          <div class="message-meta">
+            <span class="msg-sender-name">LIVA Assistant</span>
+          </div>
+          <div class="message-content">
+            <div class="message-text flex items-center gap-1.5 text-slate-400 italic">
+              <span>Đang nghĩ....</span>
+              <span class="inline-flex gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" style="animation-delay: 0.2s"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" style="animation-delay: 0.4s"></span>
+              </span>
             </div>
           </div>
         </div>

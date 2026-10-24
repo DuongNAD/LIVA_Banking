@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { logger } from '../utils/logger';
+import { useAuthStore } from './authStore';
 
 export type MatchTier = 'TIER_1_EXACT' | 'TIER_2_FUZZY' | 'TIER_3_SPLIT' | 'MANUAL';
 export type MatchStatus = 'PROPOSED' | 'CONFIRMED' | 'QUARANTINED';
@@ -100,8 +101,39 @@ export interface SplitSolverResult {
 export const useWorkbenchStore = defineStore('workbench', () => {
   const activeBatchId = ref('BATCH-20260915-VCB-01');
   const batchStatus = ref<'IN_PROGRESS' | 'SUBMITTED_TO_CHECKER' | 'APPROVED' | 'CLOSED'>('IN_PROGRESS');
-  const makerUserId = ref('USR-MAKER-KETOAN-01');
-  
+
+  const authStore = useAuthStore();
+  const manualRoleOverride = ref<'MAKER' | 'CHECKER' | null>('MAKER');
+
+  const currentOperatorRole = computed<'MAKER' | 'CHECKER'>(() => {
+    if (manualRoleOverride.value) return manualRoleOverride.value;
+    if (authStore.currentUser?.role === 'CHECKER' || authStore.currentUser?.role === 'CFO') {
+      return 'CHECKER';
+    }
+    return 'MAKER';
+  });
+
+  const currentOperatorId = computed(() => {
+    if (manualRoleOverride.value === 'MAKER') return 'USR-MAKER-KETOAN-01';
+    if (manualRoleOverride.value === 'CHECKER') return 'USR-CHECKER-KTT-01';
+    return currentOperatorRole.value === 'MAKER' ? 'USR-MAKER-KETOAN-01' : 'USR-CHECKER-KTT-01';
+  });
+
+  const makerUserId = computed(() => {
+    return authStore.currentUser?.fullName || 'Trịnh Văn Nam (Maker)';
+  });
+
+  watch(
+    () => authStore.currentUser?.role,
+    (newRole) => {
+      if (newRole === 'CHECKER' || newRole === 'CFO') {
+        manualRoleOverride.value = 'CHECKER';
+      } else if (newRole === 'MAKER') {
+        manualRoleOverride.value = 'MAKER';
+      }
+    }
+  );
+
   // Columns data
   const bankLines = ref<BankStatementLine[]>([]);
   const glRecords = ref<GlRecord[]>([]);
@@ -123,11 +155,6 @@ export const useWorkbenchStore = defineStore('workbench', () => {
   const matchFilterTier = ref<string>('ALL');
   const matchFilterDiffOnly = ref(false);
 
-  // Operator Role state (Circular 09 4-Eyes switching simulation)
-  const currentOperatorRole = ref<'MAKER' | 'CHECKER'>('MAKER');
-  const currentOperatorId = computed(() =>
-    currentOperatorRole.value === 'MAKER' ? 'USR-MAKER-KETOAN-01' : 'USR-CHECKER-KTT-01'
-  );
 
   // Quarantine state
   const quarantineItems = ref<QuarantineItem[]>([]);
@@ -441,8 +468,29 @@ export const useWorkbenchStore = defineStore('workbench', () => {
 
   // --- P44 Quarantine Queue Actions (Circular 09 Dual Control) ---
 
+  function isSameUser(userA?: string, userB?: string): boolean {
+    const a = (userA || '').trim().toLowerCase();
+    const b = (userB || '').trim().toLowerCase();
+    if (!a || !b) return false;
+    if (a === b) return true;
+    if (
+      (a === 'usr-maker-ketoan-01' && (b === 'usr-maker-ketoan-01' || b === 'maker_nam')) ||
+      (b === 'usr-maker-ketoan-01' && (a === 'usr-maker-ketoan-01' || a === 'maker_nam'))
+    ) return true;
+    if (
+      (a === 'usr-checker-ktt-01' && (b === 'usr-checker-ktt-01' || b === 'checker_tri')) ||
+      (b === 'usr-checker-ktt-01' && (a === 'usr-checker-ktt-01' || a === 'checker_tri'))
+    ) return true;
+    return false;
+  }
+
   function switchOperatorRole(role: 'MAKER' | 'CHECKER') {
-    currentOperatorRole.value = role;
+    manualRoleOverride.value = role;
+    if (role === 'MAKER') {
+      authStore.switchUser('maker_nam');
+    } else if (role === 'CHECKER') {
+      authStore.switchUser('checker_tri');
+    }
     logger.info(`Đã chuyển đổi vai trò thao tác sang: ${role}`);
   }
 
@@ -454,6 +502,9 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     const item = quarantineItems.value.find((i) => i.id === itemId);
     if (!item) {
       throw new Error(`Không tìm thấy item cách ly ${itemId}`);
+    }
+    if (authStore.isReadOnly) {
+      throw new Error('Kiểm toán viên ở chế độ Chỉ đọc, không được đề xuất giải trình cách ly');
     }
     if (currentOperatorRole.value !== 'MAKER') {
       throw new Error('Chỉ người có vai trò Kế toán viên (Maker) mới được đề xuất giải trình cách ly');
@@ -482,11 +533,14 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     if (!item) {
       throw new Error(`Không tìm thấy item cách ly ${itemId}`);
     }
+    if (authStore.isReadOnly) {
+      throw new Error('Kiểm toán viên ở chế độ Chỉ đọc, không có quyền phê duyệt item cách ly');
+    }
     if (currentOperatorRole.value !== 'CHECKER') {
       throw new Error('Chỉ Kế toán trưởng (Checker) mới có quyền phê duyệt item cách ly');
     }
     // Strict Segregation of Duties (SoD) Invariant: maker_user_id != checker_user_id
-    if (item.makerId && item.makerId === currentOperatorId.value) {
+    if (item.makerId && (item.makerId === currentOperatorId.value || isSameUser(item.makerId, currentOperatorId.value))) {
       throw new Error(`Vi phạm nguyên tắc 4 mắt (SoD): Người phê duyệt (${currentOperatorId.value}) không được trùng với người đề xuất (${item.makerId})!`);
     }
     if (!decisionNote || decisionNote.trim().length < 10) {
@@ -507,10 +561,13 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     if (!item) {
       throw new Error(`Không tìm thấy item cách ly ${itemId}`);
     }
+    if (authStore.isReadOnly) {
+      throw new Error('Kiểm toán viên ở chế độ Chỉ đọc, không có quyền từ chối item cách ly');
+    }
     if (currentOperatorRole.value !== 'CHECKER') {
       throw new Error('Chỉ Kế toán trưởng (Checker) mới có quyền từ chối item cách ly');
     }
-    if (item.makerId && item.makerId === currentOperatorId.value) {
+    if (item.makerId && (item.makerId === currentOperatorId.value || isSameUser(item.makerId, currentOperatorId.value))) {
       throw new Error(`Vi phạm nguyên tắc 4 mắt (SoD): Người từ chối (${currentOperatorId.value}) không được trùng với người đề xuất (${item.makerId})!`);
     }
     if (!decisionNote || decisionNote.trim().length < 10) {

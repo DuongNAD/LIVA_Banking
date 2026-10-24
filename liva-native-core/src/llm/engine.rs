@@ -344,11 +344,14 @@ impl LlamaRouterManager {
             super::expert_governor::SwapDecision::SwapToExpert => {
                 let expert_path = expert_path_opt
                     .ok_or_else(|| "Expert model path not configured".to_string())?;
+                let models_dir = crate::paths::configured_models_dir();
+                let verified_expert_path = crate::artifact_trust::verify_model_artifact(&models_dir, &expert_path)
+                    .map_err(|e| format!("Từ chối nạp expert model {:?}: {}", expert_path, e))?;
                 tracing::info!(
                     "[AutoSwap U14] Độ khó={do_kho:?} -> Tự động chuyển sang Expert Model: {:?}",
-                    expert_path
+                    verified_expert_path
                 );
-                self.swap_model(&expert_path, None, None, None).await?;
+                self.swap_model(&verified_expert_path, None, None, None).await?;
                 self.governor
                     .record_used(super::expert_governor::ModelRole::Expert);
                 Ok(self.current_model_path.clone())
@@ -356,11 +359,14 @@ impl LlamaRouterManager {
             super::expert_governor::SwapDecision::SwapToRouter => {
                 let router_path = crate::paths::configured_router_model_path()
                     .ok_or_else(|| "Router model path not configured".to_string())?;
+                let models_dir = crate::paths::configured_models_dir();
+                let verified_router_path = crate::artifact_trust::verify_model_artifact(&models_dir, &router_path)
+                    .map_err(|e| format!("Từ chối nạp router model {:?}: {}", router_path, e))?;
                 tracing::info!(
                     "[AutoSwap U14] Cooldown TTL đã hết -> Tự động hoàn trả tài nguyên về Router Model: {:?}",
-                    router_path
+                    verified_router_path
                 );
-                self.swap_model(&router_path, None, None, None).await?;
+                self.swap_model(&verified_router_path, None, None, None).await?;
                 self.governor
                     .record_used(super::expert_governor::ModelRole::Router);
                 Ok(self.current_model_path.clone())

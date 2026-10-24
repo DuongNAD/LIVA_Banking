@@ -169,10 +169,6 @@ const reconStore = useReconciliationStore();
 const activeTab = ref<'ALERTS' | 'INSPECTOR' | 'REGULATORY'>('ALERTS');
 
 onMounted(() => {
-  // If sandbox has no alerts evaluated yet, run evaluation
-  if (amlStore.sandboxAlerts.length === 0) {
-    amlStore.runSandboxEvaluation();
-  }
   // Scan any current bank transactions
   scanAllCurrentTransactions();
 });
@@ -183,22 +179,9 @@ function scanAllCurrentTransactions() {
   }
 }
 
-// Merge active scanned alerts with current sandbox alerts if present
+// Strict isolation: activeAlerts reflects strictly genuine scanned transactions
 const activeAlerts = computed<AmlAlert[]>(() => {
-  const scanned = amlStore.alerts;
-  const sandbox = amlStore.sandboxAlerts;
-
-  const map = new Map<string, AmlAlert>();
-  for (const a of scanned) {
-    map.set(a.alertId, a);
-  }
-  for (const a of sandbox) {
-    if (!map.has(a.alertId)) {
-      map.set(a.alertId, a);
-    }
-  }
-
-  return Array.from(map.values());
+  return amlStore.alerts;
 });
 
 function onOpenStrModal(alert: AmlAlert) {

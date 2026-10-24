@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { setActivePinia, createPinia } from 'pinia';
 import {
   detectAmlHighValue,
   detectAmlStructuring,
@@ -9,6 +10,8 @@ import {
   inspectSystemPrompt,
 } from '../src/engine/intelligence/amlSurveillance';
 import { generateFormStr, formatOfficialStrDocument } from '../src/engine/intelligence/strGenerator';
+import { useAmlStore } from '../src/stores/amlStore';
+import type { AmlAlert } from '../src/types/aml';
 
 describe('AML & STR Surveillance Engine (Features F11 - F16)', () => {
   describe('High-Value Transaction Detector (F12)', () => {
@@ -259,6 +262,153 @@ describe('AML & STR Surveillance Engine (Features F11 - F16)', () => {
       const alerts = inspector.evalSandbox(sandboxTxs);
       expect(alerts.length).toBe(1);
       expect(alerts[0].totalAmount).toBe(250_000_000);
+    });
+  });
+
+  describe('Milestone M2: Local AI & Sandbox Risk Evaluation (AML Store Integration)', () => {
+    it('initializes amlStore with default offline status and LOCAL_RULE_FALLBACK mode', () => {
+      setActivePinia(createPinia());
+      const amlStore = useAmlStore();
+
+      expect(amlStore.aiConnectionStatus).toBe('offline');
+      expect(amlStore.evaluationMode).toBe('LOCAL_RULE_FALLBACK');
+      expect(amlStore.llmEvaluationResult).toBeNull();
+      expect(amlStore.isAiConnected).toBe(false);
+    });
+
+    it('performs synchronous rule evaluation and safe fallback in runSandboxEvaluation', async () => {
+      setActivePinia(createPinia());
+      const amlStore = useAmlStore();
+      amlStore.selectPreset('STRUCTURING');
+
+      await amlStore.runSandboxEvaluation();
+
+      expect(amlStore.sandboxAlerts.length).toBeGreaterThan(0);
+      expect(amlStore.sandboxAlerts[0].anomalyType).toBe('STRUCTURING_SMURFING');
+      expect(amlStore.evaluationMode).toBe('LOCAL_RULE_FALLBACK');
+      // Operational alerts must remain isolated
+      expect(amlStore.alerts).toHaveLength(0);
+    });
+
+    it('checks AI health safely returning offline when no local model daemon is listening', async () => {
+      setActivePinia(createPinia());
+      const amlStore = useAmlStore();
+
+      const status = await amlStore.checkAiHealth();
+      expect(status).toBe('offline');
+      expect(amlStore.aiConnectionStatus).toBe('offline');
+    });
+  });
+
+  describe('Form STR Statutory Modal State & Actions (F15 / amlStore)', () => {
+    it('opens Form STR modal, generates structured form, and formats official document text', () => {
+      setActivePinia(createPinia());
+      const amlStore = useAmlStore();
+
+      const candidateAlert: AmlAlert = {
+        alertId: 'aml-test-str-1',
+        anomalyType: 'HIGH_VALUE',
+        severity: 'HIGH',
+        involvedTransactionIds: ['tx-high-1'],
+        totalAmount: 420_000_000,
+        detectedAt: '2026-09-16T08:00:00Z',
+        reasoning: 'Giao dịch giá trị lớn 420.000.000 VND',
+        statutoryRuleRef: 'Quyết định 11/2023/QĐ-TTg',
+        suggestedStrReport: true,
+      };
+
+      const candidateTxs = [
+        {
+          id: 'tx-high-1',
+          amount: 420_000_000,
+          counterparty: 'VU TRONG PHUONG',
+          counterpartyAccount: '12010001234567',
+        },
+      ];
+
+      expect(amlStore.isStrModalOpen).toBe(false);
+      expect(amlStore.selectedAlert).toBeNull();
+      expect(amlStore.generatedStr).toBeNull();
+      expect(amlStore.officialStrDocumentText).toBe('');
+
+      // Invoke openStrModal without throwing ReferenceError
+      expect(() => {
+        amlStore.openStrModal(candidateAlert, candidateTxs, 'Đề xuất phong tỏa tài khoản thụ hưởng');
+      }).not.toThrow();
+
+      expect(amlStore.isStrModalOpen).toBe(true);
+      expect(amlStore.selectedAlert).toEqual(candidateAlert);
+      expect(amlStore.generatedStr).not.toBeNull();
+      expect(amlStore.generatedStr?.alertType).toBe('HIGH_VALUE');
+      expect(amlStore.generatedStr?.suspectName).toBe('VU TRONG PHUONG');
+      expect(amlStore.generatedStr?.suspectAccount).toBe('12010001234567');
+      expect(amlStore.generatedStr?.totalVndAmount).toBe(420_000_000);
+      expect(amlStore.generatedStr?.complianceOfficerNotes).toBe('Đề xuất phong tỏa tài khoản thụ hưởng');
+
+      // Verify official formatted text document
+      expect(amlStore.officialStrDocumentText).toContain('BÁO CÁO GIAO DỊCH ĐÁNG NGỜ (FORM STR)');
+      expect(amlStore.officialStrDocumentText).toContain('Phụ lục II Thông tư số 09/2023/TT-NHNN');
+      expect(amlStore.officialStrDocumentText).toContain('420.000.000 VND');
+      expect(amlStore.officialStrDocumentText).toContain('Đề xuất phong tỏa tài khoản thụ hưởng');
+    });
+
+    it('updates compliance officer notes and re-renders official document text dynamically', () => {
+      setActivePinia(createPinia());
+      const amlStore = useAmlStore();
+
+      const candidateAlert: AmlAlert = {
+        alertId: 'aml-test-str-2',
+        anomalyType: 'STRUCTURING_SMURFING',
+        severity: 'CRITICAL',
+        involvedTransactionIds: ['tx-smurf-1'],
+        totalAmount: 1_170_000_000,
+        detectedAt: '2026-09-16T08:15:00Z',
+        reasoning: 'Giao dịch chia nhỏ cấu trúc 3 lần trong ngày',
+        statutoryRuleRef: 'Thông tư 09/2023/TT-NHNN',
+        suggestedStrReport: true,
+      };
+
+      amlStore.openStrModal(candidateAlert, [], 'Ghi chú ban đầu');
+      expect(amlStore.generatedStr?.complianceOfficerNotes).toBe('Ghi chú ban đầu');
+      expect(amlStore.officialStrDocumentText).toContain('Ghi chú ban đầu');
+
+      // Update notes
+      const updatedNotes = 'Đã chuyển hồ sơ sang Cục PCRT NHNN và Bộ Công an (A05)';
+      amlStore.updateComplianceNotes(updatedNotes);
+
+      expect(amlStore.generatedStr?.complianceOfficerNotes).toBe(updatedNotes);
+      expect(amlStore.officialStrDocumentText).toContain(updatedNotes);
+      expect(amlStore.officialStrDocumentText).not.toContain('Ghi chú ban đầu');
+    });
+
+    it('safely closes Form STR modal and resets all modal state variables', () => {
+      setActivePinia(createPinia());
+      const amlStore = useAmlStore();
+
+      const candidateAlert: AmlAlert = {
+        alertId: 'aml-test-str-3',
+        anomalyType: 'WATCHLIST_HIT',
+        severity: 'CRITICAL',
+        involvedTransactionIds: ['tx-watch-1'],
+        totalAmount: 50_000_000,
+        detectedAt: '2026-09-16T08:30:00Z',
+        reasoning: 'Khớp danh sách đen cờ bạc',
+        statutoryRuleRef: 'Thông tư 09/2023/TT-NHNN',
+        suggestedStrReport: true,
+      };
+
+      amlStore.openStrModal(candidateAlert, []);
+      expect(amlStore.isStrModalOpen).toBe(true);
+      expect(amlStore.selectedAlert).not.toBeNull();
+      expect(amlStore.generatedStr).not.toBeNull();
+      expect(amlStore.officialStrDocumentText.length).toBeGreaterThan(0);
+
+      // Close modal
+      amlStore.closeStrModal();
+      expect(amlStore.isStrModalOpen).toBe(false);
+      expect(amlStore.selectedAlert).toBeNull();
+      expect(amlStore.generatedStr).toBeNull();
+      expect(amlStore.officialStrDocumentText).toBe('');
     });
   });
 });

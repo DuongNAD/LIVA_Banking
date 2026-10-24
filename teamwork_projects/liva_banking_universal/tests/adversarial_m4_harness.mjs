@@ -1,4 +1,4 @@
-﻿import http from 'node:http';
+import http from 'node:http';
 import crypto from 'node:crypto';
 import {
   server,
@@ -6,9 +6,8 @@ import {
   signJwt,
   verifyJwt,
   base64UrlEncode,
+  JWT_SECRET,
 } from '../server/server.mjs';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'liva-enterprise-super-secret-key-2026-circular-09';
 
 let serverPort;
 let serverUrl;

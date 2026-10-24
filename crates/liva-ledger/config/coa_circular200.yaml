@@ -1,0 +1,372 @@
+metadata:
+  standard: "circular200_2014"
+  name: "Bảng Hệ Thống Tài Khoản Kế Toán Doanh Nghiệp (Thông tư 200/2014/TT-BTC)"
+  version: "2.0.0"
+  description: "Hệ thống tài khoản chuẩn áp dụng cho doanh nghiệp quy mô vừa và lớn theo Thông tư 200/2014/TT-BTC"
+  base_currency: "VND"
+
+accounts:
+  # LOẠI 1: TÀI SẢN NGẮN HẠN
+  - code: "111"
+    name: "Tiền mặt"
+    account_type: "asset"
+    nature: "debit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: false
+    is_system: true
+  - code: "1111"
+    name: "Tiền Việt Nam"
+    account_type: "asset"
+    nature: "debit_normal"
+    parent_code: "111"
+    level: 2
+    is_leaf: true
+    is_system: true
+  - code: "1112"
+    name: "Ngoại tệ"
+    account_type: "asset"
+    nature: "debit_normal"
+    parent_code: "111"
+    level: 2
+    is_leaf: true
+    is_system: true
+
+  - code: "112"
+    name: "Tiền gửi ngân hàng"
+    account_type: "asset"
+    nature: "debit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: false
+    is_system: true
+  - code: "1121"
+    name: "Tiền Việt Nam gửi ngân hàng"
+    account_type: "asset"
+    nature: "debit_normal"
+    parent_code: "112"
+    level: 2
+    is_leaf: true
+    is_system: true
+  - code: "1122"
+    name: "Ngoại tệ gửi ngân hàng"
+    account_type: "asset"
+    nature: "debit_normal"
+    parent_code: "112"
+    level: 2
+    is_leaf: true
+    is_system: true
+
+  - code: "113"
+    name: "Tiền đang chuyển"
+    account_type: "asset"
+    nature: "debit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: false
+    is_system: true
+  - code: "1131"
+    name: "Tiền Việt Nam đang chuyển"
+    account_type: "asset"
+    nature: "debit_normal"
+    parent_code: "113"
+    level: 2
+    is_leaf: true
+    is_system: true
+
+  - code: "128"
+    name: "Đầu tư nắm giữ đến ngày đáo hạn"
+    account_type: "asset"
+    nature: "debit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: false
+    is_system: true
+  - code: "1281"
+    name: "Tiền gửi có kỳ hạn"
+    account_type: "asset"
+    nature: "debit_normal"
+    parent_code: "128"
+    level: 2
+    is_leaf: true
+    is_system: true
+
+  - code: "131"
+    name: "Phải thu của khách hàng"
+    account_type: "asset"
+    nature: "dual_nature"
+    parent_code: null
+    level: 1
+    is_leaf: true
+    is_system: true
+
+  - code: "133"
+    name: "Thuế GTGT được khấu trừ"
+    account_type: "asset"
+    nature: "debit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: false
+    is_system: true
+  - code: "1331"
+    name: "Thuế GTGT được khấu trừ của hàng hóa, dịch vụ"
+    account_type: "asset"
+    nature: "debit_normal"
+    parent_code: "133"
+    level: 2
+    is_leaf: true
+    is_system: true
+  - code: "1332"
+    name: "Thuế GTGT được khấu trừ của tài sản cố định"
+    account_type: "asset"
+    nature: "debit_normal"
+    parent_code: "133"
+    level: 2
+    is_leaf: true
+    is_system: true
+
+  - code: "141"
+    name: "Tạm ứng"
+    account_type: "asset"
+    nature: "debit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: true
+    is_system: true
+
+  - code: "152"
+    name: "Nguyên liệu, vật liệu"
+    account_type: "asset"
+    nature: "debit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: true
+    is_system: true
+  - code: "156"
+    name: "Hàng hóa"
+    account_type: "asset"
+    nature: "debit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: true
+    is_system: true
+
+  # LOẠI 2: TÀI SẢN DÀI HẠN
+  - code: "211"
+    name: "Tài sản cố định hữu hình"
+    account_type: "asset"
+    nature: "debit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: true
+    is_system: true
+  - code: "214"
+    name: "Hao mòn tài sản cố định"
+    account_type: "asset"
+    nature: "credit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: true
+    is_system: true
+
+  # LOẠI 3: NỢ PHẢI TRẢ
+  - code: "331"
+    name: "Phải trả cho người bán"
+    account_type: "liability"
+    nature: "dual_nature"
+    parent_code: null
+    level: 1
+    is_leaf: true
+    is_system: true
+
+  - code: "333"
+    name: "Thuế và các khoản phải nộp Nhà nước"
+    account_type: "liability"
+    nature: "credit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: false
+    is_system: true
+  - code: "3331"
+    name: "Thuế giá trị gia tăng phải nộp"
+    account_type: "liability"
+    nature: "credit_normal"
+    parent_code: "333"
+    level: 2
+    is_leaf: true
+    is_system: true
+  - code: "3334"
+    name: "Thuế thu nhập doanh nghiệp"
+    account_type: "liability"
+    nature: "credit_normal"
+    parent_code: "333"
+    level: 2
+    is_leaf: true
+    is_system: true
+
+  - code: "334"
+    name: "Phải trả người lao động"
+    account_type: "liability"
+    nature: "credit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: true
+    is_system: true
+
+  - code: "338"
+    name: "Phải trả, phải nộp khác"
+    account_type: "liability"
+    nature: "credit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: true
+    is_system: true
+
+  - code: "341"
+    name: "Vay và nợ thuê tài chính"
+    account_type: "liability"
+    nature: "credit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: false
+    is_system: true
+  - code: "3411"
+    name: "Các khoản đi vay"
+    account_type: "liability"
+    nature: "credit_normal"
+    parent_code: "341"
+    level: 2
+    is_leaf: true
+    is_system: true
+
+  # LOẠI 4: VỐN CHỦ SỞ HỮU
+  - code: "411"
+    name: "Vốn đầu tư của chủ sở hữu"
+    account_type: "equity"
+    nature: "credit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: true
+    is_system: true
+  - code: "421"
+    name: "Lợi nhuận sau thuế chưa phân phối"
+    account_type: "equity"
+    nature: "dual_nature"
+    parent_code: null
+    level: 1
+    is_leaf: true
+    is_system: true
+
+  # LOẠI 5: DOANH THU
+  - code: "511"
+    name: "Doanh thu bán hàng và cung cấp dịch vụ"
+    account_type: "revenue"
+    nature: "credit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: false
+    is_system: true
+  - code: "5111"
+    name: "Doanh thu bán hàng hóa"
+    account_type: "revenue"
+    nature: "credit_normal"
+    parent_code: "511"
+    level: 2
+    is_leaf: true
+    is_system: true
+  - code: "5112"
+    name: "Doanh thu bán thành phẩm"
+    account_type: "revenue"
+    nature: "credit_normal"
+    parent_code: "511"
+    level: 2
+    is_leaf: true
+    is_system: true
+  - code: "515"
+    name: "Doanh thu hoạt động tài chính"
+    account_type: "revenue"
+    nature: "credit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: true
+    is_system: true
+
+  # LOẠI 6: CHI PHÍ HOẠT ĐỘNG
+  - code: "635"
+    name: "Chi phí tài chính"
+    account_type: "expense"
+    nature: "debit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: true
+    is_system: true
+
+  - code: "641"
+    name: "Chi phí bán hàng"
+    account_type: "expense"
+    nature: "debit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: true
+    is_system: true
+
+  - code: "642"
+    name: "Chi phí quản lý doanh nghiệp"
+    account_type: "expense"
+    nature: "debit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: false
+    is_system: true
+  - code: "6421"
+    name: "Chi phí nhân viên quản lý"
+    account_type: "expense"
+    nature: "debit_normal"
+    parent_code: "642"
+    level: 2
+    is_leaf: true
+    is_system: true
+  - code: "6425"
+    name: "Thuế, phí và lệ phí"
+    account_type: "expense"
+    nature: "debit_normal"
+    parent_code: "642"
+    level: 2
+    is_leaf: true
+    is_system: true
+  - code: "6427"
+    name: "Chi phí dịch vụ mua ngoài (bao gồm phí ngân hàng)"
+    account_type: "expense"
+    nature: "debit_normal"
+    parent_code: "642"
+    level: 2
+    is_leaf: true
+    is_system: true
+
+  # LOẠI 7 & 8: THU NHẬP & CHI PHÍ KHÁC
+  - code: "711"
+    name: "Thu nhập khác"
+    account_type: "revenue"
+    nature: "credit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: true
+    is_system: true
+  - code: "811"
+    name: "Chi phí khác"
+    account_type: "expense"
+    nature: "debit_normal"
+    parent_code: null
+    level: 1
+    is_leaf: true
+    is_system: true
+
+  # LOẠI 9: XÁC ĐỊNH KẾT QUẢ KINH DOANH
+  - code: "911"
+    name: "Xác định kết quả kinh doanh"
+    account_type: "equity"
+    nature: "dual_nature"
+    parent_code: null
+    level: 1
+    is_leaf: true
+    is_system: true

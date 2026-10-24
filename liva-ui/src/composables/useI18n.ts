@@ -100,7 +100,7 @@ const enUS = {
   
   // Onboarding & General
   thinking_details: 'Thinking details...',
-  sys_thinking: 'LIVA is thinking',
+  sys_thinking: 'Thinking....',
   sys_using_skill: 'LIVA is using a skill...',
   // Widget Tooltips & Placeholders
   wg_new_chat: 'New Chat',
@@ -379,7 +379,7 @@ const viVN = {
 
   // Onboarding & General
   thinking_details: 'Chi tiết suy nghĩ...',
-  sys_thinking: 'LIVA đang suy nghĩ',
+  sys_thinking: 'Đang nghĩ....',
   sys_using_skill: 'LIVA đang dùng kỹ năng...',
   // Widget Tooltips & Placeholders
   wg_new_chat: 'Cuộc trò chuyện mới',

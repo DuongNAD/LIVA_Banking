@@ -8,6 +8,17 @@ use sha2::{Digest, Sha256};
 
 pub const GENESIS_SEED: &[u8] = b"LIVA_BANKING_GENESIS_2026";
 
+pub const EVENT_SOD_SELF_APPROVAL_BLOCKED: &str = "SOD_SELF_APPROVAL_BLOCKED";
+pub const EVENT_UNAUTHORIZED_COMMAND_ATTEMPT: &str = "UNAUTHORIZED_COMMAND_ATTEMPT";
+pub const EVENT_ROLE_PERMISSION_DENIED: &str = "ROLE_PERMISSION_DENIED";
+
+pub const EVENT_STATEMENT_IMPORTED: &str = "STATEMENT_IMPORTED";
+pub const EVENT_MATCH_AUTO: &str = "MATCH_AUTO";
+pub const EVENT_HITL_CONFIRMED: &str = "HITL_CONFIRMED";
+pub const EVENT_PAYMENT_ORDER_APPROVAL: &str = "PAYMENT_ORDER_APPROVAL";
+pub const EVENT_PAYMENT_ORDER_REJECTION: &str = "PAYMENT_ORDER_REJECTION";
+pub const EVENT_SYSTEM_INITIALIZED: &str = "SYSTEM_INITIALIZED";
+
 /// Pure RFC 2104 HMAC-SHA256 implementation ensuring exact single-version SHA-256 dependency.
 pub fn compute_hmac_sha256(key: &[u8], message: &[u8]) -> [u8; 32] {
     const BLOCK_SIZE: usize = 64;
@@ -63,6 +74,16 @@ pub struct AuditVerificationReport {
 pub struct AuditLedger;
 
 impl AuditLedger {
+    pub const EVENT_SOD_SELF_APPROVAL_BLOCKED: &'static str = EVENT_SOD_SELF_APPROVAL_BLOCKED;
+    pub const EVENT_UNAUTHORIZED_COMMAND_ATTEMPT: &'static str = EVENT_UNAUTHORIZED_COMMAND_ATTEMPT;
+    pub const EVENT_ROLE_PERMISSION_DENIED: &'static str = EVENT_ROLE_PERMISSION_DENIED;
+    pub const EVENT_STATEMENT_IMPORTED: &'static str = EVENT_STATEMENT_IMPORTED;
+    pub const EVENT_MATCH_AUTO: &'static str = EVENT_MATCH_AUTO;
+    pub const EVENT_HITL_CONFIRMED: &'static str = EVENT_HITL_CONFIRMED;
+    pub const EVENT_PAYMENT_ORDER_APPROVAL: &'static str = EVENT_PAYMENT_ORDER_APPROVAL;
+    pub const EVENT_PAYMENT_ORDER_REJECTION: &'static str = EVENT_PAYMENT_ORDER_REJECTION;
+    pub const EVENT_SYSTEM_INITIALIZED: &'static str = EVENT_SYSTEM_INITIALIZED;
+
     /// Appends a new audit record to `banking_audit_chain` using forward hash chaining.
     pub fn append(
         conn: &Connection,

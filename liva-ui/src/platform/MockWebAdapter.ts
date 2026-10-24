@@ -235,6 +235,131 @@ export class MockWebAdapter implements IPlatformAdapter {
       } as unknown as T;
     }
 
+    if (targetCmd === 'auth_check_permission' || targetCmd === 'auth:check_permission') {
+      let role = String(payload?.role || '').trim().toUpperCase();
+      if (!role && payload?.username) {
+        const u = String(payload.username).trim().toLowerCase();
+        const userRoles: Record<string, string> = {
+          maker_nam: 'MAKER',
+          maker_mai: 'MAKER',
+          checker_tri: 'CHECKER',
+          checker_huong: 'CHECKER',
+          cfo_hoang: 'CFO',
+          cfo_huong: 'CFO',
+          auditor_lan: 'AUDITOR',
+          admin_sys: 'ADMIN',
+        };
+        role = userRoles[u] || '';
+      }
+
+      if (!role) {
+        return {
+          success: false,
+          allowed: false,
+          error: "Missing 'role' or 'username' in payload",
+        } as unknown as T;
+      }
+
+      const rolePermissions: Record<string, string[]> = {
+        MAKER: ['IngestStatement', 'RunReconciliation', 'ProposeHitlMatch', 'ProposePaymentOrder'],
+        CHECKER: ['ApproveHitlMatch', 'ApprovePaymentOrder', 'RejectPaymentOrder'],
+        CFO: ['ViewCashflow30_90', 'ApproveHighLimit', 'ApprovePaymentOrder', 'RejectPaymentOrder'],
+        AUDITOR: ['ViewAuditChain', 'VerifyMerkleProof', 'ExportDecree13Report'],
+        ADMIN: ['ManageSystemConfig', 'ManageUsers', 'ViewSystemDiagnostics'],
+      };
+
+      const granted = rolePermissions[role] || [];
+
+      if (payload?.permission) {
+        const perm = String(payload.permission).trim();
+        const normalizedPerm = perm.replace(/[_\s-]/g, '').toLowerCase();
+        const matchFound = granted.some(
+          (g) => g.replace(/[_\s-]/g, '').toLowerCase() === normalizedPerm,
+        );
+        return {
+          success: true,
+          allowed: matchFound,
+          role,
+          permission: perm,
+          reason: matchFound ? null : `Role ${role} lacks permission ${perm}`,
+        } as unknown as T;
+      }
+
+      if (payload?.command) {
+        const cmd = String(payload.command).trim();
+        const commonCommands = [
+          'ping',
+          'status',
+          'echo',
+          'get_config',
+          'config:get',
+          'auth:login',
+          'auth_login',
+          'auth:get_quick_accounts',
+          'auth_get_quick_accounts',
+          'auth:check_permission',
+          'auth_check_permission',
+          'banking_get_overview',
+          'banking:get_overview',
+          'banking_get_reconciliation_matrix',
+          'banking:get_reconciliation_matrix',
+          'banking_get_compliance_status',
+          'banking:get_compliance_status',
+          'banking:seed_demo_data',
+        ];
+        if (commonCommands.includes(cmd)) {
+          return { success: true, allowed: true, role, command: cmd, reason: null } as unknown as T;
+        }
+
+        let cmdPerm: string | undefined;
+        if (['statement_ingest_file', 'statement:ingest_file', 'banking:import_statement'].includes(cmd)) {
+          cmdPerm = 'IngestStatement';
+        } else if (['banking_run_reconciliation', 'banking:run_reconciliation'].includes(cmd)) {
+          cmdPerm = 'RunReconciliation';
+        } else if (['reconciliation_resolve_hitl', 'banking:resolve_hitl'].includes(cmd)) {
+          cmdPerm = 'ApproveHitlMatch';
+        } else if (['treasury:propose_payment', 'payment:propose'].includes(cmd)) {
+          cmdPerm = 'ProposePaymentOrder';
+        } else if (['treasury:approve_payment', 'payment:approve'].includes(cmd)) {
+          cmdPerm = 'ApprovePaymentOrder';
+        } else if (['treasury:reject_payment', 'payment:reject'].includes(cmd)) {
+          cmdPerm = 'RejectPaymentOrder';
+        } else if (['treasury:approve_high_limit'].includes(cmd)) {
+          cmdPerm = 'ApproveHighLimit';
+        } else if (['cashflow:view_30_90', 'banking:get_cashflow_30_90'].includes(cmd)) {
+          cmdPerm = 'ViewCashflow30_90';
+        } else if (['compliance:get_audit_chain', 'audit:view_chain'].includes(cmd)) {
+          cmdPerm = 'ViewAuditChain';
+        } else if (['compliance:verify_merkle', 'audit:verify_merkle'].includes(cmd)) {
+          cmdPerm = 'VerifyMerkleProof';
+        } else if (['compliance:export_decree13', 'export_decree13_report'].includes(cmd)) {
+          cmdPerm = 'ExportDecree13Report';
+        } else if (['update_config', 'config:update', 'ai:update_config'].includes(cmd)) {
+          cmdPerm = 'ManageSystemConfig';
+        } else if (['auth:create_user', 'auth_create_user'].includes(cmd)) {
+          cmdPerm = 'ManageUsers';
+        } else if (['get_system_status', 'get_preflight_status'].includes(cmd)) {
+          cmdPerm = 'ViewSystemDiagnostics';
+        }
+
+        const allowed = cmdPerm ? granted.includes(cmdPerm) : role === 'ADMIN';
+        return {
+          success: true,
+          allowed,
+          role,
+          command: cmd,
+          reason: allowed ? null : `Role ${role} is not authorized for command '${cmd}'`,
+        } as unknown as T;
+      }
+
+      return {
+        success: true,
+        allowed: true,
+        role,
+        permissions: granted,
+      } as unknown as T;
+    }
+
     return null as unknown as T;
   }
 

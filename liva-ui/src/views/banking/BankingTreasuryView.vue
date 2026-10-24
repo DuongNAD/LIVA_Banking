@@ -6,10 +6,12 @@
  */
 import { ref } from 'vue';
 import { useTreasuryStore } from '../../stores/treasuryStore';
+import { useAuthStore } from '../../stores/authStore';
 import CashConcentrationGrid from '../../components/banking/treasury/CashConcentrationGrid.vue';
 import PaymentDisbursementModal from '../../components/banking/treasury/PaymentDisbursementModal.vue';
 
 const treasuryStore = useTreasuryStore();
+const authStore = useAuthStore();
 const isPaymentModalOpen = ref(false);
 
 function formatVnd(val: number): string {
@@ -25,6 +27,7 @@ function formatVnd(val: number): string {
         <div class="title-with-pill">
           <span class="p-tag">P60–P62</span>
           <h2 class="banner-title">Quản Trị Ngân Quỹ & Tập Trung Vốn Đa Ngân Hàng</h2>
+          <span v-if="authStore.isReadOnly" class="readonly-badge">[CHỈ ĐỌC]</span>
         </div>
         <p class="banner-desc">
           Theo dõi số dư thanh toán đa ngân hàng theo thời gian thực. Tổng tiền mặt khả dụng toàn hệ thống:
@@ -96,6 +99,17 @@ function formatVnd(val: number): string {
   font-weight: 700;
   color: #0f172a;
   margin: 0;
+}
+
+.readonly-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 .banner-desc {

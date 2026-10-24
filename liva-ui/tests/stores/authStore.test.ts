@@ -86,6 +86,7 @@ describe('authStore (RBAC & Multi-Role Authentication)', () => {
     auth.logout();
     expect(auth.isAuthenticated).toBe(false);
     expect(auth.isLoginModalOpen).toBe(true);
+    expect(window.localStorage.getItem('liva_banking_active_user')).toBeNull();
 
     // Cannot close modal when unauthenticated
     auth.closeLoginModal();
@@ -97,6 +98,22 @@ describe('authStore (RBAC & Multi-Role Authentication)', () => {
     expect(auth.isLoginModalOpen).toBe(false);
     expect(auth.isAuthenticated).toBe(true);
     expect(auth.isAdmin).toBe(true);
+  });
+
+  it('purges localStorage on logout and prevents automatic session restoration across reload', () => {
+    const auth = useAuthStore();
+    auth.login('maker_nam', 'LivaMaker@2026');
+    expect(window.localStorage.getItem('liva_banking_active_user')).toBe('maker_nam');
+
+    auth.logout();
+    expect(window.localStorage.getItem('liva_banking_active_user')).toBeNull();
+
+    // Re-initialize Pinia simulating page reload
+    setActivePinia(createPinia());
+    const reloadedAuth = useAuthStore();
+    // Should NOT restore maker_nam, but rather fallback cleanly to default without saved session
+    expect(window.localStorage.getItem('liva_banking_active_user')).toBeNull();
+    expect(reloadedAuth.currentUser.username).toBe('checker_tri');
   });
 
   it('fetches quick accounts via fetchAccounts() without throwing', async () => {

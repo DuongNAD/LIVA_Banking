@@ -6,11 +6,12 @@
 const CONFIG_REL_PATH: &str = "data/liva-config.json";
 const CONFIG_FILE_NAME: &str = "liva-config.json";
 
-pub const DEFAULT_MODELS_DIR: &str = "E:\\AI_Models";
+pub const DEFAULT_MODELS_DIR: &str = "models/llm";
+pub const LEGACY_DEV_MODELS_DIR: &str = "E:\\AI_Models";
 
 /// Model router mặc định khi chưa có config. Tên này phải khớp manifest tải model.
 pub const DEFAULT_ROUTER_MODEL: &str = "gemma-4-E4B-it-qat-GGUF/gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf";
-pub const DEFAULT_EXPERT_MODEL: &str = "gemma-4-12B-it-qat-UD-Q4_K_XL.gguf";
+pub const DEFAULT_EXPERT_MODEL: &str = "Qwen_Qwen3-14B-Q5_K_M.gguf";
 
 /// Thư mục dữ liệu người dùng của bản cài, cùng quy ước bundle id của Tauri.
 pub const APP_DATA_DIR_NAME: &str = "com.liva.cognitive-os";
@@ -306,6 +307,64 @@ pub(crate) fn update_config_file_at(
     result
 }
 
+/// Kiểm tra xem gốc phân vùng/ổ đĩa của đường dẫn có truy cập được không (tránh panic trên Windows khi ổ đĩa không tồn tại).
+pub fn is_path_accessible(path: &std::path::Path) -> bool {
+    if path.exists() {
+        return true;
+    }
+    #[cfg(windows)]
+    {
+        if let Some(std::path::Component::Prefix(prefix)) = path.components().next() {
+            let root_str = format!("{}\\", prefix.as_os_str().to_string_lossy());
+            if !std::path::Path::new(&root_str).exists() {
+                return false;
+            }
+        }
+    }
+    // Relative paths or paths on valid mounted filesystems
+    true
+}
+
+/// Giải quyết thư mục model từ cấu hình AI cụ thể hoặc biến môi trường `LIVA_MODELS_DIR`.
+/// 1. `LIVA_MODELS_DIR` environment variable.
+/// 2. `ai.localModelsDir` (nếu tồn tại trên đĩa, hoặc ổ đĩa truy cập được và không phải đường dẫn legacy).
+/// 3. `models_dir_fallback()` (thư mục cục bộ hoặc OS user data dir).
+pub fn resolve_models_dir_from_config(ai: Option<&serde_json::Value>) -> std::path::PathBuf {
+    if let Ok(env_val) = std::env::var("LIVA_MODELS_DIR") {
+        let trimmed = env_val.trim();
+        if !trimmed.is_empty() {
+            return std::path::PathBuf::from(trimmed);
+        }
+    }
+
+    if let Some(dir_str) = ai
+        .and_then(|ai| ai.get("localModelsDir"))
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        let candidate = std::path::PathBuf::from(dir_str);
+        if candidate.exists() {
+            return candidate;
+        }
+        let is_legacy = candidate.to_string_lossy().eq_ignore_ascii_case(LEGACY_DEV_MODELS_DIR);
+        if !is_legacy && is_path_accessible(&candidate) {
+            return candidate;
+        }
+    }
+
+    models_dir_fallback()
+}
+
+/// Thư mục model cấu hình theo 4 cấp phân giải:
+/// 1. Biến môi trường `LIVA_MODELS_DIR`
+/// 2. Cấu hình `data/liva-config.json` -> `ai.localModelsDir` (nếu ổ đĩa hợp lệ & không phải dev legacy)
+/// 3. Fallback thư mục tương đối dự án hoặc thư mục dữ liệu hệ điều hành
+pub fn configured_models_dir() -> std::path::PathBuf {
+    let config = read_config_file();
+    resolve_models_dir_from_config(config.get("ai"))
+}
+
 /// Router GGUF từ config; `None` khi provider không phải local.
 pub fn configured_router_model_path() -> Option<std::path::PathBuf> {
     let config = read_config_file();
@@ -317,12 +376,7 @@ pub fn configured_router_model_path() -> Option<std::path::PathBuf> {
     if provider != "local" {
         return None;
     }
-    let dir = ai
-        .get("localModelsDir")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty())
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(models_dir_fallback);
+    let dir = configured_models_dir();
     let model = ai
         .get("routerModel")
         .and_then(|v| v.as_str())
@@ -342,12 +396,7 @@ pub fn configured_mmproj_path() -> Option<std::path::PathBuf> {
     {
         return None;
     }
-    let dir = ai
-        .get("localModelsDir")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty())
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(models_dir_fallback);
+    let dir = configured_models_dir();
     let mmproj = ai
         .get("mmprojModel")
         .and_then(|v| v.as_str())
@@ -364,12 +413,7 @@ fn expert_model_path_from_config(config: &serde_json::Value) -> Option<std::path
     if provider != "local" {
         return None;
     }
-    let dir = ai
-        .get("localModelsDir")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty())
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(models_dir_fallback);
+    let dir = resolve_models_dir_from_config(Some(&ai));
     let expert = ai
         .get("expertModel")
         .and_then(|v| v.as_str())
@@ -389,18 +433,6 @@ pub fn configured_expert_model_path() -> Option<std::path::PathBuf> {
     }
     let config = read_config_file();
     expert_model_path_from_config(&config)
-}
-
-/// Thư mục model cấu hình, fallback về vùng dữ liệu người dùng.
-pub fn configured_models_dir() -> std::path::PathBuf {
-    let config = read_config_file();
-    config
-        .get("ai")
-        .and_then(|ai| ai.get("localModelsDir"))
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty())
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(models_dir_fallback)
 }
 
 /// Chỉ cho phép file `.gguf` nằm dưới thư mục model cấu hình.
@@ -531,5 +563,42 @@ mod expert_model_path_tests {
             let expected = expert_model_path_from_config(&cfg);
             assert_eq!(path, expected);
         }
+    }
+
+    #[test]
+    fn test_models_dir_fallback_on_unreachable_drive() {
+        let unreachable_path = if cfg!(windows) {
+            "Z:\\NonExistentDrive_Unmounted_12345\\models"
+        } else {
+            "/non_existent_unmounted_mountpoint_12345/models"
+        };
+        let cfg = json!({
+            "ai": {
+                "provider": "local",
+                "localModelsDir": unreachable_path,
+                "expertModel": "gemma-4-12B-it-qat-UD-Q4_K_XL.gguf"
+            }
+        });
+        let path = expert_model_path_from_config(&cfg);
+        assert_eq!(
+            path,
+            Some(models_dir_fallback().join("gemma-4-12B-it-qat-UD-Q4_K_XL.gguf"))
+        );
+    }
+
+    #[test]
+    fn expert_model_path_resolves_qwen3_14b() {
+        let cfg = json!({
+            "ai": {
+                "provider": "local",
+                "localModelsDir": "E:\\AI_Models",
+                "expertModel": "Qwen_Qwen3-14B-Q5_K_M.gguf"
+            }
+        });
+        let path = expert_model_path_from_config(&cfg);
+        assert_eq!(
+            path,
+            Some(std::path::PathBuf::from("E:\\AI_Models").join("Qwen_Qwen3-14B-Q5_K_M.gguf"))
+        );
     }
 }

@@ -721,7 +721,6 @@
 import { computed, ref, reactive } from 'vue';
 import { useBankingStore } from '../stores/bankingStore';
 import { useReconciliationStore } from '../stores/reconciliationStore';
-import { useAmlStore } from '../stores/amlStore';
 import { useTreasuryStore } from '../stores/treasuryStore';
 import type { BankCode } from '../types/banking';
 
@@ -731,7 +730,6 @@ const emit = defineEmits<{
 
 const bankingStore = useBankingStore();
 const reconStore = useReconciliationStore();
-const amlStore = useAmlStore();
 const treasuryStore = useTreasuryStore();
 
 const activeTab = ref<'CHANNELS' | 'REBALANCE_LOGS' | 'MERKLE_AUDIT' | 'KPIS'>('CHANNELS');
@@ -829,15 +827,7 @@ function executeRebalance() {
 
 function onSelectAccount(bankCode: BankCode) {
   bankingStore.setBankPersona(bankCode);
-  if (bankCode === 'CITAD' || bankCode === 'VCB') {
-    reconStore.loadSampleDataset('CITAD');
-  } else if (bankCode === 'NAPAS' || bankCode === 'TCB') {
-    reconStore.loadSampleDataset('NAPAS');
-  } else if (bankCode === 'BILATERAL' || bankCode === 'BIDV') {
-    reconStore.loadSampleDataset('BILATERAL');
-  } else {
-    reconStore.loadSampleDataset('ALL');
-  }
+  reconStore.activeBankCode = bankCode;
   emit('navigate', 'reconciliation');
 }
 

@@ -11,8 +11,10 @@
 import { ref } from 'vue';
 import { useLedgerStore } from '../../../stores/ledgerStore';
 import type { JournalVoucher } from '../../../stores/ledgerStore';
+import { useAuthStore } from '../../../stores/authStore';
 
 const store = useLedgerStore();
+const authStore = useAuthStore();
 const isBatchSyncing = ref(false);
 
 function formatVnd(amount: number): string {
@@ -94,6 +96,7 @@ function openPayload(v: JournalVoucher) {
 
         <!-- Batch Post Button -->
         <button
+          v-if="authStore.isChecker || authStore.isCfo"
           class="btn btn-batch-post"
           :disabled="isBatchSyncing || store.voucherStats.pending === 0"
           @click="handleBatchPost"
@@ -239,7 +242,7 @@ function openPayload(v: JournalVoucher) {
 
                 <!-- Single Post Button -->
                 <button
-                  v-if="v.status !== 'POSTED_TO_ERP'"
+                  v-if="(authStore.isChecker || authStore.isCfo) && v.status !== 'POSTED_TO_ERP'"
                   class="btn-mini-post"
                   :disabled="v.status === 'PENDING_POST'"
                   title="Đẩy chứng từ này sang ERP"

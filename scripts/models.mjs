@@ -135,14 +135,40 @@ const doc = (p) => {
   }
 }
 
-/** Thư mục LLM: `--llm-dir` > config `ai.localModelsDir` > mặc định trong repo. */
+/**
+ * Thư mục LLM:
+ * 1. `--llm-dir` CLI arg
+ * 2. `process.env.LIVA_MODELS_DIR` environment variable
+ * 3. `data/liva-config.json` -> `ai.localModelsDir` (nếu tồn tại và không phải ổ chết/legacy)
+ * 4. Mặc định trong repo (`models/llm`)
+ */
 function thuMucLlm(argLlmDir) {
   if (argLlmDir) return { duongDan: path.resolve(argLlmDir), nguon: '--llm-dir' }
+
+  if (process.env.LIVA_MODELS_DIR && process.env.LIVA_MODELS_DIR.trim()) {
+    return {
+      duongDan: path.resolve(process.env.LIVA_MODELS_DIR.trim()),
+      nguon: 'LIVA_MODELS_DIR',
+    }
+  }
+
   const cfg = doc(CONFIG)
   const tuConfig = cfg?.ai?.localModelsDir
   if (typeof tuConfig === 'string' && tuConfig.trim()) {
-    return { duongDan: path.resolve(tuConfig), nguon: 'data/liva-config.json → ai.localModelsDir' }
+    const resolved = path.resolve(tuConfig.trim())
+    if (fs.existsSync(resolved)) {
+      return { duongDan: resolved, nguon: 'data/liva-config.json → ai.localModelsDir' }
+    }
+    // Kiểm tra xem ổ đĩa có tồn tại và không phải đường dẫn legacy không
+    try {
+      const root = path.parse(resolved).root
+      const isLegacy = tuConfig.trim().toLowerCase() === 'e:\\ai_models'
+      if (!isLegacy && root && fs.existsSync(root)) {
+        return { duongDan: resolved, nguon: 'data/liva-config.json → ai.localModelsDir (chưa tạo)' }
+      }
+    } catch {}
   }
+
   return { duongDan: path.join(ROOT, LLM_DIR_MAC_DINH), nguon: 'mặc định của script' }
 }
 

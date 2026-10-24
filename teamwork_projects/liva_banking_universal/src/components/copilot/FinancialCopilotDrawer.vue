@@ -10,7 +10,7 @@
     >
       <svg class="w-4 h-4 text-slate-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       <span
-        v-if="pendingAlertsCount > 0"
+        v-if="effectiveAlertsCount > 0"
         class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500"
       ></span>
     </button>
@@ -38,24 +38,115 @@
             <p class="text-[11px] text-slate-300">Trợ Lý Quản Trị Ngân Quỹ & Đối Soát</p>
           </div>
         </div>
-        <button
-          type="button"
-          class="text-slate-400 hover:text-white p-1 rounded-lg transition cursor-pointer"
-          @click="$emit('update:isOpen', false)"
-        >
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
-        </button>
+        <div class="flex items-center space-x-2">
+          <!-- AI Status Indicator Pill -->
+          <span
+            v-if="isThinking"
+            class="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-blue-950 text-blue-300 border border-blue-700 flex items-center space-x-1"
+            title="Đang nghĩ...."
+          >
+            <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+            <span>Đang nghĩ....</span>
+          </span>
+          <span
+            v-else-if="aiStatus === 'connected'"
+            class="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-950 text-emerald-300 border border-emerald-700 flex items-center space-x-1"
+            title="Mô hình Qwen 14B cục bộ đang trực tuyến"
+          >
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Qwen 14B Online</span>
+          </span>
+          <span
+            v-else-if="aiStatus === 'fallback'"
+            class="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-amber-950 text-amber-300 border border-amber-700 flex items-center space-x-1"
+            title="Đang dùng phân loại ngữ cảnh dự phòng"
+          >
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+            <span>Fallback Active</span>
+          </span>
+          <span
+            v-else
+            class="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-slate-800 text-slate-300 border border-slate-700 flex items-center space-x-1"
+            title="Mô hình cục bộ đang ngoại tuyến - Sử dụng Động cơ phân loại xác định"
+          >
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+            <span>Offline</span>
+          </span>
+
+          <!-- AI Tunnel Configuration Toggle -->
+          <button
+            type="button"
+            class="text-slate-400 hover:text-white p-1 rounded-lg transition cursor-pointer"
+            title="Cấu hình AI Tunnel (Cloudflare / ngrok)"
+            @click="showTunnelConfig = !showTunnelConfig"
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </button>
+
+          <button
+            type="button"
+            class="text-slate-400 hover:text-white p-1 rounded-lg transition cursor-pointer"
+            @click="$emit('update:isOpen', false)"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Tunnel Config Dropdown Bar -->
+      <div v-if="showTunnelConfig" class="px-4 py-2.5 bg-slate-800 border-b border-slate-700 text-xs text-slate-200 space-y-1.5">
+        <div class="flex items-center justify-between">
+          <span class="font-semibold text-slate-300 text-[11px] flex items-center space-x-1">
+            <span>🔗 AI Tunnel (GPU RTX 5060 Ti):</span>
+          </span>
+          <span v-if="activeEndpoint" class="text-[10px] text-emerald-400 font-mono truncate max-w-[180px]">{{ activeEndpoint }}</span>
+        </div>
+        <div class="flex items-center space-x-1.5">
+          <input
+            v-model="tunnelInput"
+            type="text"
+            placeholder="https://xxxx.trycloudflare.com"
+            class="flex-1 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-[11px] text-slate-100 font-mono focus:outline-none focus:border-blue-500"
+          />
+          <button
+            type="button"
+            class="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[11px] font-medium transition cursor-pointer"
+            @click="applyTunnelEndpoint"
+          >
+            Kết nối
+          </button>
+          <button
+            v-if="tunnelInput"
+            type="button"
+            class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-[11px] transition cursor-pointer"
+            title="Khôi phục mặc định"
+            @click="clearTunnelEndpoint"
+          >
+            Đặt lại
+          </button>
+        </div>
+        <p class="text-[10px] text-slate-400 leading-tight">
+          Đường hầm Cloudflare Tunnel bảo mật TLS giúp truy cập AI Local từ xa mà không bị chặn Mixed Content.
+        </p>
       </div>
 
       <!-- Live Context Pills -->
       <div class="px-4 py-2 bg-slate-50 border-b border-slate-200 grid grid-cols-2 gap-2 text-[11px]">
         <div class="p-2 rounded-lg bg-white border border-slate-200">
           <span class="text-slate-400 block text-[10px]">Thanh Khoản:</span>
-          <span class="font-bold text-slate-900">{{ formatVnd(liveBalance) }} VND</span>
+          <span class="font-bold text-slate-900">{{ formatVnd(effectiveBalance) }} VND</span>
         </div>
         <div class="p-2 rounded-lg bg-white border border-slate-200">
           <span class="text-slate-400 block text-[10px]">Tỷ Lệ Khớp:</span>
-          <span class="font-bold text-emerald-600">{{ matchRate }}% (Đạt chuẩn)</span>
+          <span
+            class="font-bold"
+            :class="effectiveMatchRate >= 99.8 ? 'text-emerald-600' : effectiveMatchRate > 0 ? 'text-amber-600' : 'text-slate-500'"
+          >
+            {{ effectiveMatchRate > 0 ? `${effectiveMatchRate.toFixed(1)}%` : '0.0%' }}
+            <span class="text-[10px] font-normal">
+              {{ effectiveMatchRate >= 99.8 ? '(Đạt chuẩn)' : effectiveMatchRate > 0 ? '(Chưa đạt)' : '(Chưa đối soát)' }}
+            </span>
+          </span>
         </div>
       </div>
 
@@ -99,11 +190,38 @@
                 <span>Cảnh báo AML: </span>
                 <strong>{{ msg.metrics.alertCount }} phát hiện</strong>
               </div>
+
+              <!-- Real Local AI Inference Telemetry Badge -->
+              <div
+                v-if="msg.metrics.localAiGenerated"
+                class="mt-2 pt-1.5 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-1 text-[10px] text-emerald-800"
+              >
+                <span class="inline-flex items-center space-x-1 font-semibold text-emerald-700">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Qwen 14B Local (GPU CUDA)</span>
+                </span>
+                <span class="font-mono text-slate-500 text-[10px]">
+                  <span v-if="msg.metrics.ttftMs">TTFT: <strong class="text-slate-700">{{ msg.metrics.ttftMs }}ms</strong></span>
+                  <span v-if="msg.metrics.tokensPerSec" class="ml-1.5">Tốc độ: <strong class="text-slate-700">{{ msg.metrics.tokensPerSec }} tok/s</strong></span>
+                </span>
+              </div>
             </div>
           </div>
           <span class="text-[10px] text-slate-400 mt-1 px-1">
             {{ formatTime(msg.timestamp) }}
           </span>
+        </div>
+
+        <!-- Thinking Indicator Bubble -->
+        <div v-if="isThinking" class="flex flex-col items-start">
+          <div class="max-w-[85%] rounded-2xl px-4 py-2.5 leading-relaxed shadow-xs bg-slate-100 text-slate-500 rounded-tl-xs border border-slate-200 text-xs italic flex items-center space-x-1.5">
+            <span>Đang nghĩ....</span>
+            <span class="flex space-x-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" style="animation-delay: 0.2s"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" style="animation-delay: 0.4s"></span>
+            </span>
+          </div>
         </div>
       </div>
 
@@ -146,8 +264,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue';
+import { ref, computed, nextTick, onMounted, watch } from 'vue';
 import type { CopilotMessage } from '../../stores/treasuryStore';
+import { useBankingStore } from '../../stores/bankingStore';
+import { useReconciliationStore } from '../../stores/reconciliationStore';
+import { useAmlStore } from '../../stores/amlStore';
+import { useTreasuryStore } from '../../stores/treasuryStore';
 
 const props = withDefaults(
   defineProps<{
@@ -156,18 +278,107 @@ const props = withDefaults(
     liveBalance?: number;
     matchRate?: number;
     pendingAlertsCount?: number;
+    aiConnectionStatus?: 'connected' | 'offline' | 'fallback';
+    isThinking?: boolean;
   }>(),
   {
-    liveBalance: 6_200_000_000,
-    matchRate: 99.8,
-    pendingAlertsCount: 3,
+    liveBalance: undefined,
+    matchRate: undefined,
+    pendingAlertsCount: undefined,
+    aiConnectionStatus: undefined,
+    isThinking: undefined,
   }
 );
+
+const bankingStore = useBankingStore();
+const reconStore = useReconciliationStore();
+const amlStore = useAmlStore();
+const treasuryStore = useTreasuryStore();
+
+const aiStatus = computed<'connected' | 'offline' | 'fallback'>(() => {
+  if (props.aiConnectionStatus !== undefined) return props.aiConnectionStatus;
+  return treasuryStore.aiConnectionStatus || 'offline';
+});
+
+const effectiveBalance = computed(() => {
+  if (props.liveBalance !== undefined) return props.liveBalance;
+  return bankingStore.totalLiquidVnd;
+});
+
+const effectiveMatchRate = computed(() => {
+  if (props.matchRate !== undefined) return props.matchRate;
+  return reconStore.matchRate;
+});
+
+const effectiveAlertsCount = computed(() => {
+  if (props.pendingAlertsCount !== undefined) return props.pendingAlertsCount;
+  return amlStore.totalAlertsCount;
+});
 
 const emit = defineEmits<{
   (e: 'update:isOpen', val: boolean): void;
   (e: 'send', query: string): void;
 }>();
+
+import { localAiClient, DEFAULT_PUBLIC_AI_TUNNEL } from '../../services/LocalAiClient';
+
+const showTunnelConfig = ref(false);
+const tunnelInput = ref(
+  (typeof window !== 'undefined' ? localStorage.getItem('liva_ai_tunnel_url') : '') || DEFAULT_PUBLIC_AI_TUNNEL
+);
+const activeEndpoint = computed(() => localAiClient.getActiveEndpoint() || '');
+
+const applyTunnelEndpoint = async () => {
+  if (tunnelInput.value.trim()) {
+    localAiClient.setTunnelEndpoint(tunnelInput.value.trim());
+    await treasuryStore.checkAiHealth(true);
+    showTunnelConfig.value = false;
+  }
+};
+
+const clearTunnelEndpoint = async () => {
+  tunnelInput.value = '';
+  localAiClient.setTunnelEndpoint(null);
+  await treasuryStore.checkAiHealth(true);
+};
+
+onMounted(() => {
+  treasuryStore.checkAiHealth(true);
+});
+
+watch(
+  () => props.isOpen,
+  (val) => {
+    if (val) {
+      treasuryStore.checkAiHealth(true);
+    }
+  }
+);
+
+const internalIsThinking = ref(false);
+
+const isThinking = computed(() => {
+  if (props.isThinking !== undefined) return props.isThinking;
+  const lastMsg =
+    props.messages && props.messages.length > 0
+      ? props.messages[props.messages.length - 1]
+      : null;
+  // If the last message is from the user, the assistant model has not replied yet -> thinking!
+  if (lastMsg && lastMsg.sender === 'user') return true;
+  return internalIsThinking.value;
+});
+
+watch(
+  () => props.messages,
+  (msgs) => {
+    const lastMsg = msgs && msgs.length > 0 ? msgs[msgs.length - 1] : null;
+    if (lastMsg && lastMsg.sender === 'assistant') {
+      internalIsThinking.value = false;
+    }
+    scrollToBottom();
+  },
+  { deep: true }
+);
 
 const inputQuery = ref('');
 const chatContainer = ref<HTMLElement | null>(null);
@@ -184,11 +395,13 @@ function handleSend() {
   if (!inputQuery.value.trim()) return;
   const q = inputQuery.value.trim();
   inputQuery.value = '';
+  internalIsThinking.value = true;
   emit('send', q);
   scrollToBottom();
 }
 
 function submitQuickQuery(chipText: string) {
+  internalIsThinking.value = true;
   emit('send', chipText);
   scrollToBottom();
 }

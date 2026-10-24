@@ -1,0 +1,88 @@
+name: "ISO 20022 camt.053 XML Statement Template"
+version: "1.0.0"
+bank_code: "ISO20022"
+bank_name: "ISO 20022 Standard Financial Statement"
+currency: "VND"
+description: "Parses ISO 20022 camt.053.001.02 through camt.053.001.08 XML statements."
+
+sniffing:
+  container:
+    allowed_formats: ["Xml"]
+    file_extensions: [".xml", ".camt", ".camt053"]
+  content_rules:
+    min_score: 15
+    rules:
+      - pattern: "(?i)camt\\.053|bktocstmrstmt"
+        target: "header_text"
+        score: 15
+      - pattern: "(?i)urn:iso:std:iso:20022"
+        target: "header_text"
+        score: 10
+
+container_options:
+  xml:
+    statement_path: "BkToCstmrStmt/Stmt"
+    entry_path: "Ntry"
+
+metadata:
+  fields:
+    account_number:
+      extractor: "xml_xpath"
+      patterns:
+        - "Acct/Id/IBAN"
+        - "Acct/Id/Othr/Id"
+    account_name:
+      extractor: "xml_xpath"
+      patterns:
+        - "Acct/Nm"
+    opening_balance:
+      extractor: "xml_balance"
+      balance_type: "OPBD"
+    closing_balance:
+      extractor: "xml_balance"
+      balance_type: "CLBD"
+
+table:
+  columns:
+    date:
+      xml_tag: "BookgDt/DtTm"
+      fallback_xml_tag: "BookgDt/Dt"
+      required: true
+    value_date:
+      xml_tag: "ValDt/Dt"
+      required: false
+    ref_code:
+      xml_tag: "AcctSvcrRef"
+      fallback_xml_tag: "NtryDtls/TxDtls/Refs/EndToEndId"
+      required: false
+    amount_mode: "single_with_indicator"
+    amount:
+      xml_tag: "Amt"
+    indicator:
+      xml_tag: "CdtDbtInd"
+      credit_tokens: ["CRDT"]
+      debit_tokens: ["DBIT"]
+    narration:
+      xml_tag: "NtryDtls/TxDtls/RmtInf/Ustrd"
+      fallback_xml_tag: "AddtlNtryInf"
+      required: true
+    counterparty_name:
+      xml_tag: "NtryDtls/TxDtls/RltdPties/Cdtr/Nm"
+      fallback_xml_tag: "NtryDtls/TxDtls/RltdPties/Dbtr/Nm"
+
+formatting:
+  date:
+    formats:
+      - "%Y-%m-%dT%H:%M:%S"
+      - "%Y-%m-%d"
+  number:
+    thousand_separator: "none"
+    decimal_separator: "."
+    decimal_places: 0
+    strip_tokens: []
+
+invariants:
+  verification_formula: "closing_eq_opening_plus_credit_minus_debit"
+  policy: "strict"
+  allow_missing_balances: true
+  tolerance_minor_units: 0

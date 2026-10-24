@@ -1,6 +1,8 @@
 use liva_native_core::crypto::EncryptionEngine;
 use liva_native_core::{
-    AppState, CommandPrincipal, authorize_command, db, handle_command_as, llm, stt, tts,
+    AppState, CommandPrincipal, Permission, UserRole, authorize_command,
+    check_command_role_permission, check_user_permission, get_role_permissions, db,
+    handle_command_as, llm, stt, tts,
 };
 use std::sync::Arc;
 
@@ -246,4 +248,268 @@ async fn dashboard_co_the_chay_projection_batch_thu_cong() {
 
     assert_eq!(response["processed"], 0);
     assert_eq!(response["consolidated"], 0);
+}
+
+#[test]
+fn dashboard_va_widget_duoc_dung_auth_check_permission() {
+    for cmd in ["auth:check_permission", "auth_check_permission"] {
+        duoc(CommandPrincipal::TauriDashboard, cmd);
+        duoc(CommandPrincipal::WebSocketDashboard, cmd);
+        duoc(CommandPrincipal::TauriWidget, cmd);
+        duoc(CommandPrincipal::WebSocketWidget, cmd);
+        duoc(CommandPrincipal::LocalCli, cmd);
+        duoc(CommandPrincipal::Test, cmd);
+
+        bi_chan(CommandPrincipal::TauriSetup, cmd);
+        bi_chan(CommandPrincipal::WebSocketRemote, cmd);
+        bi_chan(CommandPrincipal::Telegram, cmd);
+    }
+}
+
+#[test]
+fn rbac_user_role_exhaustive_matrix() {
+    let roles = [
+        UserRole::Maker,
+        UserRole::Checker,
+        UserRole::Cfo,
+        UserRole::Auditor,
+        UserRole::Admin,
+    ];
+
+    let all_permissions = [
+        Permission::IngestStatement,
+        Permission::RunReconciliation,
+        Permission::ProposeHitlMatch,
+        Permission::ApproveHitlMatch,
+        Permission::ProposePaymentOrder,
+        Permission::ApprovePaymentOrder,
+        Permission::RejectPaymentOrder,
+        Permission::ViewCashflow30_90,
+        Permission::ApproveHighLimit,
+        Permission::ViewAuditChain,
+        Permission::VerifyMerkleProof,
+        Permission::ExportDecree13Report,
+        Permission::ManageSystemConfig,
+        Permission::ManageUsers,
+        Permission::ViewSystemDiagnostics,
+    ];
+
+    for role in roles {
+        let granted = get_role_permissions(role);
+        for perm in all_permissions {
+            let allowed = check_user_permission(role, perm);
+            assert_eq!(
+                allowed,
+                granted.contains(&perm),
+                "Mismatch for role {role:?} and permission {perm:?}"
+            );
+        }
+    }
+
+    // Explicit invariant assertions:
+    // 1. Maker: Propose-only, strictly zero approval permissions
+    assert!(check_user_permission(UserRole::Maker, Permission::IngestStatement));
+    assert!(check_user_permission(UserRole::Maker, Permission::RunReconciliation));
+    assert!(check_user_permission(UserRole::Maker, Permission::ProposeHitlMatch));
+    assert!(check_user_permission(UserRole::Maker, Permission::ProposePaymentOrder));
+    assert!(!check_user_permission(UserRole::Maker, Permission::ApproveHitlMatch));
+    assert!(!check_user_permission(UserRole::Maker, Permission::ApprovePaymentOrder));
+    assert!(!check_user_permission(UserRole::Maker, Permission::ApproveHighLimit));
+
+    // 2. Checker: Approve-only, strictly zero propose/ingest permissions
+    assert!(check_user_permission(UserRole::Checker, Permission::ApproveHitlMatch));
+    assert!(check_user_permission(UserRole::Checker, Permission::ApprovePaymentOrder));
+    assert!(check_user_permission(UserRole::Checker, Permission::RejectPaymentOrder));
+    assert!(!check_user_permission(UserRole::Checker, Permission::IngestStatement));
+    assert!(!check_user_permission(UserRole::Checker, Permission::RunReconciliation));
+    assert!(!check_user_permission(UserRole::Checker, Permission::ProposeHitlMatch));
+    assert!(!check_user_permission(UserRole::Checker, Permission::ProposePaymentOrder));
+
+    // 3. CFO: High-limit, payment approve/reject, cashflow 30-90, zero HITL match approval
+    assert!(check_user_permission(UserRole::Cfo, Permission::ViewCashflow30_90));
+    assert!(check_user_permission(UserRole::Cfo, Permission::ApproveHighLimit));
+    assert!(check_user_permission(UserRole::Cfo, Permission::ApprovePaymentOrder));
+    assert!(check_user_permission(UserRole::Cfo, Permission::RejectPaymentOrder));
+    assert!(!check_user_permission(UserRole::Cfo, Permission::ApproveHitlMatch));
+    assert!(!check_user_permission(UserRole::Cfo, Permission::IngestStatement));
+
+    // 4. Auditor: Strict read-only audit & Merkle verification
+    assert!(check_user_permission(UserRole::Auditor, Permission::ViewAuditChain));
+    assert!(check_user_permission(UserRole::Auditor, Permission::VerifyMerkleProof));
+    assert!(check_user_permission(UserRole::Auditor, Permission::ExportDecree13Report));
+    assert!(!check_user_permission(UserRole::Auditor, Permission::IngestStatement));
+    assert!(!check_user_permission(UserRole::Auditor, Permission::ApproveHitlMatch));
+
+    // 5. Admin: Technical system operations only, strictly zero banking transactions
+    assert!(check_user_permission(UserRole::Admin, Permission::ManageSystemConfig));
+    assert!(check_user_permission(UserRole::Admin, Permission::ManageUsers));
+    assert!(check_user_permission(UserRole::Admin, Permission::ViewSystemDiagnostics));
+    assert!(!check_user_permission(UserRole::Admin, Permission::IngestStatement));
+    assert!(!check_user_permission(UserRole::Admin, Permission::ApprovePaymentOrder));
+}
+
+#[test]
+fn rbac_command_role_enforcement_and_violations() {
+    // 1. Common commands permitted to all roles
+    for role in [
+        UserRole::Maker,
+        UserRole::Checker,
+        UserRole::Cfo,
+        UserRole::Auditor,
+        UserRole::Admin,
+    ] {
+        assert!(check_command_role_permission(role, "ping").is_ok());
+        assert!(check_command_role_permission(role, "banking:get_overview").is_ok());
+        assert!(check_command_role_permission(role, "auth:check_permission").is_ok());
+        assert!(check_command_role_permission(role, "auth_check_permission").is_ok());
+        assert!(check_command_role_permission(role, "banking_get_reconciliation_matrix").is_ok());
+        assert!(check_command_role_permission(role, "banking_get_compliance_status").is_ok());
+    }
+
+    // 2. Maker boundaries
+    assert!(check_command_role_permission(UserRole::Maker, "statement_ingest_file").is_ok());
+    assert!(check_command_role_permission(UserRole::Maker, "statement:ingest_file").is_ok());
+    assert!(check_command_role_permission(UserRole::Maker, "banking_run_reconciliation").is_ok());
+    assert!(check_command_role_permission(UserRole::Maker, "reconciliation_resolve_hitl").is_err());
+    assert!(check_command_role_permission(UserRole::Maker, "banking:resolve_hitl").is_err());
+    assert!(check_command_role_permission(UserRole::Maker, "treasury:approve_payment").is_err());
+    assert!(check_command_role_permission(UserRole::Maker, "update_config").is_err());
+
+    // 3. Checker boundaries
+    assert!(check_command_role_permission(UserRole::Checker, "reconciliation_resolve_hitl").is_ok());
+    assert!(check_command_role_permission(UserRole::Checker, "banking:resolve_hitl").is_ok());
+    assert!(check_command_role_permission(UserRole::Checker, "treasury:approve_payment").is_ok());
+    assert!(check_command_role_permission(UserRole::Checker, "statement_ingest_file").is_err());
+    assert!(check_command_role_permission(UserRole::Checker, "banking_run_reconciliation").is_err());
+
+    // 4. Auditor boundaries
+    assert!(check_command_role_permission(UserRole::Auditor, "compliance:get_audit_chain").is_ok());
+    assert!(check_command_role_permission(UserRole::Auditor, "compliance:verify_merkle").is_ok());
+    assert!(check_command_role_permission(UserRole::Auditor, "compliance:export_decree13").is_ok());
+    assert!(check_command_role_permission(UserRole::Auditor, "statement_ingest_file").is_err());
+    assert!(check_command_role_permission(UserRole::Auditor, "reconciliation_resolve_hitl").is_err());
+
+    // 5. Admin boundaries
+    assert!(check_command_role_permission(UserRole::Admin, "update_config").is_ok());
+    assert!(check_command_role_permission(UserRole::Admin, "auth:create_user").is_ok());
+    assert!(check_command_role_permission(UserRole::Admin, "get_preflight_status").is_ok());
+    assert!(check_command_role_permission(UserRole::Admin, "statement_ingest_file").is_err());
+    assert!(check_command_role_permission(UserRole::Admin, "reconciliation_resolve_hitl").is_err());
+    assert!(check_command_role_permission(UserRole::Admin, "treasury:approve_payment").is_err());
+}
+
+#[tokio::test]
+async fn dispatcher_executes_auth_check_permission_e2e() {
+    let state = test_state();
+
+    // Mode A: Role + Permission check (valid)
+    let res = handle_command_as(
+        CommandPrincipal::TauriDashboard,
+        state.clone(),
+        "auth:check_permission",
+        serde_json::json!({
+            "role": "MAKER",
+            "permission": "IngestStatement"
+        }),
+        None,
+        None,
+    )
+    .await
+    .expect("auth:check_permission allowed");
+    assert_eq!(res["success"], true);
+    assert_eq!(res["allowed"], true);
+    assert_eq!(res["role"], "MAKER");
+    assert_eq!(res["permission"], "IngestStatement");
+
+    // Mode A: Role + Permission check (SoD violation)
+    let res_denied = handle_command_as(
+        CommandPrincipal::TauriDashboard,
+        state.clone(),
+        "auth_check_permission",
+        serde_json::json!({
+            "role": "MAKER",
+            "permission": "ApproveHitlMatch"
+        }),
+        None,
+        None,
+    )
+    .await
+    .expect("auth_check_permission executed");
+    assert_eq!(res_denied["success"], true);
+    assert_eq!(res_denied["allowed"], false);
+    assert!(res_denied["reason"].as_str().unwrap().contains("lacks permission"));
+
+    // Mode B: Role + Command check (valid)
+    let res_cmd_ok = handle_command_as(
+        CommandPrincipal::TauriDashboard,
+        state.clone(),
+        "auth:check_permission",
+        serde_json::json!({
+            "role": "CHECKER",
+            "command": "reconciliation_resolve_hitl"
+        }),
+        None,
+        None,
+    )
+    .await
+    .expect("command check ok");
+    assert_eq!(res_cmd_ok["success"], true);
+    assert_eq!(res_cmd_ok["allowed"], true);
+
+    // Mode B: Role + Command check (SoD violation)
+    let res_cmd_denied = handle_command_as(
+        CommandPrincipal::TauriDashboard,
+        state.clone(),
+        "auth:check_permission",
+        serde_json::json!({
+            "role": "CHECKER",
+            "command": "statement_ingest_file"
+        }),
+        None,
+        None,
+    )
+    .await
+    .expect("command check executed");
+    assert_eq!(res_cmd_denied["success"], true);
+    assert_eq!(res_cmd_denied["allowed"], false);
+
+    // Mode C: Username database lookup
+    let res_user = handle_command_as(
+        CommandPrincipal::TauriDashboard,
+        state.clone(),
+        "auth:check_permission",
+        serde_json::json!({
+            "username": "maker_nam",
+            "permission": "RunReconciliation"
+        }),
+        None,
+        None,
+    )
+    .await
+    .expect("username lookup ok");
+    assert_eq!(res_user["success"], true);
+    assert_eq!(res_user["allowed"], true);
+    assert_eq!(res_user["role"], "MAKER");
+
+    // Mode D: Capability discovery mode
+    let res_discovery = handle_command_as(
+        CommandPrincipal::TauriDashboard,
+        state.clone(),
+        "auth:check_permission",
+        serde_json::json!({
+            "role": "AUDITOR"
+        }),
+        None,
+        None,
+    )
+    .await
+    .expect("discovery ok");
+    assert_eq!(res_discovery["success"], true);
+    assert_eq!(res_discovery["allowed"], true);
+    let perms = res_discovery["permissions"].as_array().unwrap();
+    let perm_strings: Vec<&str> = perms.iter().filter_map(|v| v.as_str()).collect();
+    assert_eq!(perm_strings.len(), 3);
+    assert!(perm_strings.contains(&"ViewAuditChain"));
+    assert!(perm_strings.contains(&"VerifyMerkleProof"));
+    assert!(perm_strings.contains(&"ExportDecree13Report"));
 }

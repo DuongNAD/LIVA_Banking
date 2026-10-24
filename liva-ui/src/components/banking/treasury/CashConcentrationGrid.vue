@@ -7,8 +7,10 @@
  */
 import { useTreasuryStore } from '../../../stores/treasuryStore';
 import type { TreasuryAccount } from '../../../stores/treasuryStore';
+import { useAuthStore } from '../../../stores/authStore';
 
 const store = useTreasuryStore();
+const authStore = useAuthStore();
 
 function formatVnd(val: number): string {
   return `${val.toLocaleString('vi-VN')} ₫`;
@@ -35,7 +37,11 @@ function handleExecuteSweep(rec: { source: TreasuryAccount; target: TreasuryAcco
             <span class="rec-text">
               Điều chuyển <strong>{{ formatVnd(rec.excessAmount) }}</strong> từ <strong>{{ rec.source.bankName }}</strong> về <strong>{{ rec.target.bankName }}</strong>
             </span>
-            <button class="btn-sweep-action" @click="handleExecuteSweep(rec)">
+            <button
+              v-if="!authStore.isReadOnly && (authStore.isChecker || authStore.isCfo)"
+              class="btn-sweep-action"
+              @click="handleExecuteSweep(rec)"
+            >
               Quét Vốn Ngay
             </button>
           </div>

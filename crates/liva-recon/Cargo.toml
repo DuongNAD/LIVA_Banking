@@ -5,12 +5,17 @@ edition = "2021"
 authors = ["LIVA Banking Core Team"]
 description = "Deterministic 3-tier reconciliation engine and HITL quarantine queue"
 license = "Proprietary"
+publish = false
 
 [dependencies]
 liva-money = { path = "../liva-money" }
 liva-ledger = { path = "../liva-ledger" }
 liva-parse = { path = "../liva-parse" }
+liva-compliance = { path = "../liva-compliance" }
 serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+regex = "1.10"
+chrono = { version = "0.4", features = ["serde"] }
 thiserror = "1.0"
 uuid = { version = "1", features = ["v4"] }
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
 import { useWorkbenchStore } from '../../stores/workbenchStore';
+import { useAuthStore } from '../../stores/authStore';
 import BankColumn from '../../components/banking/workbench/BankColumn.vue';
 import GlColumn from '../../components/banking/workbench/GlColumn.vue';
 import MatchColumn from '../../components/banking/workbench/MatchColumn.vue';
@@ -8,6 +9,7 @@ import SplitSolverModal from '../../components/banking/workbench/SplitSolverModa
 import UnmatchReasonModal from '../../components/banking/workbench/UnmatchReasonModal.vue';
 
 const store = useWorkbenchStore();
+const authStore = useAuthStore();
 
 function formatVnd(val: number): string {
   const formatted = new Intl.NumberFormat('vi-VN').format(Math.abs(val)) + ' ₫';
@@ -76,9 +78,10 @@ onUnmounted(() => {
             <span class="status-tag" :class="store.batchStatus.toLowerCase()">
               {{ store.batchStatus === 'IN_PROGRESS' ? 'Đang thực hiện' : 'Đã trình duyệt' }}
             </span>
+            <span v-if="authStore.isReadOnly" class="readonly-badge">[CHỈ ĐỌC]</span>
           </div>
           <div class="batch-sub-meta">
-            <span>Maker: <strong>{{ store.makerUserId }}</strong></span>
+            <span>Maker: <strong>{{ authStore.currentUser?.fullName || store.makerUserId }}</strong></span>
             <span class="dot-sep">•</span>
             <span>Chế độ: <strong>Zero Floating-Point (i128/i64)</strong></span>
             <span class="dot-sep">•</span>
@@ -227,6 +230,16 @@ onUnmounted(() => {
 
 .status-tag.in_progress { background: #fef08a; color: #854d0e; }
 .status-tag.submitted_to_checker { background: #dbeafe; color: #1e40af; }
+
+.readonly-badge {
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 700;
+  background: #e0f2fe;
+  color: #0284c7;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
 
 .batch-sub-meta {
   font-size: 12px;

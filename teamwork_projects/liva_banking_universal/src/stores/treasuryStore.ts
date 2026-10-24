@@ -27,10 +27,15 @@ import {
 } from '../engine/treasury/merkleAudit';
 import {
   queryFinancialCopilot,
+  queryFinancialCopilotAsync,
   STANDARDIZED_TOUR_STEPS,
 } from '../engine/treasury/copilotEngine';
 import { executeBankingToolDispatcher } from '../engine/intelligence/bankingAiTools';
 import { apiRequest, getApiBaseUrl } from '../services/apiClient';
+import { localAiClient, type AiConnectionStatus } from '../services/LocalAiClient';
+import { useBankingStore } from './bankingStore';
+import { useReconciliationStore } from './reconciliationStore';
+import { useAmlStore } from './amlStore';
 
 export interface CopilotMessage {
   id: string;
@@ -47,15 +52,15 @@ function createInitialDemoVouchers(): PaymentVoucher[] {
     voucherId: 'vch-citad-01',
     makerId: 'maker_accountant_01',
     checkerId: 'checker_cfo_01',
-    beneficiaryAccount: '01-CITAD-SBV-VND',
+    beneficiaryAccount: '0011000123456',
     beneficiaryBank: 'CITAD_SBV',
-    beneficiaryName: 'SỞ GIAO DỊCH NGÂN HÀNG NHÀ NƯỚC (NHNN)',
+    beneficiaryName: 'CỤC QUẢN LÝ DỰ TRỮ NGOẠI HỐI NHNN',
     amountVnd: 500_000_000,
-    purpose: 'Điều chuyển vốn thanh khoản bổ sung vào tài khoản tiền gửi tại Sở Giao dịch NHNN',
+    purpose: 'Nộp bổ sung dự trữ bắt buộc ngoại tệ kỳ II/2026',
     status: 'APPROVED',
-    createdAt: '2026-08-14T09:00:00.000Z',
-    submittedAt: '2026-08-14T09:05:00.000Z',
-    approvedAt: '2026-08-14T09:20:00.000Z',
+    createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+    submittedAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
+    approvedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
     authMethod: 'BIOMETRIC_SIM',
     signatureHmac: 'a8b7c9d0e1f234567890abcdef1234567890abcdef1234567890abcdef12345678',
     hitlToken: null,
@@ -141,6 +146,10 @@ export const useTreasuryStore = defineStore('treasury', {
       isOnlineSyncActive: false as boolean,
       sseConnectionStatus: 'DISCONNECTED' as 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING',
       sseEventSource: null as any,
+
+      // Local AI Connection Status (Milestone M2)
+      aiConnectionStatus: 'offline' as AiConnectionStatus,
+      isCopilotThinking: false as boolean,
     };
   },
 
@@ -442,6 +451,42 @@ export const useTreasuryStore = defineStore('treasury', {
             console.warn('[TreasuryStore] Failed to parse voucher:rejected event', err);
           }
         });
+
+        es.addEventListener('state:snapshot', (evt: any) => {
+          try {
+            const data = JSON.parse(evt.data);
+            this.processSseEvent('state:snapshot', data);
+          } catch (err) {
+            console.warn('[TreasuryStore] Failed to parse state:snapshot event', err);
+          }
+        });
+
+        es.addEventListener('account:updated', (evt: any) => {
+          try {
+            const data = JSON.parse(evt.data);
+            this.processSseEvent('account:updated', data);
+          } catch (err) {
+            console.warn('[TreasuryStore] Failed to parse account:updated event', err);
+          }
+        });
+
+        es.addEventListener('reconciliation:summary', (evt: any) => {
+          try {
+            const data = JSON.parse(evt.data);
+            this.processSseEvent('reconciliation:summary', data);
+          } catch (err) {
+            console.warn('[TreasuryStore] Failed to parse reconciliation:summary event', err);
+          }
+        });
+
+        es.addEventListener('aml:alert', (evt: any) => {
+          try {
+            const data = JSON.parse(evt.data);
+            this.processSseEvent('aml:alert', data);
+          } catch (err) {
+            console.warn('[TreasuryStore] Failed to parse aml:alert event', err);
+          }
+        });
       } catch (err) {
         this.isOnlineSyncActive = false;
         this.sseConnectionStatus = 'DISCONNECTED';
@@ -526,6 +571,57 @@ export const useTreasuryStore = defineStore('treasury', {
             reason: existing.rejectReason,
           });
         }
+      } else if (event === 'state:snapshot') {
+        if (data.vouchers && Array.isArray(data.vouchers)) {
+          for (const v of data.vouchers) {
+            const vId = v.voucherId || v.id;
+            if (!vId) continue;
+            const existing = this.vouchers.find((ev) => ev.voucherId === vId);
+            if (!existing) {
+              const vch: PaymentVoucher = {
+                voucherId: vId,
+                makerId: v.makerId || 'usr_maker_01',
+                checkerId: v.checkerId || null,
+                beneficiaryAccount: v.beneficiaryAccount || v.targetAccount || '',
+                beneficiaryBank: v.beneficiaryBank || v.targetBank || 'CITAD_SBV',
+                beneficiaryName: v.beneficiaryName || v.targetBeneficiary || 'Đơn vị thụ hưởng',
+                amountVnd: Number(v.amountVnd || v.amount || 0),
+                purpose: v.purpose || v.description || '',
+                status: (v.status as VoucherStatus) || 'PENDING_APPROVAL',
+                createdAt: v.createdAt || new Date().toISOString(),
+                approvedAt: v.approvedAt || undefined,
+                rejectedAt: v.rejectedAt || undefined,
+                rejectReason: v.rejectionReason || v.rejectReason || undefined,
+                merkleLeafHash: v.merkleLeafHash || undefined,
+                hitlToken: v.hitlToken || null,
+                tokenExpiresAt: v.tokenExpiresAt || null,
+              };
+              this.vouchers.push(vch);
+            } else {
+              if (v.status) existing.status = v.status;
+              if (v.checkerId) existing.checkerId = v.checkerId;
+              if (v.approvedAt) existing.approvedAt = v.approvedAt;
+              if (v.merkleLeafHash) existing.merkleLeafHash = v.merkleLeafHash;
+            }
+          }
+        }
+        if (data.accounts) {
+          const bankingStore = useBankingStore();
+          bankingStore.applyStateSnapshot(data);
+        }
+        if (data.reconciliationSummary) {
+          const reconStore = useReconciliationStore();
+          reconStore.applyReconciliationSummary(data.reconciliationSummary);
+        }
+      } else if (event === 'account:updated') {
+        const bankingStore = useBankingStore();
+        bankingStore.applyAccountUpdated(data);
+      } else if (event === 'reconciliation:summary') {
+        const reconStore = useReconciliationStore();
+        reconStore.applyReconciliationSummary(data);
+      } else if (event === 'aml:alert') {
+        const amlStore = useAmlStore();
+        amlStore.applySseAlert(data);
       }
     },
 
@@ -572,6 +668,12 @@ export const useTreasuryStore = defineStore('treasury', {
       this.isCopilotOpen = !this.isCopilotOpen;
     },
 
+    async checkAiHealth(force = false): Promise<AiConnectionStatus> {
+      const isHealthy = await localAiClient.checkHealth(force);
+      this.aiConnectionStatus = isHealthy ? 'connected' : 'offline';
+      return this.aiConnectionStatus;
+    },
+
     sendCopilotMessage(query: string) {
       if (!query || query.trim() === '') return;
       const userText = query.trim();
@@ -583,23 +685,69 @@ export const useTreasuryStore = defineStore('treasury', {
         timestamp: new Date().toISOString(),
       });
 
-      // Synchronous copilot response for instant zero-latency feedback & test contract compatibility
-      const copilotRes = queryFinancialCopilot(userText, {
-        liquidVnd: 7_700_000_000,
-        burnRateVnd: 55_000_000,
-        matchRate: 99.8,
-        alertCount: 3,
-        pendingCount: this.pendingVouchers.length,
-      });
+      // Pull live dynamic values from sibling Pinia stores
+      const bankingStore = useBankingStore();
+      const reconStore = useReconciliationStore();
+      const amlStore = useAmlStore();
 
-      this.copilotMessages.push({
+      const liveLiquidVnd = bankingStore.totalLiquidVnd;
+      const liveBurnRate = bankingStore.dailyAverageBurnVnd || 15_000_000;
+      const liveMatchRate = reconStore.matchRate;
+      const liveAlertCount = amlStore.totalAlertsCount;
+
+      const dynamicContext = {
+        closingBalance: liveLiquidVnd,
+        liquidVnd: liveLiquidVnd,
+        dailyBurn: liveBurnRate,
+        burnRateVnd: liveBurnRate,
+        matchRate: liveMatchRate,
+        alertCount: liveAlertCount,
+        pendingCount: this.pendingVouchers.length,
+      };
+
+      const copilotRes = queryFinancialCopilot(userText, dynamicContext);
+
+      const assistantMsg: CopilotMessage = {
         id: `msg-${Date.now()}-a`,
         sender: 'assistant',
         text: copilotRes.answer,
         intent: copilotRes.intent,
         metrics: copilotRes.metrics,
         timestamp: new Date().toISOString(),
-      });
+      };
+
+      this.copilotMessages.push(assistantMsg);
+
+      // If not in standalone test runner, asynchronously query local AI (Qwen 14B)
+      const isTestEnv = typeof process !== 'undefined' && (process.env?.NODE_ENV === 'test' || process.env?.VITEST);
+      if (!isTestEnv) {
+        this.isCopilotThinking = true;
+        queryFinancialCopilotAsync(userText, dynamicContext)
+          .then((aiRes) => {
+            if (aiRes && aiRes.metrics?.localAiGenerated) {
+              const idx = this.copilotMessages.findIndex((m) => m.id === assistantMsg.id);
+              if (idx !== -1) {
+                this.copilotMessages[idx] = {
+                  ...this.copilotMessages[idx],
+                  text: aiRes.answer,
+                  intent: aiRes.intent,
+                  metrics: { ...aiRes.metrics },
+                };
+              } else {
+                assistantMsg.text = aiRes.answer;
+                assistantMsg.intent = aiRes.intent;
+                assistantMsg.metrics = { ...aiRes.metrics };
+              }
+              this.aiConnectionStatus = 'connected';
+            }
+          })
+          .catch(() => {
+            this.aiConnectionStatus = 'fallback';
+          })
+          .finally(() => {
+            this.isCopilotThinking = false;
+          });
+      }
     },
 
     async sendCopilotToolMessage(query: string) {
@@ -613,17 +761,23 @@ export const useTreasuryStore = defineStore('treasury', {
         timestamp: new Date().toISOString(),
       });
 
-      // Execute with Banking MCP Tools & Security Safeguard Layer (Local Model Qwen 14B)
-      const toolRes = await executeBankingToolDispatcher(userText, 'http://127.0.0.1:8002/v1/chat/completions');
+      this.isCopilotThinking = true;
+      try {
+        // Execute with Banking MCP Tools & Security Safeguard Layer (Local Model Qwen 14B)
+        const toolRes = await executeBankingToolDispatcher(userText);
+        this.aiConnectionStatus = localAiClient.getStatus();
 
-      this.copilotMessages.push({
-        id: `msg-${Date.now()}-a`,
-        sender: 'assistant',
-        text: toolRes.text,
-        intent: toolRes.toolUsed,
-        metrics: toolRes.data,
-        timestamp: new Date().toISOString(),
-      });
+        this.copilotMessages.push({
+          id: `msg-${Date.now()}-a`,
+          sender: 'assistant',
+          text: toolRes.text,
+          intent: toolRes.toolUsed,
+          metrics: toolRes.data,
+          timestamp: new Date().toISOString(),
+        });
+      } finally {
+        this.isCopilotThinking = false;
+      }
     },
 
     // Guided Tour Actions

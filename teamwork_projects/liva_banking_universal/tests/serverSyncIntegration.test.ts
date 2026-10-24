@@ -289,6 +289,44 @@ describe('Milestone M3: Backend Server, JWT Auth & Real-Time Sync Integration', 
 
       client.destroy();
     });
+
+    it('transmits state:snapshot event containing dynamic accounts and pending vouchers on SSE connection', async () => {
+      let snapshotData: any = null;
+      let currentEvent = '';
+      let buffer = '';
+
+      const client = await new Promise<http.IncomingMessage>((resolve) => {
+        http.get(`${serverUrl}/api/sync/events`, (res) => {
+          res.on('data', (chunk) => {
+            buffer += chunk.toString();
+            const lines = buffer.split('\n');
+            buffer = lines.pop() ?? '';
+            for (const line of lines) {
+              if (line.startsWith('event: ')) {
+                currentEvent = line.replace('event: ', '').trim();
+              } else if (line.startsWith('data: ') && currentEvent === 'state:snapshot') {
+                try {
+                  snapshotData = JSON.parse(line.replace('data: ', '').trim());
+                } catch {}
+              }
+            }
+          });
+          resolve(res);
+        });
+      });
+
+      // Allow snapshot event to be emitted on connection
+      await new Promise((r) => setTimeout(r, 100));
+
+      expect(snapshotData).not.toBeNull();
+      expect(Array.isArray(snapshotData.accounts)).toBe(true);
+      expect(snapshotData.accounts.length).toBeGreaterThan(0);
+      expect(typeof snapshotData.accounts[0].balanceVnd).toBe('number');
+      expect(typeof snapshotData.merkleRoot).toBe('string');
+      expect(snapshotData.merkleRoot).toHaveLength(64);
+
+      client.destroy();
+    });
   });
 
   // ============================================================================
@@ -434,6 +472,116 @@ describe('Milestone M3: Backend Server, JWT Auth & Real-Time Sync Integration', 
       expect(received?.checkerId).toBe('usr_checker_01');
       expect(received?.merkleLeafHash).toBe('f4e3d2c1b0a987654321fedcba');
       expect(store.approvedVouchers.some((v) => v.voucherId === 'vch_remote_maker_99')).toBe(true);
+    });
+
+    it('broadcasts account:updated event and preserves double-entry accounting invariant upon voucher approval', async () => {
+      // 1. Maker authenticates and creates a voucher for 120,000,000 VND
+      const authMaker = useAuthStore();
+      await authMaker.login('maker@livabanking.vn', 'maker123');
+      const makerToken = authMaker.token!;
+
+      const createRes = await apiRequest('/treasury/vouchers', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${makerToken}` },
+        body: JSON.stringify({
+          voucherId: 'vch_balance_deduct_test_01',
+          sourceAccount: '01-CITAD-SBV',
+          targetAccount: '1122334455',
+          targetBeneficiary: 'CONG TY VINAPHONE',
+          targetBank: 'CITAD_SBV',
+          amount: 120_000_000,
+          purpose: 'Thanh toan cuoc vien thong quyet toan',
+        }),
+      });
+      expect(createRes.success).toBe(true);
+      const voucherId = createRes.data.voucher.id;
+
+      // 2. Fetch initial account balance
+      const accountsBeforeRes = await apiRequest('/banking/accounts');
+      const citadAccountBefore = accountsBeforeRes.data?.accounts?.find(
+        (a: any) => a.accountNumber === '01-CITAD-SBV' || a.channelCode === 'CITAD'
+      );
+      const initialBalance = citadAccountBefore?.balanceVnd ?? 3_250_000_000;
+
+      // 3. Establish SSE listener for account:updated broadcast
+      let receivedAccountUpdate: any = null;
+      let currentEvent = '';
+      let buffer = '';
+      const client = await new Promise<http.IncomingMessage>((resolve) => {
+        http.get(`${serverUrl}/api/sync/events`, (res) => {
+          res.on('data', (chunk) => {
+            buffer += chunk.toString();
+            const lines = buffer.split('\n');
+            buffer = lines.pop() ?? '';
+            for (const line of lines) {
+              if (line.startsWith('event: ')) {
+                currentEvent = line.replace('event: ', '').trim();
+              } else if (line.startsWith('data: ') && currentEvent === 'account:updated') {
+                try {
+                  receivedAccountUpdate = JSON.parse(line.replace('data: ', '').trim());
+                } catch {}
+              }
+            }
+          });
+          resolve(res);
+        });
+      });
+
+      // 4. Checker logs in and approves voucher
+      const authChecker = useAuthStore();
+      await authChecker.login('checker@livabanking.vn', 'checker123');
+      const checkerToken = authChecker.token!;
+
+      const approveRes = await apiRequest(`/treasury/vouchers/${voucherId}/approve`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${checkerToken}` },
+      });
+      expect(approveRes.success).toBe(true);
+
+      // Wait for SSE broadcast
+      await new Promise((r) => setTimeout(r, 100));
+
+      // 5. Verify accounting invariant: Final = Initial - VoucherAmount
+      expect(receivedAccountUpdate).not.toBeNull();
+      expect(receivedAccountUpdate.balanceVnd).toBe(initialBalance - 120_000_000);
+      expect(receivedAccountUpdate.lastUpdated).toBeDefined();
+
+      client.destroy();
+    });
+
+    it('enforces Fail-Closed rejection when voucher amount exceeds available balance', async () => {
+      const authMaker = useAuthStore();
+      await authMaker.login('maker@livabanking.vn', 'maker123');
+
+      // Create an overdraft voucher (e.g. 500 billion VND)
+      const createRes = await apiRequest('/treasury/vouchers', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${authMaker.token}` },
+        body: JSON.stringify({
+          voucherId: 'vch_overdraft_fail_01',
+          sourceAccount: '01-CITAD-SBV',
+          targetAccount: '9999999999',
+          targetBeneficiary: 'QUY TAI CHINH MA',
+          targetBank: 'CITAD_SBV',
+          amount: 500_000_000_000,
+          purpose: 'Lệnh chi vượt hạn mức thanh khoản',
+        }),
+      });
+      expect(createRes.success).toBe(true);
+      const voucherId = createRes.data.voucher.id;
+
+      const authChecker = useAuthStore();
+      await authChecker.login('checker@livabanking.vn', 'checker123');
+
+      // Attempt approval
+      const approveRes = await apiRequest(`/treasury/vouchers/${voucherId}/approve`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${authChecker.token}` },
+      });
+
+      // Must be rejected with 400 Insufficient Funds
+      expect(approveRes.success).toBe(false);
+      expect(approveRes.error).toContain('Số dư khả dụng không đủ');
     });
   });
 

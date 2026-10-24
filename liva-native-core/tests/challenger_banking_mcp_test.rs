@@ -1048,3 +1048,356 @@ async fn test_compliance_aml_exact_thresholds_and_structuring() {
     );
 }
 
+// ===========================================================================
+// SUITE 5: CHALLENGER 1 EMPIRICAL BOUNDARY & ADVERSARIAL STRESS SUITE (M4)
+// ===========================================================================
+
+#[tokio::test]
+async fn test_challenger_compliance_aml_boundary_and_adversarial_matrix() {
+    let server = NativeMcpServer::new("test_vault");
+
+    // 1. Boundary A: Empty Inputs ({ transactions: [] })
+    let req_empty = CallToolRequest {
+        name: "compliance_aml_screen".to_string(),
+        arguments: serde_json::json!({
+            "transactions": [],
+            "redact_pii": true
+        }),
+    };
+    let res_empty = server.call_tool(req_empty).await.expect("Empty transactions must succeed");
+    assert!(!res_empty.is_error, "Empty transactions must not produce error");
+    let val_empty: Value = serde_json::from_str(extract_text(&res_empty.content)).unwrap();
+    assert_eq!(val_empty["total_screened"], 0, "total_screened must be 0");
+    assert_eq!(val_empty["alerts"].as_array().unwrap().len(), 0, "alerts must be empty");
+    assert!(val_empty["ai_anomaly_score"].is_null(), "ai_anomaly_score must be null for empty list");
+    assert!(val_empty["risk_profile"].is_null(), "risk_profile must be null for empty list");
+    assert_eq!(val_empty["zero_egress_verified"], true, "zero_egress_verified must be true");
+
+    // 2. Boundary B: Malformed / Extreme Timestamps (-86400, 0, large future, null)
+    let req_dates = CallToolRequest {
+        name: "compliance_aml_screen".to_string(),
+        arguments: serde_json::json!({
+            "transactions": [
+                {
+                    "tx_id": "TX-NEG-DATE",
+                    "amount_vnd": 50_000_000,
+                    "timestamp": -86400, // Negative unix timestamp
+                    "narration": "Giao dich ngay am"
+                },
+                {
+                    "tx_id": "TX-ZERO-DATE",
+                    "amount_vnd": 60_000_000,
+                    "timestamp": 0, // Epoch 0
+                    "narration": "Giao dich moc thoi gian 0"
+                },
+                {
+                    "tx_id": "TX-FUTURE-DATE",
+                    "amount_vnd": 70_000_000,
+                    "timestamp": 253402300799i64, // Year 9999
+                    "narration": "Giao dich tuong lai rat xa"
+                },
+                {
+                    "tx_id": "TX-NULL-DATE",
+                    "amount_vnd": 80_000_000,
+                    "narration": "Giao dich khong co thoi gian"
+                }
+            ]
+        }),
+    };
+    let res_dates = server.call_tool(req_dates).await.expect("Malformed dates must not panic");
+    assert!(!res_dates.is_error, "Malformed dates must process gracefully");
+    let val_dates: Value = serde_json::from_str(extract_text(&res_dates.content)).unwrap();
+    assert_eq!(val_dates["total_screened"], 4);
+
+    // 3. Boundary C: Near-Threshold Smurfing Band [380M, 399.999M VND] vs Statutory 400M VND
+    let daytime_ts = 1726470000i64; // 14:00 GMT+7, within business hours
+
+    // Sub-test C1: Sub-smurfing amount (379,999,999 VND) screened individually
+    // Must NOT trigger near-threshold smurfing and must NOT trigger statutory high-value
+    let req_sub_smurf = CallToolRequest {
+        name: "compliance_aml_screen".to_string(),
+        arguments: serde_json::json!({
+            "transactions": [
+                {
+                    "tx_id": "TX-SUB-SMURF",
+                    "account_number": "ACC-SUB-379M",
+                    "amount_vnd": 379_999_999, // Just below smurfing band (< 380M)
+                    "timestamp": daytime_ts,
+                    "narration": "Thanh toan duoi dai smurfing 380M"
+                }
+            ]
+        }),
+    };
+    let res_sub = server.call_tool(req_sub_smurf).await.expect("Sub smurf processed");
+    assert!(!res_sub.is_error);
+    let val_sub: Value = serde_json::from_str(extract_text(&res_sub.content)).unwrap();
+    let alerts_sub = val_sub["alerts"].as_array().unwrap();
+    assert!(
+        alerts_sub.is_empty(),
+        "379,999,999 VND alone must NOT trigger near-threshold smurfing or high-value, got: {:?}", alerts_sub
+    );
+
+    // Sub-test C2: In-band smurfing amounts (380M, 390M, 399.999M) and statutory bound (400M)
+    // Tested individually to isolate amount distribution rules from batch-level structuring rules
+    for (tx_id, amount, expected_rule, forbidden_rule) in [
+        ("TX-EXACT-SMURF-LOWER", 380_000_000u64, "AML_NEAR_THRESHOLD_SMURFING", "AML_HIGH_VALUE"),
+        ("TX-MID-SMURF", 390_000_000u64, "AML_NEAR_THRESHOLD_SMURFING", "AML_HIGH_VALUE"),
+        ("TX-EXACT-SMURF-UPPER", 399_999_999u64, "AML_NEAR_THRESHOLD_SMURFING", "AML_HIGH_VALUE"),
+        ("TX-EXACT-STATUTORY", 400_000_000u64, "AML_HIGH_VALUE", "AML_NEAR_THRESHOLD_SMURFING"),
+    ] {
+        let req_item = CallToolRequest {
+            name: "compliance_aml_screen".to_string(),
+            arguments: serde_json::json!({
+                "transactions": [
+                    {
+                        "tx_id": tx_id,
+                        "account_number": format!("ACC-{}", tx_id),
+                        "amount_vnd": amount,
+                        "timestamp": daytime_ts,
+                        "narration": format!("Thanh toan kiem tra nguong {}", amount)
+                    }
+                ]
+            }),
+        };
+        let res_item = server.call_tool(req_item).await.expect("Screening item processed");
+        assert!(!res_item.is_error);
+        let val_item: Value = serde_json::from_str(extract_text(&res_item.content)).unwrap();
+        let alerts_item = val_item["alerts"].as_array().unwrap();
+
+        assert!(
+            alerts_item.iter().any(|a| a["rule_code"] == expected_rule),
+            "{amount} VND MUST trigger {expected_rule}, got alerts: {:?}", alerts_item
+        );
+        assert!(
+            alerts_item.iter().all(|a| a["rule_code"] != forbidden_rule),
+            "{amount} VND must NOT trigger {forbidden_rule}"
+        );
+    }
+
+    // 4. Boundary D: AI Anomaly Score Float Invariant (must stay strictly within [0.0, 1.0])
+    let req_multi_anomaly = CallToolRequest {
+        name: "compliance_aml_screen".to_string(),
+        arguments: serde_json::json!({
+            "transactions": [
+                {
+                    "tx_id": "TX-MULTI-SATURATED",
+                    "account_number": "19030099998888",
+                    "amount_vnd": 600_000_000, // High-value (3000 bps)
+                    "timestamp": 1726426800, // Night off-hours 02:00 GMT+7 (2000 bps)
+                    "narration": "TIEN MUA BAN MA TUY RUA TIEN MAT KHAN CAP", // Suspicious words (2500 bps)
+                    "is_credit": true
+                },
+                {
+                    "tx_id": "TX-MULTI-BURST",
+                    "account_number": "19030099998888",
+                    "amount_vnd": 385_000_000, // Near-threshold smurfing (2500 bps) + microburst (<60s) (1500 bps)
+                    "timestamp": 1726426820,
+                    "narration": "TIEN TAI TRO KHUNG BO CHUYEN TIEN DEN",
+                    "is_credit": true
+                }
+            ]
+        }),
+    };
+    let res_multi = server.call_tool(req_multi_anomaly).await.expect("Multi anomaly processed");
+    assert!(!res_multi.is_error);
+    let val_multi: Value = serde_json::from_str(extract_text(&res_multi.content)).unwrap();
+
+    let aggregate_score = val_multi["ai_anomaly_score"].as_f64().expect("Score must exist");
+    assert!(
+        (0.0..=1.0).contains(&aggregate_score),
+        "Aggregate AI anomaly score {aggregate_score} must be strictly in 0.0..=1.0 range"
+    );
+
+    for alert in val_multi["alerts"].as_array().unwrap() {
+        if let Some(score) = alert["ai_anomaly_score"].as_f64() {
+            assert!(
+                (0.0..=1.0).contains(&score),
+                "Alert AI anomaly score {score} must be strictly in 0.0..=1.0 range"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_challenger_reconcile_deterministic_fallback_and_semantic_accuracy() {
+    let server = NativeMcpServer::new("test_vault");
+
+    // 1. Create a temporary ERP ledger JSON containing an invoice for "CÔNG TY CỔ PHẦN HOÀNG ANH GIA LAI"
+    let test_ts = liva_native_core::banking::models::parse_banking_date("2026-09-15").unwrap_or(1789430400);
+    let temp_dir = std::env::temp_dir();
+    let erp_file = temp_dir.join(format!("test_challenger_erp_{}.json", uuid::Uuid::new_v4()));
+    let erp_content = serde_json::json!([
+        {
+            "id": "INV-HAGL-2026",
+            "account_id": "0011000123456",
+            "doc_no": "HD-9999",
+            "entry_date": test_ts, // 2026-09-15
+            "entry_type": "CREDIT",
+            "amount": 25000000,
+            "partner_code": "HAGL_CORP",
+            "partner_name": "CÔNG TY CỔ PHẦN HOÀNG ANH GIA LAI",
+            "description": "Hoa don nong san organic",
+            "reconciled_status": "UNMATCHED",
+            "created_at": test_ts
+        }
+    ]);
+    std::fs::write(&erp_file, erp_content.to_string()).expect("Write temp erp ledger");
+
+    // 2. CAMT.053 XML statement with acronym "HAGL" in narration (different from doc_no HD-9999)
+    // Booking date is 2026-09-15 (within 72 hours tolerance window of entry_date)
+    let camt_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+  <BkToCstmrStmt>
+    <GrpHdr>
+      <MsgId>MSG-HAGL-CHALLENGE</MsgId>
+      <CreDtTm>2026-09-15T08:30:00Z</CreDtTm>
+    </GrpHdr>
+    <Stmt>
+      <Id>STMT-HAGL-CHALLENGE</Id>
+      <Acct><Id><Othr><Id>0011000123456</Id></Othr></Id></Acct>
+      <Bal>
+        <Tp><CdOrPrtry><Cd>OPBD</Cd></CdOrPrtry></Tp>
+        <Amt Ccy="VND">100000000</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Dt><Dt>2026-09-01</Dt></Dt>
+      </Bal>
+      <Bal>
+        <Tp><CdOrPrtry><Cd>CLBD</Cd></CdOrPrtry></Tp>
+        <Amt Ccy="VND">125000000</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Dt><Dt>2026-09-15</Dt></Dt>
+      </Bal>
+      <Ntry>
+        <Amt Ccy="VND">25000000</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <BookgDt><Dt>2026-09-15</Dt></BookgDt>
+        <NtryDtls>
+          <TxDtls>
+            <Refs><EndToEndId>FT26001</EndToEndId></Refs>
+            <RltdPties><Dbtr><Nm>HAGL</Nm></Dbtr></RltdPties>
+            <RmtInf><Ustrd>THANH TOAN TIEN HANG HAGL VIETQR NAPAS247</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+    </Stmt>
+  </BkToCstmrStmt>
+</Document>"#;
+
+    let b64 = BASE64_STANDARD.encode(camt_xml.as_bytes());
+
+    // Call A: `enable_semantic_recon = true` -> Acronym "HAGL" elevated at Tier 2 Semantic
+    let req_semantic_on = CallToolRequest {
+        name: "reconcile_statement_batch".to_string(),
+        arguments: serde_json::json!({
+            "statement_content_base64": b64.clone(),
+            "statement_format": "iso20022_xml",
+            "erp_ledger_path": erp_file.to_str().unwrap(),
+            "enable_semantic_recon": true
+        }),
+    };
+    let res_on = server.call_tool(req_semantic_on).await.expect("Recon with semantic succeeds");
+    assert!(!res_on.is_error, "res_on must succeed: {:?}", res_on.content);
+    let val_on: Value = serde_json::from_str(extract_text(&res_on.content)).unwrap();
+    assert_eq!(
+        val_on["matched_semantic_count"], 1,
+        "When enable_semantic_recon=true, acronym 'HAGL' must be counted in matched_semantic_count"
+    );
+    assert_eq!(val_on["matched_exact_count"], 0);
+
+    // Call B: `enable_semantic_recon = false` -> Fallback to pure deterministic, Gate 2 deactivated
+    let req_semantic_off = CallToolRequest {
+        name: "reconcile_statement_batch".to_string(),
+        arguments: serde_json::json!({
+            "statement_content_base64": b64,
+            "statement_format": "iso20022_xml",
+            "erp_ledger_path": erp_file.to_str().unwrap(),
+            "enable_semantic_recon": false
+        }),
+    };
+    let res_off = server.call_tool(req_semantic_off).await.expect("Recon fallback succeeds");
+    assert!(!res_off.is_error, "res_off must succeed");
+    let val_off: Value = serde_json::from_str(extract_text(&res_off.content)).unwrap();
+    assert_eq!(
+        val_off["matched_semantic_count"], 0,
+        "When enable_semantic_recon=false, matched_semantic_count MUST be 0"
+    );
+
+    // Clean up temporary file
+    let _ = std::fs::remove_file(erp_file);
+}
+
+#[tokio::test]
+async fn test_challenger_credit_risk_extreme_ratios_and_negative_cashflow() {
+    let server = NativeMcpServer::new("test_vault");
+
+    // 1. Scenario A: Complete Zero Financials (Zero revenue, zero assets, zero liabilities, zero debt)
+    let req_zero = CallToolRequest {
+        name: "credit_risk_scoring".to_string(),
+        arguments: serde_json::json!({
+            "ebitda_vnd": 0,
+            "capex_vnd": 0,
+            "debt_service_principal_vnd": 0,
+            "debt_service_interest_vnd": 0,
+            "cash_and_equivalents_vnd": 0,
+            "marketable_securities_vnd": 0,
+            "accounts_receivable_vnd": 0,
+            "current_liabilities_vnd": 0,
+            "historical_cashflow": [],
+            "forecast_days": 30
+        }),
+    };
+    let res_zero = server.call_tool(req_zero).await.expect("Zero financials processed without panic");
+    assert!(!res_zero.is_error);
+    let val_zero: Value = serde_json::from_str(extract_text(&res_zero.content)).unwrap();
+    assert_eq!(val_zero["dscr"]["risk_category"], "DEBT_FREE");
+    assert_eq!(val_zero["quick_ratio"]["liquidity_status"], "STRONG");
+    assert_eq!(val_zero["cashflow_forecast"]["shortfall_warning"], false);
+    let summary_zero = val_zero["qualitative_risk_summary"].as_str().unwrap();
+    assert!(!summary_zero.is_empty(), "Summary must not be empty");
+    assert!(summary_zero.contains("DEBT_FREE"), "Summary must reflect debt free status");
+
+    // 2. Scenario B: Deep Negative EBITDA, Crushing Debt, and Severe Deficit Trajectory
+    let req_catastrophic = CallToolRequest {
+        name: "credit_risk_scoring".to_string(),
+        arguments: serde_json::json!({
+            "ebitda_vnd": -8_000_000_000i64, // Deep operating loss
+            "capex_vnd": 2_000_000_000i64,
+            "debt_service_principal_vnd": 5_000_000_000i64,
+            "debt_service_interest_vnd": 1_500_000_000i64, // Total debt service = 6.5B
+            "cash_and_equivalents_vnd": 50_000_000,
+            "marketable_securities_vnd": 0,
+            "accounts_receivable_vnd": 150_000_000, // Quick assets = 200M
+            "current_liabilities_vnd": 10_000_000_000i64, // Quick ratio = 0.02x
+            "historical_cashflow": [
+                { "day_offset": 3, "net_inflow_vnd": -5_000_000_000i64 },
+                { "day_offset": 8, "net_inflow_vnd": -5_000_000_000i64 }
+            ],
+            "forecast_days": 30
+        }),
+    };
+    let res_cat = server.call_tool(req_catastrophic).await.expect("Catastrophic processed without panic");
+    assert!(!res_cat.is_error);
+    let val_cat: Value = serde_json::from_str(extract_text(&res_cat.content)).unwrap();
+
+    // Verify DSCR and buffer
+    assert!(val_cat["dscr"]["ratio"].as_f64().unwrap() < 0.0, "Negative DSCR ratio expected");
+    assert_eq!(val_cat["dscr"]["risk_category"], "DISTRESSED");
+    assert_eq!(val_cat["dscr"]["buffer_vnd"], -16_500_000_000i64); // -8B - 2B - 6.5B
+
+    // Verify Quick Ratio
+    assert!(val_cat["quick_ratio"]["ratio"].as_f64().unwrap() < 0.05);
+    assert_eq!(val_cat["quick_ratio"]["liquidity_status"], "CRITICAL");
+
+    // Verify Cashflow Deficit at Day T+3
+    assert_eq!(val_cat["cashflow_forecast"]["shortfall_warning"], true);
+    assert_eq!(val_cat["cashflow_forecast"]["deficit_date_offset"], 3);
+    assert_eq!(val_cat["cashflow_forecast"]["minimum_balance_vnd"], -9_950_000_000i64); // 50M - 5B - 5B
+
+    // Verify Qualitative Summary
+    let summary_cat = val_cat["qualitative_risk_summary"].as_str().unwrap();
+    assert!(summary_cat.contains("CẢNH BÁO RỦI RO THANH TOÁN"), "Must contain payment risk warning");
+    assert!(summary_cat.contains("thâm hụt tài chính tại ngày T+3"), "Must explicitly identify day T+3 deficit");
+    assert!(summary_cat.contains("căng thẳng nghiêm trọng"), "Must identify severe liquidity stress");
+}
+
+

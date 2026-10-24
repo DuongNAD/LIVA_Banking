@@ -372,7 +372,7 @@ impl MakerCheckerEngine {
         if checker_id.trim().is_empty() {
             return Err(MakerCheckerError::EmptyCheckerId);
         }
-        if proposal.maker_id.trim() == checker_id.trim() {
+        if proposal.maker_id.trim().eq_ignore_ascii_case(checker_id.trim()) {
             // Fail closed! Proposal remains pending, token remains unconsumed.
             return Err(MakerCheckerError::SelfApprovalProhibited {
                 maker_id: proposal.maker_id.clone(),
@@ -557,23 +557,25 @@ mod tests {
             )
             .unwrap();
 
-        // Same user attempts to approve their own proposal
-        let result = engine.submit_decision(
-            "same_user_identity",
-            "Nguyen Self Approver",
-            &proposal.proposal_id,
-            &token,
-            CheckerDecision::Approve,
-            None,
-            TEST_HMAC_KEY,
-            t0 + 30,
-        );
+        // Same user attempts to approve their own proposal (case-insensitive)
+        for attempt_checker in ["same_user_identity", "SAME_USER_IDENTITY", "  Same_User_Identity  "] {
+            let result = engine.submit_decision(
+                attempt_checker,
+                "Nguyen Self Approver",
+                &proposal.proposal_id,
+                &token,
+                CheckerDecision::Approve,
+                None,
+                TEST_HMAC_KEY,
+                t0 + 30,
+            );
 
-        match result {
-            Err(MakerCheckerError::SelfApprovalProhibited { maker_id }) => {
-                assert_eq!(maker_id, "same_user_identity");
+            match result {
+                Err(MakerCheckerError::SelfApprovalProhibited { maker_id }) => {
+                    assert_eq!(maker_id, "same_user_identity");
+                }
+                other => panic!("Expected SelfApprovalProhibited for '{attempt_checker}', got: {other:?}"),
             }
-            other => panic!("Expected SelfApprovalProhibited, got: {other:?}"),
         }
 
         // Proposal must still be pending (fail-closed)

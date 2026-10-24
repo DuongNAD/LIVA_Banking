@@ -325,6 +325,51 @@ mod origin_allowed_tests {
             None => unsafe { std::env::remove_var("LIVA_WS_ALLOWED_ORIGINS") },
         }
     }
+
+    #[test]
+    fn chan_ngrok_mac_dinh_khi_chua_cau_hinh() {
+        without_extra(|| {
+            assert!(
+                !origin_allowed(Some("https://rd_3JHcwHJK1iUTdwx1D22XRMeUA5K.ngrok-free.app")),
+                "Personal ngrok domain must NOT be allowed by default"
+            );
+        });
+    }
+
+    #[test]
+    fn mo_rong_bang_json_array() {
+        let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let old = std::env::var("LIVA_WS_ALLOWED_ORIGINS").ok();
+        unsafe {
+            std::env::set_var(
+                "LIVA_WS_ALLOWED_ORIGINS",
+                r#"["https://treasury.bank.vn", "http://preview.bank.vn:4173"]"#,
+            )
+        };
+        assert!(origin_allowed(Some("https://treasury.bank.vn")));
+        assert!(origin_allowed(Some("http://preview.bank.vn:4173")));
+        assert!(!origin_allowed(Some("https://evil.bank.vn")));
+        match old {
+            Some(v) => unsafe { std::env::set_var("LIVA_WS_ALLOWED_ORIGINS", v) },
+            None => unsafe { std::env::remove_var("LIVA_WS_ALLOWED_ORIGINS") },
+        }
+    }
+
+    #[test]
+    fn khop_bare_domain_khong_kem_scheme() {
+        let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let old = std::env::var("LIVA_WS_ALLOWED_ORIGINS").ok();
+        unsafe {
+            std::env::set_var("LIVA_WS_ALLOWED_ORIGINS", "my-tunnel.ngrok-free.app")
+        };
+        assert!(origin_allowed(Some("https://my-tunnel.ngrok-free.app")));
+        assert!(origin_allowed(Some("http://my-tunnel.ngrok-free.app")));
+        assert!(!origin_allowed(Some("https://evil-my-tunnel.ngrok-free.app")));
+        match old {
+            Some(v) => unsafe { std::env::set_var("LIVA_WS_ALLOWED_ORIGINS", v) },
+            None => unsafe { std::env::remove_var("LIVA_WS_ALLOWED_ORIGINS") },
+        }
+    }
 }
 
 #[cfg(test)]

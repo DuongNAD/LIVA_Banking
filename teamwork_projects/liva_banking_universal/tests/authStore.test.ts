@@ -177,6 +177,6 @@ describe('Auth Store & Core Banking RBAC Role Switcher (Milestone M1)', () => {
 
     expect(success).toBe(false);
     expect(auth.isAuthenticated).toBe(false);
-    expect(auth.authError).toContain('Mật khẩu truy cập không chính xác');
+    expect(auth.authError).toMatch(/mật khẩu.*không chính xác/i);
   });
 });

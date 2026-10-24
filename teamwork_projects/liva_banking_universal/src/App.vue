@@ -100,7 +100,7 @@
                 type="button"
                 class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-medium transition flex items-center space-x-1.5 cursor-pointer"
                 title="Mở Trợ lý AI (Copilot)"
-                @click="isCopilotOpen = true"
+                @click="treasuryStore.isCopilotOpen = true"
               >
                 <svg class="w-3.5 h-3.5 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                 <span class="hidden sm:inline">Trợ lý AI</span>
@@ -205,6 +205,7 @@
         :live-balance="bankingStore.totalLiquidVnd"
         :match-rate="reconStore.matchRate"
         :pending-alerts-count="amlStore.totalAlertsCount"
+        :is-thinking="treasuryStore.isCopilotThinking"
         @update:is-open="treasuryStore.isCopilotOpen = $event"
         @send="treasuryStore.sendCopilotMessage"
       />
@@ -290,6 +291,7 @@ onMounted(() => {
   if (authStore.isAuthenticated && authStore.currentUser) {
     handleDefaultTabForRole();
   }
+  treasuryStore.checkAiHealth();
 });
 
 onUnmounted(() => {

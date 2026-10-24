@@ -383,7 +383,7 @@ pub fn create_user(
         return Ok(Err("Mật khẩu không được để trống.".to_string()));
     }
 
-    if let Some(_) = get_user_by_username(conn, &trimmed_user)? {
+    if get_user_by_username(conn, &trimmed_user)?.is_some() {
         return Ok(Err("Tên đăng nhập đã tồn tại.".to_string()));
     }
 

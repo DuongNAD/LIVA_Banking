@@ -9,7 +9,7 @@
  * - Window Bar with URL liva://reconciliation.local and MVP THỰC TẾ badge
  * - Pure 2D Conversational Financial Assistant Drawer
  */
-import { ref, computed, markRaw, onMounted, onUnmounted } from 'vue';
+import { ref, computed, markRaw, onMounted, onUnmounted, watch } from 'vue';
 import type { Component } from 'vue';
 import BankingWindowBar from './components/banking/BankingWindowBar.vue';
 import BankingSidebar from './components/banking/BankingSidebar.vue';
@@ -17,6 +17,8 @@ import BankingHeader from './components/banking/BankingHeader.vue';
 import FinancialAssistantDrawer from './components/banking/FinancialAssistantDrawer.vue';
 import ToastContainer from './components/ToastContainer.vue';
 import LoginModal from './components/banking/LoginModal.vue';
+import { useAuthStore } from './stores/authStore';
+import { useToast } from './composables/useToast';
 
 // Dynamic Sub-views
 import BankingOverviewView from './views/banking/BankingOverviewView.vue';
@@ -48,6 +50,9 @@ const viewRegistry: Record<string, Component> = {
   settings: markRaw(BankingSettingsView),
 };
 
+const authStore = useAuthStore();
+const toast = useToast();
+
 const currentTab = ref('overview');
 const isAssistantOpen = ref(false);
 
@@ -55,32 +60,89 @@ const activeComponent = computed(() => {
   return viewRegistry[currentTab.value] || viewRegistry.overview;
 });
 
+function isTabAuthorized(tab: string): boolean {
+  return authStore.canAccessRoute(tab);
+}
+
+function guardAndResolveTab(rawTab: string): string {
+  if (!viewRegistry[rawTab]) {
+    if (typeof window !== 'undefined' && window.location.hash && window.location.hash !== '#overview') {
+      window.location.hash = '#overview';
+    }
+    return 'overview';
+  }
+  if (!isTabAuthorized(rawTab)) {
+    toast.error(
+      `403 Forbidden: Vai trò ${authStore.currentUser.role} (${authStore.currentUser.roleTitle}) không có quyền truy cập màn hình [${rawTab.toUpperCase()}].`
+    );
+    if (typeof window !== 'undefined' && window.location.hash !== '#overview') {
+      window.location.hash = '#overview';
+    }
+    return 'overview';
+  }
+  return rawTab;
+}
+
 function resolveTabFromHash(): string {
   if (typeof window === 'undefined') return 'overview';
   const hash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
-  if (hash && Object.prototype.hasOwnProperty.call(viewRegistry, hash)) {
-    return hash;
-  }
-  return 'overview';
+  return hash || 'overview';
 }
 
 function onNavigate(itemId: string) {
   if (!viewRegistry[itemId]) return;
+  if (!isTabAuthorized(itemId)) {
+    toast.error(
+      `403 Forbidden: Vai trò ${authStore.currentUser.role} (${authStore.currentUser.roleTitle}) không có quyền truy cập màn hình [${itemId.toUpperCase()}].`
+    );
+    if (currentTab.value !== 'overview') {
+      currentTab.value = 'overview';
+      if (typeof window !== 'undefined' && window.location.hash !== '#overview') {
+        window.location.hash = '#overview';
+      }
+    }
+    return;
+  }
   currentTab.value = itemId;
   if (typeof window !== 'undefined' && window.location.hash !== `#${itemId}`) {
-    window.location.hash = itemId;
+    window.location.hash = `#${itemId}`;
   }
 }
 
 function onHashChange() {
-  const tab = resolveTabFromHash();
-  if (currentTab.value !== tab) {
-    currentTab.value = tab;
+  const requested = resolveTabFromHash();
+  const valid = guardAndResolveTab(requested);
+  if (currentTab.value !== valid) {
+    currentTab.value = valid;
+  }
+  if (typeof window !== 'undefined' && window.location.hash && window.location.hash !== `#${valid}`) {
+    window.location.hash = `#${valid}`;
   }
 }
 
+// Reactive guard on role switch: if current tab is no longer permitted, bounce to overview
+watch(
+  () => authStore.currentUser.role,
+  (newRole) => {
+    if (!authStore.canAccessRoute(currentTab.value)) {
+      toast.warning(
+        `Chuyển đổi vai trò sang [${newRole}]: Màn hình [${currentTab.value.toUpperCase()}] không còn hợp lệ. Tự động chuyển về Tổng quan.`
+      );
+      currentTab.value = 'overview';
+      if (typeof window !== 'undefined' && window.location.hash !== '#overview') {
+        window.location.hash = '#overview';
+      }
+    }
+  }
+);
+
 onMounted(() => {
-  currentTab.value = resolveTabFromHash();
+  const initial = resolveTabFromHash();
+  const valid = guardAndResolveTab(initial);
+  currentTab.value = valid;
+  if (typeof window !== 'undefined' && window.location.hash && window.location.hash !== `#${valid}`) {
+    window.location.hash = `#${valid}`;
+  }
   window.addEventListener('hashchange', onHashChange);
 });
 
@@ -97,6 +159,13 @@ function onSearch(query: string) {
     // Global search feedback
   }
 }
+
+defineExpose({
+  currentTab,
+  onNavigate,
+  onHashChange,
+  guardAndResolveTab,
+});
 </script>
 
 <template>

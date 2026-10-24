@@ -524,3 +524,370 @@ Xây dựng crate `crates/liva-recon` tích hợp `liva-money` và `liva-ledger`
 - [ ] `crates/liva-recon` chạy qua bộ test đối soát 3 tầng (Tier 1, Tier 2, Tier 3) với tỷ lệ khớp chính xác và hàng đợi HITL cách ly đúng quy cách.
 - [ ] `cargo test -j 2 -- --test-threads 2` vượt qua 100% unit tests và proptests trên các crate mới.
 </USER_REQUEST>
+
+## 2026-09-15T15:49:02Z
+
+<USER_REQUEST>
+Rà soát toàn diện, đồng bộ hóa và nâng cấp hệ thống tài liệu kỹ thuật của dự án LIVA Banking. Cập nhật rõ ràng mô hình triển khai kép: Bản Client-Only Web Demo (Zero-Backend, chạy 100% trên trình duyệt) phục vụ trải nghiệm và trình diễn, song song với Bản Production Hybrid On-Premise (Rust Native Core) phục vụ vận hành thực tế; bổ sung cẩm nang hướng dẫn triển khai mạng nội bộ cô lập (LAN/Intranet/VPN) và bộ câu hỏi phản biện kỹ thuật; đảm bảo 100% tính toàn vẹn và sạch lỗi liên kết.
+
+Working directory: e:/Project/01_AI_Agents/LIVA_Banking
+Integrity mode: development
+
+## Requirements
+
+### R1. Xây dựng Cẩm nang Triển khai Chuyên sâu (`docs/02-van-hanh/07-trien-khai-web-client-va-mang-noi-bo.md`)
+Biên soạn tài liệu kỹ thuật hoàn chỉnh hướng dẫn hai bài toán cốt lõi:
+1. **Triển khai Web Demo Độc lập (Client-Only)**: Hướng dẫn chi tiết từng bước đưa thư mục `teamwork_projects/liva_banking_universal/dist` hoặc gói `LIVA_Banking_Web_Demo.zip` lên các nền tảng hosting tĩnh (Netlify Drop, Vercel, Cloudflare Pages, Nginx, Local Static Server), cơ chế xử lý file sao kê hoàn toàn phía client không phụ thuộc backend.
+2. **Cơ chế Bảo mật & Cách ly Mạng Nội bộ (Intranet Access Control)**:
+   - *Phương án 1 (LAN / Intranet On-Premise)*: Hướng dẫn bind port nội bộ RFC 1918, ngắt cổng port-forwarding trên router văn phòng, cơ chế chỉ máy kết nối Wi-Fi/dây mạng nội bộ mới truy cập được.
+   - *Phương án 2 (VPN Nội bộ / Mesh VPN)*: Cấu hình mạng riêng ảo (Tailscale, WireGuard) cho kịch bản nhân viên làm việc từ xa (WFH) kết nối an toàn vào mạng công ty.
+   - *Phương án 3 (IP Whitelisting & Cloudflare Zero Trust)*: Thiết lập tường lửa lọc IP Public tĩnh của văn phòng và cổng xác thực email doanh nghiệp nếu triển khai trên Cloud.
+3. **Kịch bản Thuyết trình Nhanh (Presenter Cheat-Sheet)**: Tóm tắt 3 ý cốt lõi bằng ngôn ngữ súc tích, chuyên nghiệp để người trình bày tự tin trả lời hội đồng và đối tác về cách vận hành mạng nội bộ và an toàn dữ liệu.
+
+### R2. Chuẩn hóa và Đồng bộ `README.md` & `PROJECT.md`
+Cập nhật tài liệu mặt tiền của dự án phản ánh chính xác hiện trạng:
+1. Bổ sung bảng ma trận so sánh trực quan giữa hai phiên bản: **Web Demo Tức thì (Universal Client-Side)** vs **Bản Doanh nghiệp Đầy đủ (Rust Native Core On-Premise)** về mục đích sử dụng, công nghệ, yêu cầu hạ tầng và mức độ an toàn.
+2. Cập nhật mục **Quick Start (Khởi động Nhanh)**: Bổ sung chỉ dẫn 1 lệnh để chạy ngay Web Demo từ bản build tĩnh hoặc mở file `index.html`.
+3. Khắc phục các đoạn mô tả cũ hoặc gây hiểu nhầm về sự phụ thuộc backend đối với bản web demo, đồng thời khẳng định rõ ràng ranh giới bảo mật Nghị định 13/2023/NĐ-CP và Thông tư 09/2020/TT-NHNN.
+
+### R3. Cập nhật Kịch bản Trình diễn `DEMO_PLAYBOOK_BANKING.md` & Tài liệu Vận hành `docs/02-van-hanh/03-trien-khai-va-runtime.md`
+1. Bổ sung mục hỏi đáp phản biện chuyên sâu (Q&A Defense) trong `DEMO_PLAYBOOK_BANKING.md` cho các câu hỏi giám khảo thường gặp:
+   - *"Trang web này có gửi dữ liệu sao kê tài chính của khách hàng lên máy chủ bên thứ ba không?"* (Giải thích cơ chế xử lý 100% trong RAM trình duyệt).
+   - *"Làm thế nào để chỉ nhân viên ngồi trong văn phòng mới mở được hệ thống?"* (Giải thích cơ chế IP LAN và cách ly mạng).
+2. Đồng bộ hóa `docs/02-van-hanh/03-trien-khai-va-runtime.md` để kết nối liên kết tới tài liệu triển khai mới `07-trien-khai-web-client-va-mang-noi-bo.md`.
+
+### R4. Kiểm tra Toàn vẹn Tài liệu (Documentation Quality Gate)
+1. Chạy công cụ kiểm tra tài liệu tự động của dự án `node scripts/docs-check.mjs`.
+2. Đảm bảo toàn bộ các tài liệu mới và sửa đổi đều có Front-matter YAML hợp lệ, các liên kết tương đối trỏ chính xác, các khối sơ đồ Mermaid đóng mở chuẩn xác, không có liên kết đứt gãy (0 dead links, exit code 0).
+
+## Acceptance Criteria
+
+### Tính Đầy đủ & Chuẩn xác của Nội dung
+- [ ] Tệp `docs/02-van-hanh/07-trien-khai-web-client-va-mang-noi-bo.md` tồn tại, chứa đầy đủ hướng dẫn deploy client tĩnh, 3 phương án mạng nội bộ (LAN, VPN, IP Whitelist) và cheat-sheet thuyết trình.
+- [ ] `README.md` và `PROJECT.md` có bảng so sánh rõ ràng giữa Web Demo Client-Only và Production On-Premise, cùng hướng dẫn chạy nhanh Web Demo trong vòng 1 phút.
+- [ ] `DEMO_PLAYBOOK_BANKING.md` có thêm phần giải đáp phản biện về an toàn mạng nội bộ và tính độc lập của client-side web demo.
+- [ ] `docs/02-van-hanh/03-trien-khai-va-runtime.md` được cập nhật liên kết đồng bộ đến tài liệu triển khai mới.
+
+### Cổng Kiểm định Chất lượng Tự động
+- [ ] Lệnh `node scripts/docs-check.mjs` chạy thành công với mã thoát 0 (exit code 0), không có lỗi cú pháp hoặc liên kết đứt gãy.
+- [ ] Không có tệp tài liệu nào chứa placeholder chưa hoàn thiện (như TODO, TBD, placeholder text).
+
+</USER_REQUEST>
+
+## 2026-09-15T17:34:07Z
+
+<USER_REQUEST>
+Remake toàn diện các thành phần lõi của dự án LIVA Banking (`crates/liva-parse`, `crates/liva-recon`, `crates/liva-ledger`) thành kiến trúc hoàn toàn hướng dữ liệu (data-driven / DSL / configuration-driven), xóa bỏ 100% các giá trị, định dạng và quy tắc fix cứng (hardcode). Toàn bộ hệ thống phải nạp động và diễn giải quy tắc từ tệp cấu hình DSL (YAML/JSON) trong khi vẫn bảo toàn tuyệt đối 5 nguyên tắc cốt lõi: Math Engine số nguyên bất biến (`u64/u128`), Zero-Egress (hoàn toàn offline/air-gap), Merkle Audit Ledger, Segregation of Duties (Maker-Checker), và cơ chế cách ly HITL.
+
+Working directory: e:/Project/01_AI_Agents/LIVA_Banking
+Integrity mode: development
+Requested team: Dual-Swarm Banking (Dev Swarm kỹ thuật + Persona Simulation Swarm kiểm thử đối kháng Maker-Checker như chuẩn LIVA Harness)
+
+## Requirements
+
+### R1. Dynamic Ingestion & Parser DSL Engine (`liva-parse`)
+Xây dựng một kiến trúc parser cấu hình động thay thế cho các struct parser cứng:
+- Định nghĩa cấu hình mẫu sao kê (Statement Template DSL) bằng YAML/JSON mô tả quy tắc nhận diện (sniffing headers/keywords), phân định cấu trúc cột (mapping ngày tháng, số tiền, số dư sau giao dịch, nội dung, bên đối tác), định dạng ngày và số tiền, cùng logic phân tách số dư đầu kỳ/cuối kỳ.
+- Parser Engine thông dịch tệp cấu hình DSL để tự động phân tích các tệp sao kê ngân hàng (CSV, XLSX, XML/CAMT.053) mà không cần viết thêm mã nguồn Rust khi bổ sung ngân hàng mới.
+- Hỗ trợ nạp động nhiều tệp template ngân hàng từ một thư mục cấu hình và tự động chọn template phù hợp thông qua cơ chế sniffing linh hoạt.
+
+### R2. Declarative Reconciliation & Rule Engine (`liva-recon`)
+Xóa bỏ toàn bộ các hằng số và mảng cố định trong logic đối soát, chuyển đổi sang Rule Engine động:
+- Cấu hình động cho Tier 1: Cửa sổ thời gian dung sai (±N giờ/ngày), quy tắc chuẩn hóa mã chứng từ/ref code.
+- Cấu hình động cho Tier 2: Danh sách stop-words và tiền tố pháp nhân (CONG TY, TNHH, CP...), thuật toán đo độ tương đồng văn bản cùng ngưỡng chấp nhận (threshold), danh mục các dải phí ngân hàng hợp lệ được cấu hình động từ bên ngoài thay vì mảng hằng số cứng, và công thức tính điểm tin cậy (confidence score basis points).
+- Cấu hình động cho Tier 3: Giới hạn tập con $k \le 8$, độ sâu tìm kiếm, chiến lược cắt tỉa và thời gian ngân sách tối đa (timeout) cho bài toán subset-sum.
+- Cơ chế HITL Quarantine: Cấu hình động thời hạn sống của token (TTL), quy tắc phân loại mức độ rủi ro và điều kiện kích hoạt phê duyệt hai pha.
+
+### R3. Dynamic Chart of Accounts (COA) & Posting Engine (`liva-ledger`)
+Xây dựng công cụ ánh xạ bút toán và sơ đồ tài khoản động:
+- Cho phép cấu hình sơ đồ tài khoản (Thông tư 200/2014, Thông tư 133/2016 hoặc COA tùy chỉnh) từ tệp cấu hình.
+- Định nghĩa quy tắc sinh bút toán tự động (Journal Posting Rules) dựa trên loại giao dịch, ngân hàng, loại phí và đối tác đối ứng.
+- Tự động bóc tách phí ngân hàng và định tuyến tài khoản chi phí (6425, 6427, 635) hoàn toàn theo cấu hình mà không hardcode mã tài khoản.
+
+### R4. Dynamic Policy Engine for AML & Maker-Checker Policies
+- Khai báo các quy tắc giám sát phòng chống rửa tiền (AML) qua tệp cấu hình (ngưỡng giao dịch lớn QĐ 11/2023, quy tắc gom giao dịch phân tách dưới ngưỡng trong 24h, danh sách cảnh báo nội bộ).
+- Cấu hình chính sách phê duyệt Maker-Checker đa cấp theo hạn mức tiền tệ (ví dụ: hạn mức chuyển tiền, hạn mức duyệt chênh lệch phí) với cơ chế bảo vệ phân tách quyền hạn (SoD) nghiêm ngặt.
+
+### R5. Mathematical & Security Invariants Preservation
+Bảo toàn tuyệt đối các bảo chứng an toàn và tính tất định:
+- Tuyệt đối không dùng số thực (`f32`, `f64`) trong tính toán tài chính; sử dụng đơn vị cơ sở nhỏ nhất với số nguyên `u64/u128 checked_add/sub`, cấm hoàn toàn qua lint `#![deny(clippy::float_arithmetic)]`.
+- Đảm bảo bất biến số dư: $\text{Số dư cuối} \equiv \text{Số dư đầu} + \sum \text{Có} - \sum \text{Nợ}$.
+- Môi trường hoàn toàn offline: Zero-Egress, không mở socket mạng ra bên ngoài loopback/intranet cho phép.
+- Lưu vết Merkle tree tamper-evident cho mọi thay đổi trạng thái và thay đổi cấu hình hệ thống.
+- Thực thi nghiêm ngặt Segregation of Duties: Người đề xuất không thể tự phê duyệt (`maker != checker`).
+
+## Acceptance Criteria
+
+### Configuration Flexibility & Verifiability
+- [ ] Thêm mới hoặc thay đổi định dạng sao kê ngân hàng chỉ cần bổ sung 1 tệp cấu hình DSL (YAML/JSON) vào thư mục mẫu; parser tự động nhận diện và trích xuất chính xác 100% dữ liệu không cần biên dịch lại mã Rust.
+- [ ] Không còn bất kỳ mảng hằng số phí cố định (như `standard_fees = [1100, 2200, ...]`), danh sách từ dừng pháp nhân fix cứng, hay điểm tin cậy hardcoded nào trong mã nguồn `liva-recon`.
+- [ ] Quy tắc sinh bút toán sổ cái và sơ đồ tài khoản (COA) được nạp hoàn toàn từ cấu hình; hỗ trợ thay đổi tài khoản hạch toán phí (ví dụ từ 6425 sang 6427) qua tệp cấu hình.
+- [ ] Toàn bộ tệp cấu hình DSL có schema định nghĩa rõ ràng, được validate khi nạp (báo lỗi tường minh nếu cấu hình sai định dạng hoặc thiếu trường bắt buộc).
+
+### Determinism & Regression Testing
+- [ ] Bộ kiểm thử hồi quy trên Golden Dataset (`data/demo_ready/` và `crates/liva-recon/src/golden_dataset.rs`) đạt tỷ lệ khớp chính xác $\ge 99.8\%$, tỷ lệ khớp sai $= 0\%$.
+- [ ] Bộ kiểm thử thuộc tính (`proptest`) kiểm chứng $\ge 10^5$ ca giao dịch ngẫu nhiên xác nhận bất biến toán học và không xảy ra panic hay tràn số.
+- [ ] Lệnh kiểm tra `cargo clippy --workspace -- -D clippy::float_arithmetic` vượt qua 100% không có cảnh báo.
+
+### Security & Compliance Gates
+- [ ] Ràng buộc Segregation of Duties ngăn chặn thành công 100% các nỗ lực tự phê duyệt giao dịch (`maker == checker`).
+- [ ] Kiểm thử Canary Egress xác nhận hệ thống hoàn toàn chặn mọi kết nối Internet ra ngoài (chế độ air-gap fail-closed).
+- [ ] Mọi thay đổi cấu hình và sự kiện đối soát đều sinh lá băm Merkle hợp lệ, cho phép kiểm toán chứng thực toàn vẹn độc lập.
+
+## Verification Resources
+- Golden dataset và các mẫu sao kê chuẩn: `data/demo_ready/` (VCB XLSX, TCB CSV, BIDV CSV, Sổ cái kế toán CSV).
+- Test suites hiện có: `crates/liva-recon/tests/proptest_split_solver.rs`, `crates/liva-money/tests/proptest_invariants.rs`, `crates/liva-ledger/tests/proptest_ledger.rs`.
+</USER_REQUEST>
+
+## 2026-09-15T18:01:29Z
+
+<USER_REQUEST>
+Kiểm tra toàn bộ dự án LIVA Banking, xóa bỏ hoàn toàn tất cả các dữ liệu giả lập (mock data) và chuỗi cứng (hardcode). Chuyển đổi toàn bộ trạng thái tài khoản ngân hàng, đối soát quyết toán, cảnh báo AML và lệnh chi sang cơ chế động thời gian thực (real-time dynamic state). Kết nối toàn bộ tính năng Trợ lý AI Copilot và Hệ thống thanh tra System Prompt Inspector tới mô hình AI cục bộ trên máy (mô hình Qwen 14B 4-bit qua endpoint OpenAI-compatible / LIVA Native Core) đảm bảo vận hành trơn tru và tuân thủ Zero Cloud Egress.
+
+Working directory: e:\Project\01_AI_Agents\LIVA_Banking\teamwork_projects\liva_banking_universal
+Integrity mode: development
+
+## Requirements
+
+### R1. Loại bỏ toàn bộ Hardcode & Chuyển đổi trạng thái Động toàn diện (Zero Hardcode & Dynamic State)
+- Rà soát và loại bỏ tất cả các giá trị số dư tĩnh (ví dụ: 1.380.000.000 VND, 6.200.000.000 VND), danh sách tài khoản cứng, giao dịch mẫu và tỷ lệ khớp đối soát cố định (99.8%) ở frontend, stores (`treasuryStore`, `bankingStore`, `reconciliationStore`, `amlStore`) và backend server.
+- Toàn bộ dữ liệu ngân quỹ, vị thế thanh khoản, tỷ lệ đối soát và danh mục lệnh chi phải được tính toán động từ cơ sở dữ liệu / sổ cái Merkle thực tế và tự động đồng bộ thời gian thực qua Server-Sent Events (SSE).
+
+### R2. Tích hợp AI Local (Qwen 14B 4-bit) cho Trợ lý Copilot & Giám sát AML
+- Thay thế hoàn toàn cơ chế đối sánh biểu thức chính quy (regex/heuristic) và câu trả lời mẫu trong `copilotEngine.ts` và `bankingAiTools.ts`.
+- Kết nối Copilot Drawer và Hệ thống thanh tra Prompt Inspector tới endpoint AI cục bộ trên máy (OpenAI-compatible endpoint `http://127.0.0.1:8000/v1` hoặc `http://127.0.0.1:8002/v1` / Ollama `http://127.0.0.1:11434/v1` chạy Qwen 14B 4-bit).
+- Copilot phải gọi các công cụ đọc dữ liệu ngân hàng (Banking Read-Only Tools) để lấy dữ liệu sổ cái thời gian thực và tổng hợp câu trả lời tự nhiên cho người dùng.
+- Sandbox phòng thử nghiệm đối kháng (Evaluation Sandbox) trong tab AML phải gửi prompt trực tiếp tới model local và trả về kết quả phân tích rủi ro thực tế thay vì mảng alert tĩnh.
+- Có cơ chế xử lý lỗi (graceful degradation) và hiển thị trạng thái kết nối tới AI Local trực quan trên giao diện.
+
+### R3. Đảm bảo toàn vẹn nghiệp vụ Tuân thủ & An toàn bảo mật
+- Duy trì nghiêm ngặt các chốt chặn kiểm soát: Nghị định 13/2023/NĐ-CP (Zero Cloud Egress, khử định danh PII cục bộ), Thông tư 09/2020/TT-NHNN (Cơ chế 4 mắt Maker-Checker không tự duyệt), và Thông tư 09/2023/TT-NHNN (Giám sát giao dịch đáng ngờ AML/STR).
+
+## Verification Plan & Resources
+
+### Automated Tests
+- Chạy toàn bộ bộ kiểm thử tự động của dự án qua `npm run test` (Vitest) và kiểm tra E2E verification:
+  - `tests/copilot.test.ts`: Xác thực Copilot xử lý động câu hỏi và kết nối AI tool.
+  - `tests/serverSyncIntegration.test.ts`: Xác thực đồng bộ dữ liệu đa phân hệ qua SSE không bị trễ hay mang giá trị cứng.
+  - `tests/makerChecker.test.ts` & `tests/merkleAudit.test.ts`: Kiểm tra tính toàn vẹn của sổ cái bất biến.
+  - `tests/amlSurveillance.test.ts`: Kiểm thử phát hiện rủi ro rửa tiền động theo các siêu tham số.
+
+### Acceptance Criteria
+- [ ] Không còn bất kỳ biến số hardcode hoặc phản hồi giả định (mock response) nào trong luồng runtime của Copilot, AML Inspector và Bảng điều khiển ngân quỹ.
+- [ ] Dữ liệu hiển thị trên thanh trạng thái (Thanh khoản, Tỷ lệ đối soát, Cảnh báo AML, Lệnh chi chờ duyệt) phản ánh chính xác 100% dữ liệu từ sổ cái/backend.
+- [ ] Gửi câu hỏi bất kỳ trên Copilot Drawer kích hoạt suy luận của Local AI (Qwen 14B), trích xuất đúng thông tin số dư/giao dịch thực tế và phản hồi bằng tiếng Việt chuyên nghiệp.
+- [ ] Chức năng "Kiểm Thử Prompt Với Kịch Bản Này" trong Phòng thử nghiệm AML thực hiện suy luận qua Local AI và hiển thị phân tích rủi ro động.
+- [ ] Bộ kiểm thử Vitest (`npm run test`) pass 100% mà không xảy ra lỗi hồi quy (regression errors).
+</USER_REQUEST>
+
+## 2026-09-16T02:23:21Z
+
+<USER_REQUEST>
+Khảo sát, đối chiếu và tích hợp có chọn lọc các cải tiến công nghệ tiên tiến từ các nhánh mới của dự án LIVA gốc (`feat/openai-api-va-don-dep-avatar`, `test/perf-threshold-baseline` tại `e:/Project/01_AI_Agents/LIVA`) vào nền tảng `LIVA_Banking` nhằm nâng cao hiệu năng, chuẩn hóa giao tiếp Local AI và tăng cường an ninh bảo mật.
+
+Working directory: e:/Project/01_AI_Agents/LIVA_Banking
+Integrity mode: development
+
+## Reference Material
+- Nhánh gốc LIVA: `e:\Project\01_AI_Agents\LIVA` (các nhánh `feat/openai-api-va-don-dep-avatar`, `test/perf-threshold-baseline`, `mac-v2`)
+- Dự án hiện tại: `e:\Project\01_AI_Agents\LIVA_Banking` (nhánh `main` và các crate ngân hàng `liva-compliance`, `liva-ledger`, `liva-recon`, `liva-parse`)
+
+## Requirements
+
+### R1. Khảo sát & Phân tích Ma trận Khác biệt (Deep Diff & Architectural Audit)
+- Đối chiếu mã nguồn giữa các nhánh mới của `LIVA` (`feat/openai-api-va-don-dep-avatar`, `test/perf-threshold-baseline`) và `LIVA_Banking`.
+- Đánh giá khả năng tương thích, xác định các module tối ưu có thể kế thừa (bóc tách kiến trúc cửa sổ widget, tối ưu hóa telemetry prompt token, giảm độ trễ TTFT, nâng cấp cổng kiểm tra giấy phép/lỗ hổng).
+- Xác lập danh mục thành phần đề xuất gộp hoặc nâng cấp, phân loại rõ lợi ích kỹ thuật và phạm vi ảnh hưởng (blast radius).
+
+### R2. Chuẩn hóa Cổng kết nối Local AI & Đo kiểm Hiệu năng (Local AI & Telemetry Upgrade)
+- Kế thừa cơ chế chuẩn hóa OpenAI-compatible API cho mô hình AI cục bộ (Qwen 14B / Ollama / LIVA Core) trên máy tính mà không làm rò rỉ dữ liệu ra đám mây (Zero Cloud Egress).
+- Bổ sung cơ chế đo lường độ trễ (TTFT - Time To First Token) và giám sát số lượng token prompt nền, giúp tối ưu hóa bộ nhớ và chi phí tính toán cho Trợ lý Tài chính Copilot.
+
+### R3. Hiện đại hóa Cổng Kiểm tra An ninh & Phụ thuộc (Security & Dependency Gate Modernization)
+- Tích hợp công cụ `cargo-deny` thay thế cho `cargo-audit` trong quy trình CI/CD cục bộ để kiểm soát chặt chẽ giấy phép bản quyền và cảnh báo lỗ hổng của các crate Rust.
+- Cập nhật và vá các lỗ hổng phụ thuộc bảo mật (như npm `js-yaml` CVE-2026-59870) trên toàn bộ các workspace frontend và backend.
+
+### R4. Bảo toàn Bất biến Tài chính & Kiểm soát Tài nguyên Nghiêm ngặt (Invariants & Resource Guardrails)
+- Bảo toàn tuyệt đối các bất biến toán học ngân hàng: không sử dụng số thực floating-point (`f32`/`f64`) cho số dư/tiền tệ, tuân thủ `checked_add/sub` trên số nguyên, và lưu vết kiểm toán Merkle tree bất biến.
+- Tuân thủ nghiêm ngặt quy tắc giới hạn tài nguyên hệ thống: chỉ biên dịch tuần tự với cờ `-j 2` và chạy kiểm thử với `-- --test-threads 2`; không tự động thực hiện các thao tác git remote (`push`, `pull`, `commit`).
+
+## Acceptance Criteria
+
+### Báo cáo So sánh Khác biệt & Lộ trình Nâng cấp
+- [ ] Lập bảng ma trận so sánh chi tiết các thay đổi giữa nhánh mới của `LIVA` và `LIVA_Banking` (tệp thay đổi, chức năng cải tiến, rủi ro xung đột).
+- [ ] Báo cáo khuyến nghị danh mục các tính năng nên gộp (cherry-pick / integrate) ngay lập tức và các tính năng cần giữ riêng biệt theo nghiệp vụ ngân hàng.
+
+### Cổng Kiểm định Mã nguồn & Biên dịch (Rust & Frontend)
+- [ ] `cargo check -j 2` và `cargo test --workspace -j 2 -- --test-threads 2` đạt kết quả biên dịch và kiểm thử thành công 100% không có lỗi.
+- [ ] Bộ kiểm tra phụ thuộc `cargo-deny` hoặc kiểm toán bảo mật đạt 0 lỗ hổng nghiêm trọng (zero high/critical vulnerabilities).
+- [ ] Kiểm thử frontend `teamwork_projects/liva_banking_universal` (`npm run test`) vượt qua toàn bộ các bài test bao gồm kiểm thử đối kháng Copilot và đồng bộ dữ liệu thời gian thực.
+
+### Tuân thủ An ninh & Zero Data Egress
+- [ ] Không có bất kỳ kết nối mạng nào ra ngoài Internet trong suốt quá trình vận hành của Local AI Client và Core Engine.
+- [ ] Toàn bộ các thay đổi mã nguồn được chuẩn bị dừng lại tại ranh giới staging (`git add`), không tự ý commit hay push.
+</USER_REQUEST>
+
+## 2026-09-16T02:29:21Z
+
+<USER_REQUEST>
+[USER SCOPE EXPANSION UPDATE]
+The user has confirmed they just pushed 2 new branches to `DuongNAD/LIVA_Banking` on GitHub, making 3 active branches in total:
+1. `main` (`ba560edd09824a191daa8bf144134c04c56af2e5`): Current branch with Universal Web Client, Local AI Client (Qwen 14B), and Dynamic DSL crates (`liva-ledger`, `liva-recon`, `liva-compliance`, `liva-parse`, `liva-netguard`).
+2. `feat/liva-banking-harness-p0` (`a4d9c9a500ff0462636997beec762b7436780b52`): Monolithic banking engine crate (`crates/liva-banking` with ISO 20022 XML, VCB Excel, TCB CSV, Tier 1/2/3 recon, period close, RBAC, maker-checker, merkle audit).
+3. `feat/v2-production-ready-sprint0-1` (`a421f17bf3a0beaac5baf7140bf91d8b04b8c09a`): Modular micro-crates enterprise architecture (`apps/liva-server`, `crates/liva-audit`, `crates/liva-ingest` [MT940, CAMT.053, VCB, TCB, BIDV, profile sniffing, dedup], `crates/liva-match`, `crates/liva-normalize`, `migrations/` [PostgreSQL + SQLite WAL with audit triggers]).
+
+Please expand the Sentinel / Orchestrator scope to perform a comprehensive Tri-Branch Architectural Diff and Synthesis:
+- Compare the strengths of all 3 branches.
+- Formulate the optimal unified architecture and harmonization upgrade plan (e.g. combining the robust multi-bank ingest and server from v2 with the dynamic YAML DSL and Web Client Universal from main).
+- Preserve all financial and safety invariants (zero float arithmetic, Merkle audit trail, zero cloud egress, sequential `-j 2` builds, git staging boundary only).
+</USER_REQUEST>
+
+## 2026-09-16T02:40:25Z
+
+Refactor and eliminate all hardcoded security credentials, personal tokens, developer-specific file paths, and personal ngrok domains across the LIVA Banking repository, replacing them with dynamic environment variables, declarative configurations, and portable fallbacks while preserving standalone demo mock data and passing all existing verification test suites.
+
+Working directory: e:\Project\01_AI_Agents\LIVA_Banking
+Integrity mode: development
+
+## Requirements
+
+### R1. Redact and Parameterize Security Credentials
+- Remove hardcoded ngrok authtokens (deploy/ngrok/ngrok-treasury-workbench.yml) and personal operator emails from repository files. Provide an example configuration template (.env.example or sanitized yaml) referencing $env:NGROK_AUTHTOKEN.
+- Eliminate fallback JWT secret strings in teamwork_projects/liva_banking_universal/server/server.mjs. Ensure the backend server securely enforces or derives dynamic secrets when JWT_SECRET is not provided in local environments, preventing predictable static tokens.
+
+### R2. Parameterize Machine-Specific File Paths
+- Replace the hardcoded DEFAULT_MODELS_DIR (E:\AI_Models) in liva-native-core/src/paths.rs and related probe binaries with dynamic path resolution that honors LIVA_MODELS_DIR, data/liva-config.json, or a standardized portable project-local/OS fallback directory.
+
+### R3. Generalize Ingress Domains and Network Origins
+- Remove hardcoded personal ngrok domain strings (rd_3JHcwHJK1iUTdwx1D22XRMeUA5K.ngrok-free.app) from liva-native-core/src/lib.rs (DEFAULT_WS_ALLOWED_ORIGINS) and PowerShell deployment scripts (scripts/deploy-ngrok-tunnel.ps1), allowing custom domains to be injected via environment variables (LIVA_WS_ALLOWED_ORIGINS, $Domain).
+
+### R4. Preserve Standalone Demo & Test Invariants
+- Retain sample demo data and mock accounts necessary for zero-backend browser demonstrations (liva_banking_universal) and tests, while ensuring production code paths do not rely on static default credentials.
+
+## Acceptance Criteria
+
+### Credential & Domain Sanitization
+- [ ] No personal ngrok authtokens or personal email addresses exist in any git-tracked configuration files under deploy/ngrok/ or scripts.
+- [ ] No hardcoded personal .ngrok-free.app subdomains exist in liva-native-core/src/lib.rs.
+- [ ] teamwork_projects/liva_banking_universal/server/server.mjs generates a secure ephemeral fallback key or logs an explicit warning without using a static public password string when process.env.JWT_SECRET is absent.
+
+### Path Portability
+- [ ] Running path resolution functions in liva-native-core on a machine without drive E:\ returns a valid fallback directory path without panicking.
+- [ ] node scripts/models.mjs doctor and cargo check -p liva-native-core -j 2 execute successfully.
+
+### System Verification & Zero Regression
+- [ ] cargo test -p liva-native-core --lib banking -j 2 -- --test-threads 2 passes with zero failures.
+- [ ] node scripts/demo_runner.mjs --dry-run finishes with exit code 0.
+- [ ] npm run check:installer completes without configuration errors.
+
+## 2026-09-16T03:16:54Z
+
+<USER_REQUEST>
+Tích hợp và mở khóa toàn diện năng lực Dual-Engine Local AI (ONNX Runtime cho embedding/anomaly detection và llama-cpp-2 SLM cho giải thích ngữ nghĩa) vào hệ sinh thái ngân hàng LIVA: nâng cấp banking crates, bổ sung triggers phát hiện bất thường giao dịch đa chiều, kết nối MCP tools & skills, và xây dựng harness kiểm thử tự động tuân thủ nghiêm ngặt Zero Data Egress và RAM <= 4GB.
+
+Working directory: e:\Project\01_AI_Agents\LIVA_Banking
+Integrity mode: development
+
+## Requirements
+
+### R1. Mở khóa và Tích hợp Local AI Engine vào Phân hệ Ngân hàng
+- Kết nối bộ suy luận cục bộ sẵn có trong `liva-native-core` (ONNX Runtime và `llama-cpp-2`) vào các pipeline xử lý ngân hàng (`liva-compliance`, `liva-recon`, `liva-ledger`).
+- Cung cấp kiến trúc module hóa với cơ chế Fallback tất định (Deterministic Fallback) bảo đảm hệ thống luôn hoạt động bình thường kể cả khi model chưa được nạp hoặc tài nguyên phần cứng bị giới hạn.
+- Đảm bảo 100% xử lý in-process trên máy cục bộ, kích hoạt `liva-netguard` ngăn chặn mọi kết nối non-loopback (Zero Data Egress).
+
+### R2. Bộ Kích Hoạt & Mô Hình Nhận Diện Bất Thường Giao Dịch (Local AI Anomaly Detection Triggers)
+- Xây dựng engine phát hiện bất thường giao dịch đa chiều (Multi-Dimensional Anomaly Detection) kết hợp:
+  1. *Phân tích chuỗi thời gian & vận tốc (Temporal & Velocity Anomaly)*: Đột biến tần suất, dòng tiền ra vào ngoài khung giờ kinh doanh thông thường.
+  2. *Phân tích phân phối số tiền (Amount Distribution Outliers)*: Nhận diện smurfing/structuring tinh vi bằng phương pháp thống kê / Isolation Forest nhẹ.
+  3. *Phân tích ngữ nghĩa nội dung chuyển khoản (Semantic Narration Anomaly)*: Dùng ONNX embedding so khớp vector ngữ nghĩa của nội dung thanh toán để phát hiện cụm từ đáng ngờ hoặc tài khoản mượn danh (money mule).
+- Kích hoạt triggers tự động phát cảnh báo (Alert Generation) kèm điểm số bất thường (Anomaly Score) và lý do giải thích bằng tiếng Việt tạo từ mô hình SLM cục bộ.
+
+### R3. Nâng cấp Banking Skills và Giao Diện MCP Tools
+- Cập nhật các MCP tools trong `liva-native-core/src/banking/mcp.rs`:
+  - `compliance_aml_screen`: Bổ sung trường đánh giá bất thường AI (`ai_anomaly_score`, `anomaly_reasons`, `risk_profile`).
+  - `reconcile_statement_batch`: Bổ sung đối chiếu ngữ nghĩa (Semantic Reconciliation) ở Tier 2 kết hợp cùng Integer Jaro-Winkler.
+  - `credit_risk_scoring`: Bổ sung tóm tắt phân tích rủi ro định tính tự động sinh bởi SLM local.
+- Cập nhật và đồng bộ hóa các tài liệu kỹ năng tại `.agents/skills/` (`liva-banking-compliance`, `liva-banking-reconciliation`, `liva-banking-risk`, `liva-teamwork-harness`) phản ánh chính xác các schema mới và năng lực Local AI.
+
+### R4. Harness Kiểm Thử Tự Động & Tiêu Chuẩn Hiệu Năng (Automated Test & Benchmark Suite)
+- Phát triển bộ kiểm thử tự động toàn diện cho Local AI Banking:
+  - Unit tests và integration tests bao phủ các kịch bản bình thường và đối kháng (adversarial test cases).
+  - Benchmark kiểm tra độ trễ suy luận P90 (< 50ms cho ONNX anomaly detection, < 500ms TTFT cho local SLM).
+  - Đo đạc và xác nhận giới hạn bộ nhớ RAM tối đa tiêu thụ <= 4GB theo quy chuẩn hệ thống.
+  - Tự động chạy tuần tự với tham số bắt buộc `-j 2` và `-- --test-threads 2`.
+
+## Acceptance Criteria
+
+### Tính Toàn Vẹn & Khả Năng Thực Thi (Build & Execution)
+- [ ] Mã nguồn biên dịch hoàn toàn sạch không lỗi (`cargo check -j 2 --all-targets`).
+- [ ] Không thêm bất kỳ phụ thuộc đám mây hoặc gọi API bên ngoài; `liva-netguard` xác nhận Zero Cloud Leakage.
+
+### Năng Lực Phát Hiện Bất Thường (AI Anomaly Detection)
+- [ ] Bộ kích hoạt (triggers) nhận diện chính xác các kịch bản bất thường đa chiều (velocity surge, structuring, semantic anomaly) trên bộ dữ liệu kiểm thử vàng với F1-score >= 0.90.
+- [ ] Điểm số bất thường (`anomaly_score` từ 0.0 đến 1.0) và lý do cảnh báo được gắn kèm vào từng giao dịch bị gắn cờ mà không làm rò rỉ dữ liệu cá nhân (PII) đã được che mặt nạ theo Nghị định 13.
+
+### Đối Chiếu Ngữ Nghĩa (Semantic Reconciliation)
+- [ ] Module đối chiếu Tier 2 hỗ trợ kết hợp giữa Jaro-Winkler và vector embedding ngữ nghĩa, giải quyết được các trường hợp tên đơn vị/nội dung viết tắt hoặc biến thể không gian.
+
+### Tuân Thủ MCP & Skills Parity
+- [ ] Các công cụ MCP (`compliance_aml_screen`, `reconcile_statement_batch`, `credit_risk_scoring`) trả về đúng định dạng có tích hợp dữ liệu Local AI và vượt qua toàn bộ integration tests.
+- [ ] Toàn bộ skill tương ứng trong `.agents/skills/` được cập nhật khớp với input/output contract mới.
+
+### Kiểm Thử Tự Động & Tài Nguyên (Resource & Test Guardrails)
+- [ ] Toàn bộ test suites chạy thành công với lệnh: `cargo test -p liva-native-core -p liva-compliance -p liva-recon -j 2 -- --test-threads 2`.
+- [ ] Bộ nhớ RAM đỉnh của tiến trình trong quá trình kiểm thử không vượt quá 4GB.
+</USER_REQUEST>
+
+## 2026-09-16T03:18:01Z
+
+<USER_REQUEST_UPDATE>
+Yêu cầu bổ sung từ người dùng:
+Sử dụng model Qwen3 14B (`E:\AI_Models\Qwen_Qwen3-14B-Q5_K_M.gguf`, kích thước 10,514,570,272 bytes).
+Hãy cập nhật cấu hình router/expert model và tích hợp hỗ trợ cho model này trong quá trình mở khóa Local AI cho LIVA Banking. Đảm bảo tuân thủ cơ chế artifact trust (sha256 whitelist trong models-manifest.json).
+</USER_REQUEST_UPDATE>
+
+## 2026-09-16T03:18:07Z
+
+<USER_REQUEST_UPDATE>
+Đã băm SHA-256 thực tế của file `E:\AI_Models\Qwen_Qwen3-14B-Q5_K_M.gguf`:
+`bf19bf5c77c530762012f71215b62aa8f0bae08111ee0d537b8496479e17cfa3`
+(bytes: 10514570272).
+Hãy dùng hash này nếu cần cập nhật vào `data/models-manifest.json` cho trust anchor verification.
+</USER_REQUEST_UPDATE>
+
+## 2026-09-16T05:23:35Z
+
+<USER_REQUEST>
+Fix all compilation and type compatibility errors in `liva-native-core` so that it seamlessly interoperates with `liva-money` and `liva-parse`, and passes all test suites cleanly.
+
+Working directory: e:\Project\01_AI_Agents\LIVA_Banking
+Integrity mode: development
+
+## Requirements
+
+### R1. Type & Interface Alignment
+Resolve all API mismatches, missing crate imports, and constructor discrepancies in `liva-native-core/src/banking/mcp.rs` and its module dependencies to ensure full compatibility with the current versions of `liva-money` and `liva-parse`.
+
+### R2. Zero Compiler Warnings and Zero Test Failures
+Ensure `liva-native-core` compiles with zero compiler errors and passes all test cases in its test suite without any flaky tests or broken invariants.
+
+### R3. Safe Resource & RAM Boundaries
+Adhere strictly to resource guardrails: all Cargo commands must use `-j 2` concurrency and `-- --test-threads 2` for test runners to maintain system stability.
+
+### R4. Non-Regression Invariant
+Ensure no regressions or breaking changes are introduced to neighboring crates (`crates/liva-money`, `crates/liva-parse`, `crates/liva-recon`, `crates/liva-compliance`, and `crates/liva-netguard`).
+
+## Acceptance Criteria
+
+### Compilation & Build
+- [ ] `cargo check -p liva-native-core -j 2` exits with code 0 and 0 errors.
+- [ ] `cargo test -p liva-native-core -j 2 --no-run` compiles test binaries with code 0.
+
+### Test Execution
+- [ ] `cargo test -p liva-native-core -j 2 -- --test-threads 2` completes with 100% of tests passing and 0 failures.
+
+### Neighboring Crates Regression Verification
+- [ ] `cargo test -p liva-money -j 2 -- --test-threads 2` passes 100%.
+- [ ] `cargo test -p liva-parse -j 2 -- --test-threads 2` passes 100%.
+- [ ] `cargo test -p liva-recon -j 2 -- --test-threads 2` passes 100%.
+</USER_REQUEST>

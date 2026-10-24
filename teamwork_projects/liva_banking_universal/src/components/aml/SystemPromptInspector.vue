@@ -15,6 +15,40 @@
       </div>
 
       <div class="flex items-center space-x-3">
+        <!-- AI Connection Status Pill -->
+        <div class="flex items-center space-x-2">
+          <span
+            v-if="store.aiConnectionStatus === 'connected'"
+            class="px-2.5 py-1 rounded-full text-xs font-mono font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center space-x-1"
+          >
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>Local AI: Qwen 14B Sẵn Sàng</span>
+          </span>
+          <span
+            v-else-if="store.aiConnectionStatus === 'fallback'"
+            class="px-2.5 py-1 rounded-full text-xs font-mono font-semibold bg-amber-100 text-amber-800 border border-amber-300 flex items-center space-x-1"
+          >
+            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+            <span>Chế độ dự phòng (Quy tắc SBV)</span>
+          </span>
+          <span
+            v-else
+            class="px-2.5 py-1 rounded-full text-xs font-mono font-semibold bg-slate-100 text-slate-600 border border-slate-300 flex items-center space-x-1"
+          >
+            <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+            <span>Local AI: Ngoại tuyến</span>
+          </span>
+
+          <button
+            type="button"
+            class="px-2.5 py-1 text-xs font-medium rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 transition"
+            title="Kiểm tra kết nối tới mô hình AI cục bộ"
+            @click="store.checkAiHealth"
+          >
+            Ping AI
+          </button>
+        </div>
+
         <button
           type="button"
           class="px-3.5 py-2 text-xs font-semibold rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 transition shadow-sm"
@@ -182,13 +216,56 @@
           <!-- Sandbox Results -->
           <div class="space-y-2 pt-2">
             <div class="flex items-center justify-between text-xs">
-              <span class="font-bold text-slate-700">Kết Quả Phân Tích Của AI Engine:</span>
-              <span
-                class="px-2 py-0.5 rounded-full text-[10px] font-bold"
-                :class="store.sandboxAlerts.length > 0 ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'"
-              >
-                {{ store.sandboxAlerts.length }} Cảnh Báo
-              </span>
+              <span class="font-bold text-slate-700">Kết Quả Đánh Giá Rủi Ro:</span>
+              <div class="flex items-center space-x-1.5">
+                <span
+                  v-if="store.evaluationMode === 'LOCAL_AI_QWEN'"
+                  class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200"
+                >
+                  Qwen 14B LLM
+                </span>
+                <span
+                  v-else
+                  class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200"
+                >
+                  Quy Tắc SBV
+                </span>
+                <span
+                  class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                  :class="store.sandboxAlerts.length > 0 ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'"
+                >
+                  {{ store.sandboxAlerts.length }} Cảnh Báo
+                </span>
+              </div>
+            </div>
+
+            <!-- LLM Risk Evaluation Summary Card if available -->
+            <div
+              v-if="store.llmEvaluationResult"
+              class="p-3.5 bg-purple-50/70 border border-purple-200 rounded-xl space-y-1.5 text-xs text-slate-800"
+            >
+              <div class="flex items-center justify-between font-semibold text-purple-900">
+                <span class="flex items-center space-x-1.5">
+                  <span class="w-2 h-2 rounded-full bg-purple-600"></span>
+                  <span>Nhận Định Mô Hình Qwen 14B</span>
+                </span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-200 text-purple-900">
+                  Điểm rủi ro: {{ store.llmEvaluationResult.riskScore }}/100 ({{ store.llmEvaluationResult.riskLevel }})
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-700 leading-snug">{{ store.llmEvaluationResult.findings }}</p>
+              <div class="text-[10px] text-purple-800 font-medium pt-1 border-t border-purple-200/60">
+                Đề xuất: {{ store.llmEvaluationResult.recommendedAction }}
+              </div>
+            </div>
+
+            <!-- Fallback notice if AI is offline -->
+            <div
+              v-if="store.evaluationMode === 'LOCAL_RULE_FALLBACK' && !store.llmEvaluationResult"
+              class="px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-[10px] text-slate-500 flex items-center justify-between"
+            >
+              <span>Đang phân tích qua Động cơ Quy tắc Cục bộ (Zero Cloud Egress)</span>
+              <span class="font-mono text-slate-400">TT 09/2023 & QĐ 11/2023</span>
             </div>
 
             <div v-if="store.sandboxAlerts.length === 0" class="p-4 bg-white rounded-xl border border-slate-200 text-center text-xs text-slate-500">

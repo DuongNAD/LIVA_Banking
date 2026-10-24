@@ -1,0 +1,72 @@
+name: "SWIFT MT940 Customer Statement Message Template"
+version: "1.0.0"
+bank_code: "SWIFT_MT940"
+bank_name: "SWIFT MT940 / MT942 International Bank Statement"
+currency: "VND"
+description: "Parses Block 4 SWIFT MT940 tags (:20:, :25:, :60F:, :61:, :86:, :62F:) with FSM state machine."
+
+sniffing:
+  container:
+    allowed_formats: ["SwiftMt", "TextCsv"]
+    file_extensions: [".sta", ".swi", ".txt", ".940"]
+  content_rules:
+    min_score: 15
+    rules:
+      - pattern: "(?m)^:20:"
+        target: "full_text"
+        score: 10
+      - pattern: "(?m)^:60[FM]:"
+        target: "full_text"
+        score: 10
+      - pattern: "(?m)^:61:"
+        target: "full_text"
+        score: 10
+
+container_options:
+  swift:
+    block_id: "4"
+
+metadata:
+  fields:
+    account_number:
+      extractor: "swift_tag"
+      tag: ":25:"
+    opening_balance:
+      extractor: "swift_tag_balance"
+      tag: ":60F:"
+      fallback_tag: ":60M:"
+    closing_balance:
+      extractor: "swift_tag_balance"
+      tag: ":62F:"
+      fallback_tag: ":62M:"
+
+table:
+  columns:
+    swift_statement_line:
+      tag: ":61:"
+      date_subfield: "value_date"
+      indicator_subfield: "credit_debit"
+      amount_subfield: "amount"
+      ref_subfield: "reference"
+    narration:
+      aliases: [":86:"]
+      required: true
+  row_filters:
+    ignore_empty_rows: true
+    skip_if_date_missing: false
+
+formatting:
+  date:
+    formats:
+      - "%y%m%d"
+  number:
+    thousand_separator: "none"
+    decimal_separator: ","
+    decimal_places: 0
+    strip_tokens: []
+
+invariants:
+  verification_formula: "closing_eq_opening_plus_credit_minus_debit"
+  policy: "strict"
+  allow_missing_balances: false
+  tolerance_minor_units: 0

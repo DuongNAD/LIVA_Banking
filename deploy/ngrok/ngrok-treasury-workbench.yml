@@ -2,8 +2,8 @@
 # LIVA Banking Harness — ngrok Remote Access Tunnel Configuration
 # Deployment Target: Treasury & Reconciliation Workbench (Remote Ingress)
 # ==============================================================================
-# Account: duong.na.2719@aptechlearning.edu.vn
-# Domain: rd_3JHcwHJK1iUTdwx1D22XRMeUA5K.ngrok-free.app
+# Account: operator@bank.internal
+# Domain: $NGROK_DOMAIN (optional)
 # Upstream Service: Treasury Workbench (Default: 5173 [Vite Dev], 4173 [Preview], 8080 [Prod])
 # Compliance: Decree 13/2023/ND-CP (DPIA) & Circular 09/2020/TT-NHNN
 # ==============================================================================
@@ -11,14 +11,15 @@
 version: "3"
 
 agent:
-  authtoken: 31tkcGzS8HjU6flkQnMhuqJYMZM_3R8LtfJScAEbRpSZdEPnf
-  metadata: "LIVA Banking Treasury Workbench - Operator: duong.na.2719@aptechlearning.edu.vn"
+  authtoken: $NGROK_AUTHTOKEN
+  metadata: "LIVA Banking Treasury Workbench - Remote Ingress Tunnel"
 
 tunnels:
   treasury-workbench:
     proto: http
     addr: 5173
-    domain: rd_3JHcwHJK1iUTdwx1D22XRMeUA5K
+    # Optional static domain. If using dynamic ephemeral tunnel, keep commented out.
+    # domain: $NGROK_DOMAIN
     basic_auth:
       - "maker_nam:LivaMaker@2026"
       - "maker_mai:LivaMaker@2026"
@@ -28,7 +29,7 @@ tunnels:
       - "auditor_lan:LivaAudit@2026"
       - "admin_sys:LivaAdmin@2026"
     inspect: true
-    metadata: '{"app": "liva-banking", "component": "treasury-workbench", "env": "remote-preview", "domain_id": "rd_3JHcwHJK1iUTdwx1D22XRMeUA5K"}'
+    metadata: '{"app": "liva-banking", "component": "treasury-workbench", "env": "remote-preview"}'
     traffic_policy:
       on_http_response:
         - actions:

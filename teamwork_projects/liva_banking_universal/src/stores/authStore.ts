@@ -376,7 +376,7 @@ export const useAuthStore = defineStore('auth', () => {
       };
 
       // If server responded with a specific business error (e.g. 401 Wrong Password or 403 SoD Violation), respect it!
-      if (res.isOnline && res.error && !res.error.includes('404') && !res.error.includes('Offline')) {
+      if (res.isOnline && res.error && !res.error.includes('404') && !res.error.includes('405') && !res.error.includes('Offline') && !res.error.includes('Method Not Allowed')) {
         clearSession();
         authError.value = res.error;
         return false;

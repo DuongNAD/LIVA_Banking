@@ -185,6 +185,20 @@ impl TreasuryEngine {
 
         // 1. Strict Self-Approval Prevention (Circular 09/2020/TT-NHNN)
         if order.maker_id.eq_ignore_ascii_case(trimmed_checker) {
+            if let Some(c) = conn {
+                let resolved_key = resolve_audit_key(audit_key);
+                let audit_payload = format!(
+                    "SOD_SELF_APPROVAL_BLOCKED|action=APPROVE|order_id={}|ref={}|amount={}|maker={}|checker={}|ref={}",
+                    order.id, order.order_ref, order.amount_vnd, order.maker_id, trimmed_checker, CIRCULAR_09_REF
+                );
+                let _ = AuditLedger::append(
+                    c,
+                    &resolved_key,
+                    AuditLedger::EVENT_SOD_SELF_APPROVAL_BLOCKED,
+                    trimmed_checker,
+                    &audit_payload,
+                );
+            }
             return Err(MakerCheckerError::SelfApprovalProhibited {
                 maker_id: order.maker_id.clone(),
             });
@@ -285,6 +299,20 @@ impl TreasuryEngine {
         }
 
         if order.maker_id.eq_ignore_ascii_case(trimmed_checker) {
+            if let Some(c) = conn {
+                let resolved_key = resolve_audit_key(audit_key);
+                let audit_payload = format!(
+                    "SOD_SELF_APPROVAL_BLOCKED|action=REJECT|order_id={}|ref={}|amount={}|maker={}|checker={}|ref={}",
+                    order.id, order.order_ref, order.amount_vnd, order.maker_id, trimmed_checker, CIRCULAR_09_REF
+                );
+                let _ = AuditLedger::append(
+                    c,
+                    &resolved_key,
+                    AuditLedger::EVENT_SOD_SELF_APPROVAL_BLOCKED,
+                    trimmed_checker,
+                    &audit_payload,
+                );
+            }
             return Err(MakerCheckerError::SelfApprovalProhibited {
                 maker_id: order.maker_id.clone(),
             });
@@ -681,5 +709,55 @@ mod tests {
         assert_eq!(err_reject_spaces, MakerCheckerError::EmptyCheckerId);
 
         assert_eq!(order.status, PaymentOrderStatus::PendingApproval);
+    }
+
+    #[test]
+    fn test_treasury_self_approval_logs_sod_violation_to_audit_ledger() {
+        let conn = Connection::open_in_memory().expect("In-memory sqlite");
+        init_payment_orders_table(&conn).expect("Init table");
+        AuditLedger::init_audit_table(&conn).expect("Init audit table");
+
+        let mut order = TreasuryEngine::propose(
+            "19034567890123",
+            "0011001234567",
+            "CONG TY THEP",
+            "VIETCOMBANK",
+            100_000_000,
+            "Thanh toan",
+            "maker_nam",
+        )
+        .expect("Propose");
+
+        save_payment_order(&conn, &order).expect("Save order");
+        let token = order.hitl_token.clone().unwrap();
+
+        // Attempt self-approval with case variation: "MAKER_NAM" vs "maker_nam"
+        let err = TreasuryEngine::approve(&mut order, "MAKER_NAM", &token, None, Some(&conn))
+            .expect_err("Self-approval must fail");
+
+        assert_eq!(
+            err,
+            MakerCheckerError::SelfApprovalProhibited {
+                maker_id: "maker_nam".to_string()
+            }
+        );
+
+        // Verify that AuditLedger recorded the SOD_SELF_APPROVAL_BLOCKED event
+        let (event_type, actor): (String, String) = conn
+            .query_row(
+                "SELECT event_type, actor_principal FROM banking_audit_chain ORDER BY seq_id DESC LIMIT 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .expect("Audit record must exist");
+
+        assert_eq!(event_type, AuditLedger::EVENT_SOD_SELF_APPROVAL_BLOCKED);
+        assert_eq!(actor, "MAKER_NAM");
+
+        // Cryptographic forward hash chain must remain 100% intact
+        let audit_key = resolve_audit_key(None);
+        let report = AuditLedger::verify(&conn, &audit_key).expect("Audit verification");
+        assert!(report.is_intact);
+        assert_eq!(report.total_records, 1);
     }
 }

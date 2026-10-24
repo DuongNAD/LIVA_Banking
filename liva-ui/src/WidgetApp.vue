@@ -452,6 +452,7 @@ const handleGatewayMessage = async (data: GatewayMessage) => {
           (msg.text.includes('sys-thinking-flag') ||
             msg.text.includes('sys-skill-flag') ||
             msg.text.includes('LIVA đang') ||
+            msg.text.includes('Đang nghĩ') ||
             msg.text.includes('Identify Tool') ||
             msg.text.includes('Determine Parameters') ||
             msg.text.includes('Execute Tool Call') ||
@@ -557,6 +558,7 @@ const handleGatewayMessage = async (data: GatewayMessage) => {
           (msg.text.includes('sys-thinking-flag') ||
             msg.text.includes('sys-skill-flag') ||
             msg.text.includes('LIVA đang') ||
+            msg.text.includes('Đang nghĩ') ||
             msg.text.includes('Identify Tool') ||
             msg.text.includes('Determine Parameters') ||
             msg.text.includes('Execute Tool Call') ||
@@ -1213,6 +1215,7 @@ onDeactivated(() => {
           v-if="isThinking"
           class="self-start chat-bubble-ai px-4 py-2.5 rounded-[22px] rounded-bl-[6px] text-sm flex items-center gap-2 msg-enter"
         >
+          <span class="text-xs text-purple-300 font-medium">{{ t('sys_thinking') }}</span>
           <span class="thinking-dot text-purple-400" style="animation-delay: 0s">●</span>
           <span class="thinking-dot text-purple-400" style="animation-delay: 0.2s">●</span>
           <span class="thinking-dot text-purple-400" style="animation-delay: 0.4s">●</span>

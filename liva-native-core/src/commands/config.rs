@@ -905,8 +905,7 @@ pub fn delete_avatar_model_from_dirs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    /// Chỉ còn dùng để KHẲNG ĐỊNH mặc định mới không phải là nó nữa.
-    use crate::DEFAULT_MODELS_DIR;
+    use crate::LEGACY_DEV_MODELS_DIR;
 
     struct TempDirGuard(std::path::PathBuf);
     impl Drop for TempDirGuard {
@@ -984,7 +983,7 @@ mod tests {
             crate::models_dir_fallback().to_string_lossy().to_string()
         );
         assert_ne!(
-            ai["localModelsDir"], DEFAULT_MODELS_DIR,
+            ai["localModelsDir"], LEGACY_DEV_MODELS_DIR,
             "mặc định gửi cho UI không được là ổ đĩa của máy dev"
         );
         assert_eq!(ai["expertModel"], DEFAULT_EXPERT_MODEL);

@@ -7,7 +7,8 @@ members = [
     "tools/synthgen",
     "crates/liva-netguard",
     "crates/liva-parse",
-    "crates/liva-recon"
+    "crates/liva-recon",
+    "crates/liva-compliance"
 ]
 resolver = "2"
 

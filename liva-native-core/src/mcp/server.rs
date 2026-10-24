@@ -176,10 +176,10 @@ impl NativeMcpServer {
                         .to_string(),
                     input_schema: schema_for!(crate::integrations::weather::WeatherArgs),
                 },
-                // Banking Operations MCP Tool Suite (Milestone M1)
+                // Banking Operations MCP Tool Suite (Milestone M1 & M4)
                 Tool {
                     name: "banking_reconcile".to_string(),
-                    description: "Đối soát sao kê ngân hàng tự động (VCB, TCB, BIDV, ISO 20022 camt.053) với sổ cái ERP, phát hiện chênh lệch và cách ly giao dịch nghi vấn HITL. Automated bank statement ingestion and 3-tier deterministic reconciliation against ERP ledger."
+                    description: "Đối soát sao kê ngân hàng tự động (VCB, TCB, BIDV, ISO 20022 camt.053) với sổ cái ERP bằng công cụ 3-Tier Declarative Recon Engine: Khớp 1:1 chính xác, Khớp mờ Tier 2 lai ngữ nghĩa (Semantic Elevation & Acronyms), và Khớp tách gộp 1:N / N:1, phát hiện chênh lệch và cách ly giao dịch ngoại lệ HITL. Automated bank statement ingestion and 3-tier hybrid semantic reconciliation against ERP ledger (alias: reconcile_statement_batch)."
                         .to_string(),
                     input_schema: schema_for!(crate::banking::mcp::BankingReconcileArgs),
                 },
@@ -191,13 +191,13 @@ impl NativeMcpServer {
                 },
                 Tool {
                     name: "compliance_aml_screen".to_string(),
-                    description: "Rà soát tuân thủ phòng chống rửa tiền (AML/CTF) theo Quyết định 11/2023/QĐ-TTg, phát hiện gom nhỏ giao dịch (smurfing/structuring), dòng tiền bất thường và làm sạch dữ liệu PII theo Nghị định 13/2023/NĐ-CP. Anti-Money Laundering screening and Decree 13 PII sanitization."
+                    description: "Rà soát tuân thủ phòng chống rửa tiền (AML/CTF) theo Quyết định 11/2023/QĐ-TTg kết hợp mô hình phát hiện bất thường đa chiều (AI Anomaly Detection), phát hiện gom nhỏ giao dịch (smurfing/structuring), dòng tiền bất thường và làm sạch dữ liệu PII theo Nghị định 13/2023/NĐ-CP với bảo đảm Zero Data Egress. Anti-Money Laundering screening with multi-dimensional anomaly detection and Decree 13 PII sanitization."
                         .to_string(),
                     input_schema: schema_for!(crate::banking::mcp::ComplianceAmlScreenArgs),
                 },
                 Tool {
                     name: "credit_risk_scoring".to_string(),
-                    description: "Đánh giá rủi ro tín dụng doanh nghiệp không sai số thực (zero-float drift): chỉ số trả nợ DSCR, tỷ số thanh toán nhanh Quick Ratio, và dự báo thiếu hụt dòng tiền 30/90 ngày. Enterprise credit risk assessment, DSCR solvency, Quick Ratio liquidity, and rolling cashflow shortfall simulation."
+                    description: "Đánh giá rủi ro tín dụng doanh nghiệp không sai số thực (zero-float drift): chỉ số trả nợ DSCR, tỷ số thanh toán nhanh Quick Ratio, dự báo thiếu hụt dòng tiền 30/90 ngày, và bản tổng hợp định tính rủi ro (Qualitative Risk Summary). Enterprise credit risk assessment, DSCR solvency, Quick Ratio liquidity, rolling cashflow shortfall simulation, and qualitative SLM risk synthesis."
                         .to_string(),
                     input_schema: schema_for!(crate::banking::mcp::CreditRiskScoringArgs),
                 },
@@ -219,6 +219,7 @@ impl NativeMcpServer {
                     "control_volume" | "control_media" => "system",
                     "get_weather" => "web",
                     "banking_reconcile"
+                    | "reconcile_statement_batch"
                     | "treasury_payment_order"
                     | "compliance_aml_screen"
                     | "credit_risk_scoring" => "banking",
@@ -291,9 +292,10 @@ impl NativeMcpServer {
             ),
             (
                 "banking_reconcile",
-                "đối soát sao kê ngân hàng · nạp sao kê vcb · kiểm tra sổ cái và sao kê · \
-                 khớp lệnh giao dịch · sao kê techcombank hôm nay · đối chiếu ngân hàng · \
-                 reconcile bank statement · match erp ledger with bank statement · camt 053",
+                "đối soát sao kê ngân hàng · đối soát sao kê lô · nạp sao kê vcb tcb · đối chiếu sao kê ngân hàng · \
+                  kiểm tra sổ cái và sao kê · khớp lệnh giao dịch ngữ nghĩa · đối soát sổ cái erp · \
+                  camt 053 · batch bank statement reconciliation · tier 2 semantic matching · \
+                  reconcile bank statement · match erp ledger with bank statement",
             ),
             (
                 "treasury_payment_order",
@@ -571,8 +573,8 @@ impl NativeMcpServer {
                     },
                 },
             ),
-            // Banking Operations MCP Tool Suite (Milestone M1)
-            "banking_reconcile" => {
+            // Banking Operations MCP Tool Suite (Milestone M1 & M4)
+            "banking_reconcile" | "reconcile_statement_batch" => {
                 let args: crate::banking::mcp::BankingReconcileArgs =
                     serde_json::from_value(req.arguments).map_err(|e| e.to_string())?;
                 match crate::banking::mcp::handle_banking_reconcile(args) {

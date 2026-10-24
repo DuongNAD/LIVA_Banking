@@ -25,8 +25,8 @@ covers:
 Trong môi trường doanh nghiệp và ngân hàng, Bàn làm việc Kế toán Nguồn vốn (**Treasury & Reconciliation Workbench**) của LIVA Banking Harness cần được truy cập từ xa bởi Ban Giám đốc Tài chính (CFO), Kế toán trưởng (Chief Accountant) và Kiểm toán viên độc lập khi làm việc lưu động, phê duyệt ngoại lệ hai pha (Maker-Checker HITL) trên thiết bị di động hoặc máy tính bảo mật bên ngoài mạng LAN nội bộ.
 
 Để đáp ứng nhu cầu này mà **không cần can thiệp mở cổng Firewall doanh nghiệp (Inbound Port Forwarding)** và **không phơi nhiễm trực tiếp CSDL kế toán**, LIVA Banking Harness triển khai kiến trúc **Đường hầm Ingress kết thúc TLS (TLS-Terminated Ingress Tunnel)** qua giải pháp ngrok Enterprise:
-- **Tài khoản vận hành**: `duong.na.2719@aptechlearning.edu.vn`
-- **Domain gán cố định**: `rd_3JHcwHJK1iUTdwx1D22XRMeUA5K` (`rd_3JHcwHJK1iUTdwx1D22XRMeUA5K.ngrok-free.app`)
+- **Tài khoản vận hành**: `operator@bank.internal`
+- **Domain gán cố định**: Cấu hình qua biến môi trường `$NGROK_DOMAIN` hoặc cấp phát động bởi ngrok Edge.
 - **Dịch vụ Upstream mục tiêu**: Cổng giao diện Treasury Workbench (`http://127.0.0.1:5173` đối với bản Vite Dev, `http://127.0.0.1:4173` đối với bản Vite Preview, hoặc `http://127.0.0.1:8080` đối với bản Web Gateway phát hành On-Premise).
 
 ### 1.2 Mô hình Ranh giới An ninh: Ingress Tunnel vs. Zero-Egress Local Core
@@ -40,7 +40,7 @@ Trong môi trường doanh nghiệp và ngân hàng, Bàn làm việc Kế toán
                                                      ▼
 +---------------------------------------------------------------------------------------------------------+
 |                                 NGROK EDGE CLOUD GATEWAY INFRASTRUCTURE                                 |
-|   • Miền gán: rd_3JHcwHJK1iUTdwx1D22XRMeUA5K.ngrok-free.app (duong.na.2719@aptechlearning.edu.vn)       |
+|   • Miền gán: Cấu hình qua $NGROK_DOMAIN (hoặc domain động) (operator@bank.internal)                     |
 |   • Chặn Clickjacking (X-Frame-Options: DENY), Chặn Sniffing (X-Content-Type-Options: nosniff)          |
 |   • Giới hạn quyền thiết bị (Permissions-Policy: camera=(), mic=(), geo=(), pay=())                     |
 +----------------------------------------------------+----------------------------------------------------+
@@ -95,8 +95,8 @@ Tệp cấu hình ngrok Agent phiên bản 3 được chuẩn hóa tại `deploy
 # LIVA Banking Harness — ngrok Remote Access Tunnel Configuration
 # Deployment Target: Treasury & Reconciliation Workbench (Remote Ingress)
 # ==============================================================================
-# Account: duong.na.2719@aptechlearning.edu.vn
-# Domain: rd_3JHcwHJK1iUTdwx1D22XRMeUA5K
+# Account: operator@bank.internal
+# Domain: $NGROK_DOMAIN (optional)
 # Upstream Service: Treasury Workbench (Default: 5173 [Vite Dev], 4173 [Preview], 8080 [Prod])
 # Compliance: Decree 13/2023/ND-CP (DPIA) & Circular 09/2020/TT-NHNN
 # ==============================================================================
@@ -104,14 +104,15 @@ Tệp cấu hình ngrok Agent phiên bản 3 được chuẩn hóa tại `deploy
 version: "3"
 
 agent:
-  authtoken: 31tkcGzS8HjU6flkQnMhuqJYMZM_3R8LtfJScAEbRpSZdEPnf
-  metadata: "LIVA Banking Treasury Workbench - Operator: duong.na.2719@aptechlearning.edu.vn"
+  authtoken: $NGROK_AUTHTOKEN
+  metadata: "LIVA Banking Treasury Workbench - Remote Ingress Tunnel"
 
 tunnels:
   treasury-workbench:
     proto: http
     addr: 5173
-    domain: rd_3JHcwHJK1iUTdwx1D22XRMeUA5K
+    # Optional static domain. If using dynamic ephemeral tunnel, keep commented out.
+    # domain: $NGROK_DOMAIN
     basic_auth:
       - "maker_nam:LivaMaker@2026"
       - "maker_mai:LivaMaker@2026"
@@ -121,7 +122,7 @@ tunnels:
       - "auditor_lan:LivaAudit@2026"
       - "admin_sys:LivaAdmin@2026"
     inspect: true
-    metadata: '{"app": "liva-banking", "component": "treasury-workbench", "env": "remote-preview", "domain_id": "rd_3JHcwHJK1iUTdwx1D22XRMeUA5K"}'
+    metadata: '{"app": "liva-banking", "component": "treasury-workbench", "env": "remote-preview"}'
     traffic_policy:
       on_http_response:
         - actions:
@@ -142,10 +143,10 @@ tunnels:
 | Trường Cấu hình | Giá trị Thiết lập | Ý nghĩa Kỹ thuật |
 |---|---|---|
 | `version` | `"3"` | Sử dụng chuẩn cú pháp cấu hình ngrok Agent v3 hiện đại. |
-| `agent.authtoken` | `31tkcGzS8...` | Token định danh gắn liền với tài khoản `duong.na.2719@aptechlearning.edu.vn`. |
+| `agent.authtoken` | `<your_authtoken>` | Token định danh nạp từ biến môi trường `$NGROK_AUTHTOKEN`. |
 | `proto` | `http` | Chuyển tiếp lưu lượng HTTP/HTTPS và WebSocket nâng cấp (WSS). |
 | `addr` | `5173` | Cổng upstream cục bộ của Treasury Workbench. |
-| `domain` | `rd_3JHcwHJK1iUTdwx1D22XRMeUA5K` | Tài nguyên miền cố định đã đăng ký trên ngrok dashboard. |
+| `domain` | `$NGROK_DOMAIN` | Tài nguyên miền tùy chọn đã đăng ký trên ngrok dashboard. |
 | `basic_auth` | 7 tài khoản RBAC | Cưỡng chế xác thực HTTP Basic Auth trước khi tải ứng dụng. |
 | `inspect` | `true` | Kích hoạt bộ kiểm định lưu lượng nội bộ qua giao diện quản trị `127.0.0.1:4040`. |
 | `traffic_policy` | Response Headers Policy | Tự động tiêm các tiêu đề an ninh ngân hàng vào mọi phản hồi HTTP trả về client. |
@@ -234,7 +235,7 @@ $$\text{URL Quản trị}: \mathbf{http://127.0.0.1:4040}$$
 - **Hiện tượng**: Log ghi nhận `Only paid plans may create endpoints with custom subdomains... ERR_NGROK_313`.
 - **Nguyên nhân**: Định dạng chuỗi domain trong file YAML sử dụng tên miền phụ không khớp với gói cước tài khoản ngrok hiện tại.
 - **Biện pháp xử lý**:
-  * Kiểm tra đúng cấu hình tài nguyên `rd_3JHcwHJK1iUTdwx1D22XRMeUA5K` trong `deploy/ngrok/ngrok-treasury-workbench.yml`.
+  * Kiểm tra đúng cấu hình tài nguyên miền `$NGROK_DOMAIN` trong `deploy/ngrok/ngrok-treasury-workbench.yml` hoặc biến môi trường.
   * Trong trường hợp cần kiểm thử nhanh khẩn cấp với URL tạm thời (Ephemeral URL), sử dụng cờ:
     ```powershell
     powershell -ExecutionPolicy Bypass -File scripts/deploy-ngrok-tunnel.ps1 -Action start -FallbackEphemeral

@@ -16,8 +16,10 @@ pub const OWNED: &[&str] = &[
     "auth:get_quick_accounts",
     "auth:create_user",
     "auth:get_user",
+    "auth:check_permission",
     "auth_login",
     "auth_get_quick_accounts",
+    "auth_check_permission",
 ];
 
 pub fn owns(command: &str) -> bool {
@@ -31,6 +33,7 @@ pub async fn handle(state: Arc<AppState>, command: &str, payload: Value) -> Resu
         "get_quick_accounts" | "auth_get_quick_accounts" => get_quick_accounts(state).await,
         "create_user" => create_user(state, payload).await,
         "get_user" => get_user(state, payload).await,
+        "check_permission" | "auth_check_permission" => check_permission(state, payload).await,
         _ => Err(format!("Unknown auth verb: {verb}")),
     }
 }
@@ -76,7 +79,7 @@ async fn login(state: Arc<AppState>, payload: Value) -> Result<Value, String> {
 async fn get_quick_accounts(state: Arc<AppState>) -> Result<Value, String> {
     let accounts = state
         .db
-        .spawn_reader(|conn| users::list_quick_accounts(conn))
+        .spawn_reader(users::list_quick_accounts)
         .await?;
 
     Ok(json!({
@@ -177,6 +180,122 @@ async fn get_user(state: Arc<AppState>, payload: Value) -> Result<Value, String>
     } else {
         Ok(json!({ "success": false, "error": "User not found" }))
     }
+}
+
+async fn check_permission(state: Arc<AppState>, payload: Value) -> Result<Value, String> {
+    // 1. Resolve role from payload["role"] or query SQLite users table by username or user_id
+    let role_res: Result<crate::authorization::UserRole, String> = if let Some(r_str) = payload.get("role").and_then(|v| v.as_str()) {
+        r_str.parse()
+    } else if let Some(username) = payload.get("username").and_then(|v| v.as_str()) {
+        let username_str = username.to_string();
+        let q_name = username_str.clone();
+        let u = state
+            .db
+            .spawn_reader(move |conn| users::get_user_by_username(conn, &q_name))
+            .await?;
+        match u {
+            Some(profile) => profile.role.parse(),
+            None => {
+                return Ok(json!({
+                    "success": false,
+                    "allowed": false,
+                    "error": format!("User '{username_str}' not found")
+                }));
+            }
+        }
+    } else if let Some(user_id) = payload
+        .get("user_id")
+        .or_else(|| payload.get("userId"))
+        .and_then(|v| v.as_str())
+    {
+        let user_id_str = user_id.to_string();
+        let q_id = user_id_str.clone();
+        let u = state
+            .db
+            .spawn_reader(move |conn| users::get_user_by_id(conn, &q_id))
+            .await?;
+        match u {
+            Some(profile) => profile.role.parse(),
+            None => {
+                return Ok(json!({
+                    "success": false,
+                    "allowed": false,
+                    "error": format!("User ID '{user_id_str}' not found")
+                }));
+            }
+        }
+    } else {
+        return Ok(json!({
+            "success": false,
+            "allowed": false,
+            "error": "Missing 'role', 'username', or 'user_id' in payload"
+        }));
+    };
+
+    let role = match role_res {
+        Ok(r) => r,
+        Err(e) => {
+            return Ok(json!({
+                "success": false,
+                "allowed": false,
+                "error": e
+            }));
+        }
+    };
+
+    // 2. Evaluate discrete permission if provided
+    if let Some(perm_str) = payload.get("permission").and_then(|v| v.as_str()) {
+        let perm = match crate::authorization::Permission::from_str_loose(perm_str) {
+            Ok(p) => p,
+            Err(e) => {
+                return Ok(json!({
+                    "success": false,
+                    "allowed": false,
+                    "role": role.as_str(),
+                    "error": e
+                }));
+            }
+        };
+        let allowed = crate::authorization::check_user_permission(role, perm);
+        let reason = if allowed {
+            None
+        } else {
+            Some(format!("Role {:?} lacks permission {:?}", role, perm))
+        };
+        return Ok(json!({
+            "success": true,
+            "allowed": allowed,
+            "role": role.as_str(),
+            "permission": perm.as_str(),
+            "reason": reason
+        }));
+    }
+
+    // 3. Evaluate discrete command if provided
+    if let Some(cmd_str) = payload.get("command").and_then(|v| v.as_str()) {
+        let check_res = crate::authorization::check_command_role_permission(role, cmd_str);
+        let allowed = check_res.is_ok();
+        return Ok(json!({
+            "success": true,
+            "allowed": allowed,
+            "role": role.as_str(),
+            "command": cmd_str,
+            "reason": check_res.err()
+        }));
+    }
+
+    // 4. Discovery mode: return full capability list for the role
+    let granted_perms: Vec<String> = crate::authorization::get_role_permissions(role)
+        .into_iter()
+        .map(|p| p.as_str().to_string())
+        .collect();
+
+    Ok(json!({
+        "success": true,
+        "allowed": true,
+        "role": role.as_str(),
+        "permissions": granted_perms
+    }))
 }
 
 #[cfg(test)]
@@ -303,5 +422,94 @@ mod tests {
         .unwrap();
         assert_eq!(login_new["success"], true);
         assert_eq!(login_new["user"]["role"], "CHECKER");
+
+        // 7. Check permission: Role + Permission (Maker -> IngestStatement: allowed; ApproveHitlMatch: denied)
+        let perm_allowed = handle(
+            state.clone(),
+            "auth:check_permission",
+            json!({
+                "role": "MAKER",
+                "permission": "IngestStatement"
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(perm_allowed["success"], true);
+        assert_eq!(perm_allowed["allowed"], true);
+
+        let perm_denied = handle(
+            state.clone(),
+            "auth:check_permission",
+            json!({
+                "role": "MAKER",
+                "permission": "ApproveHitlMatch"
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(perm_denied["success"], true);
+        assert_eq!(perm_denied["allowed"], false);
+
+        // 8. Check permission: Role + Command (Checker -> reconciliation_resolve_hitl: allowed; statement_ingest_file: denied)
+        let cmd_allowed = handle(
+            state.clone(),
+            "auth_check_permission",
+            json!({
+                "role": "CHECKER",
+                "command": "reconciliation_resolve_hitl"
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(cmd_allowed["success"], true);
+        assert_eq!(cmd_allowed["allowed"], true);
+
+        let cmd_denied = handle(
+            state.clone(),
+            "auth:check_permission",
+            json!({
+                "role": "CHECKER",
+                "command": "statement_ingest_file"
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(cmd_denied["success"], true);
+        assert_eq!(cmd_denied["allowed"], false);
+
+        // 9. Check permission via Username database resolution
+        let user_check = handle(
+            state.clone(),
+            "auth:check_permission",
+            json!({
+                "username": "maker_nam",
+                "permission": "RunReconciliation"
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(user_check["success"], true);
+        assert_eq!(user_check["allowed"], true);
+        assert_eq!(user_check["role"], "MAKER");
+
+        // 10. Capability discovery mode (neither permission nor command provided)
+        let discovery = handle(
+            state.clone(),
+            "auth:check_permission",
+            json!({
+                "role": "CFO"
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(discovery["success"], true);
+        assert_eq!(discovery["allowed"], true);
+        let perms = discovery["permissions"].as_array().unwrap();
+        let perm_names: Vec<&str> = perms.iter().filter_map(|v| v.as_str()).collect();
+        assert!(perm_names.contains(&"ViewCashflow30_90"));
+        assert!(perm_names.contains(&"ApproveHighLimit"));
+        assert!(perm_names.contains(&"ApprovePaymentOrder"));
+        assert!(perm_names.contains(&"RejectPaymentOrder"));
+        assert!(!perm_names.contains(&"ApproveHitlMatch"));
     }
 }

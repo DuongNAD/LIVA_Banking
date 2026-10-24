@@ -1,0 +1,115 @@
+name: "BIDV Corporate CSV Statement Template"
+version: "1.0.0"
+bank_code: "BIDV"
+bank_name: "Ngân hàng TMCP Đầu tư và Phát triển Việt Nam"
+currency: "VND"
+description: "Handles BIDV delimited exports, off-hours timestamp precision, and balance reconstruction."
+
+sniffing:
+  container:
+    allowed_formats: ["TextCsv"]
+    file_extensions: [".csv", ".txt"]
+  content_rules:
+    min_score: 15
+    rules:
+      - pattern: "(?i)bidv|đầu tư và phát triển"
+        target: "header_text"
+        score: 10
+      - pattern: "(?i)số tài khoản|account no"
+        target: "header_text"
+        score: 5
+      - pattern: "(?i)bidv"
+        target: "filename"
+        score: 10
+
+container_options:
+  csv:
+    delimiter: "auto"
+    quote_char: '"'
+    has_header: false
+    encoding: "auto"
+    strip_bom: true
+
+metadata:
+  scan_range:
+    header_rows: 15
+    footer_rows: 15
+  fields:
+    account_number:
+      extractor: "regex"
+      patterns:
+        - "(?i)số tài khoản:[\\s;]+([0-9]{9,16})"
+    account_name:
+      extractor: "regex"
+      patterns:
+        - "(?i)tên tài khoản:[\\s;]+([^;\\n]+)"
+    opening_balance:
+      extractor: "regex"
+      patterns:
+        - "(?i)số dư đầu kỳ:[\\s;]+([0-9.,]+)"
+    closing_balance:
+      extractor: "regex"
+      patterns:
+        - "(?i)số dư cuối kỳ:[\\s;]+([0-9.,]+)"
+
+table:
+  header_detection:
+    detection_mode: "keyword_match"
+    min_matching_columns: 4
+    stop_at_row: 10
+  columns:
+    date:
+      aliases: ["ngày giao dịch", "ngày gd", "ngày", "date"]
+      required: true
+    value_date:
+      aliases: ["ngày giá trị", "value date"]
+      required: false
+    ref_code:
+      aliases: ["mã giao dịch", "mã gd", "số tham chiếu", "ref", "bidv"]
+      required: false
+      fallback_from_narration_regex:
+        - "\\b(BIDV[0-9A-Z]{6,16})\\b"
+        - "\\b(FT[0-9A-Z]{8,18})\\b"
+        - "\\b(NPS[0-9A-Z]{8,18})\\b"
+    amount_mode: "separate_debit_credit"
+    debit:
+      aliases: ["số tiền ghi nợ", "ghi nợ", "nợ", "debit", "tiền ra"]
+    credit:
+      aliases: ["số tiền ghi có", "ghi có", "có", "credit", "tiền vào"]
+    balance_after:
+      aliases: ["số dư", "balance"]
+      required: false
+    narration:
+      aliases: ["nội dung chi tiết", "nội dung", "diễn giải", "description"]
+      required: true
+    counterparty_name:
+      aliases: ["tên đối tác", "tên đối ứng", "người nhận", "người gửi"]
+    counterparty_account:
+      aliases: ["tài khoản đối ứng", "tk đối ứng"]
+
+  row_filters:
+    ignore_empty_rows: true
+    skip_if_date_missing: true
+    stop_conditions:
+      - "(?i)^tổng"
+      - "(?i)^tổng phát sinh"
+      - "(?i)^total"
+
+formatting:
+  date:
+    formats:
+      - "%d/%m/%Y %H:%M:%S"
+      - "%d/%m/%Y"
+      - "%Y-%m-%d %H:%M:%S"
+  number:
+    thousand_separator: "."
+    decimal_separator: ","
+    decimal_places: 0
+    negative_format: "both"
+    strip_tokens: ["VND", "VNĐ"]
+
+invariants:
+  verification_formula: "closing_eq_opening_plus_credit_minus_debit"
+  policy: "strict"
+  allow_missing_balances: true
+  tolerance_minor_units: 0

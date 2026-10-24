@@ -5,17 +5,13 @@
  * Host view for P44:
  * - Circular 09/2020/TT-NHNN 4-Eyes principle demonstration
  * - Master-Detail layout integrating QuarantineList & QuarantineDetailPane
- * - Role Switcher toolbar (R01 Maker vs R04 Checker)
+ * - Authenticated session badge (Bound to authStore.currentUser, switcher eliminated)
  */
-import { useWorkbenchStore } from '../../stores/workbenchStore';
+import { useAuthStore } from '../../stores/authStore';
 import QuarantineList from '../../components/banking/quarantine/QuarantineList.vue';
 import QuarantineDetailPane from '../../components/banking/quarantine/QuarantineDetailPane.vue';
 
-const store = useWorkbenchStore();
-
-function setRole(role: 'MAKER' | 'CHECKER') {
-  store.switchOperatorRole(role);
-}
+const authStore = useAuthStore();
 </script>
 
 <template>
@@ -34,28 +30,22 @@ function setRole(role: 'MAKER' | 'CHECKER') {
         </div>
       </div>
 
-      <!-- Interactive 4-Eyes Role Switcher -->
+      <!-- Static Authenticated Session Badge (Bound to authStore.currentUser) -->
       <div class="topbar-right">
-        <div class="role-switcher-box">
-          <span class="switcher-label">Giả Lập Vai Trò 4 Mắt:</span>
-          <div class="role-btn-group">
-            <button
-              class="role-btn role-maker"
-              :class="{ active: store.currentOperatorRole === 'MAKER' }"
-              @click="setRole('MAKER')"
-            >
-              <span class="role-icon">✍️</span>
-              <span class="role-text">R01 Kế Toán Viên (Maker)</span>
-            </button>
-            <button
-              class="role-btn role-checker"
-              :class="{ active: store.currentOperatorRole === 'CHECKER' }"
-              @click="setRole('CHECKER')"
-            >
-              <span class="role-icon">🛡️</span>
-              <span class="role-text">R04 Kế Toán Trưởng (Checker)</span>
-            </button>
+        <div class="session-officer-badge">
+          <span
+            class="officer-avatar-dot"
+            :style="{ backgroundColor: authStore.currentUser.avatarColor || '#2563eb' }"
+          >
+            {{ authStore.currentUser.avatarInitials }}
+          </span>
+          <div class="officer-identity">
+            <span class="officer-name">{{ authStore.currentUser.fullName }}</span>
+            <span class="officer-role-pill" :class="authStore.currentUser.role.toLowerCase()">
+              {{ authStore.currentUser.roleTitle }}
+            </span>
           </div>
+          <span v-if="authStore.isReadOnly" class="readonly-pill">[CHỈ ĐỌC]</span>
         </div>
       </div>
     </header>
@@ -148,59 +138,60 @@ function setRole(role: 'MAKER' | 'CHECKER') {
   gap: 16px;
 }
 
-.role-switcher-box {
+.session-officer-badge {
   display: flex;
   align-items: center;
   gap: 10px;
   background: #0f172a;
-  padding: 4px 8px 4px 12px;
+  padding: 6px 14px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.switcher-label {
-  font-size: 11px;
-  color: #94a3b8;
-  font-weight: 600;
-}
-
-.role-btn-group {
-  display: flex;
-  gap: 4px;
-}
-
-.role-btn {
+.officer-avatar-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: #94a3b8;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.officer-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.officer-name {
   font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease-in-out;
-}
-
-.role-btn:hover {
+  font-weight: 700;
   color: #f8fafc;
-  background: rgba(255, 255, 255, 0.05);
 }
 
-.role-btn.role-maker.active {
+.officer-role-pill {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.officer-role-pill.maker { color: #fbbf24; }
+.officer-role-pill.checker { color: #34d399; }
+.officer-role-pill.cfo { color: #a78bfa; }
+.officer-role-pill.auditor { color: #f59e0b; }
+.officer-role-pill.admin { color: #ef4444; }
+
+.readonly-pill {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
   background: rgba(245, 158, 11, 0.2);
   color: #fbbf24;
-  border-color: rgba(245, 158, 11, 0.4);
-  box-shadow: 0 0 10px rgba(245, 158, 11, 0.15);
-}
-
-.role-btn.role-checker.active {
-  background: rgba(16, 185, 129, 0.2);
-  color: #34d399;
-  border-color: rgba(16, 185, 129, 0.4);
-  box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
 }
 
 .quarantine-grid {

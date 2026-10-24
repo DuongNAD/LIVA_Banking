@@ -796,6 +796,38 @@ async fn auth_create_user(
     .await
 }
 
+#[tauri::command]
+async fn auth_check_permission(
+    window: tauri::Window,
+    state: tauri::State<'_, NativeCoreState>,
+    role: Option<String>,
+    permission: Option<String>,
+    command: Option<String>,
+    username: Option<String>,
+    payload: Option<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    let principal = authorize_tauri_principal(window.label(), "auth:check_permission")?;
+    let final_payload = if let Some(p) = payload {
+        p
+    } else {
+        serde_json::json!({
+            "role": role,
+            "permission": permission,
+            "command": command,
+            "username": username,
+        })
+    };
+    handle_command_as(
+        principal,
+        state.0.clone(),
+        "auth:check_permission",
+        final_payload,
+        None,
+        None,
+    )
+    .await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Without a subscriber every tracing::info!/error! from liva-native-core
@@ -1075,7 +1107,8 @@ pub fn run() {
             banking_get_compliance_status,
             auth_login,
             auth_get_quick_accounts,
-            auth_create_user
+            auth_create_user,
+            auth_check_permission
         ])
         .run(tauri::generate_context!())
         .expect("[LIVA Tauri] Fatal: Failed to start application");

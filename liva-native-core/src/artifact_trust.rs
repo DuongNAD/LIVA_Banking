@@ -174,3 +174,24 @@ pub fn verify_model_artifact(models_root: &Path, candidate: &Path) -> Result<Pat
     let hash = embedded_model_hash(&manifest_path)?;
     verify_trusted_file(&canonical_root, &canonical_file, &hash)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_embedded_model_hash_qwen3_14b() {
+        let hash = embedded_model_hash("Qwen_Qwen3-14B-Q5_K_M.gguf")
+            .expect("Qwen3 14B must be registered in embedded manifest");
+        assert_eq!(
+            hash,
+            "bf19bf5c77c530762012f71215b62aa8f0bae08111ee0d537b8496479e17cfa3"
+        );
+    }
+
+    #[test]
+    fn test_embedded_model_hash_unknown_rejected() {
+        assert!(embedded_model_hash("unknown_malicious_model.gguf").is_err());
+    }
+}
+

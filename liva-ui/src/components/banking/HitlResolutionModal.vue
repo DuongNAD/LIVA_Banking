@@ -32,15 +32,32 @@ const isSubmitting = ref(false);
 const submitError = ref<string | null>(null);
 
 // Circular 09/2020/TT-NHNN 4-Eyes Identities
-const makerId = ref(authStore.currentUser.role === 'MAKER' ? authStore.currentUser.id : 'KT_TRINH_VAN_NAM');
-const checkerId = ref(authStore.currentUser.role === 'CHECKER' ? authStore.currentUser.id : 'KTT_NGUYEN_MINH_TRI');
+const getInitialMakerId = () => {
+  if (authStore.currentUser?.role === 'MAKER') {
+    return authStore.currentUser.username || authStore.currentUser.id;
+  }
+  return (props.transaction as any)?.makerId || 'KT_TRINH_VAN_NAM';
+};
+
+const getInitialCheckerId = () => {
+  if (authStore.currentUser?.role === 'CHECKER' || authStore.currentUser?.role === 'CFO') {
+    return authStore.currentUser.username || authStore.currentUser.id;
+  }
+  return 'KTT_NGUYEN_MINH_TRI';
+};
+
+const makerId = ref(getInitialMakerId());
+const checkerId = ref(getInitialCheckerId());
 
 // Keep synchronized if user switches account
 watch(() => authStore.currentUser, (newUser) => {
+  if (!newUser) return;
   if (newUser.role === 'MAKER') {
-    makerId.value = newUser.id;
-  } else if (newUser.role === 'CHECKER') {
-    checkerId.value = newUser.id;
+    makerId.value = newUser.username || newUser.id;
+    checkerId.value = 'KTT_NGUYEN_MINH_TRI';
+  } else if (newUser.role === 'CHECKER' || newUser.role === 'CFO') {
+    checkerId.value = newUser.username || newUser.id;
+    makerId.value = (props.transaction as any)?.makerId || 'KT_TRINH_VAN_NAM';
   }
 });
 
@@ -50,6 +67,35 @@ const isSelfApprovalViolation = computed(() => {
 
 function formatVnd(val: number): string {
   return new Intl.NumberFormat('en-US').format(val) + ' VND';
+}
+
+async function handleReject() {
+  submitError.value = null;
+
+  if (isSelfApprovalViolation.value) {
+    submitError.value = 'Vi phạm Thông tư 09/2020/TT-NHNN: Kế toán viên (Maker) không được tự phê duyệt với vai trò Kế toán trưởng (Checker).';
+    return;
+  }
+
+  isSubmitting.value = true;
+
+  const result = await reconcileStore.confirmHitlResolution({
+    txId: props.transaction.id,
+    tokenUuid: props.transaction.tokenUuid || 'token-' + crypto.randomUUID(),
+    action: 'REJECT' as any,
+    targetAccount: targetAccount.value,
+    notes: reviewNotes.value || 'Kế toán trưởng từ chối đề xuất đối soát',
+    makerId: makerId.value,
+    checkerId: checkerId.value,
+  });
+
+  isSubmitting.value = false;
+  if (result.success) {
+    emit('resolved', props.transaction.txCode);
+    emit('close');
+  } else {
+    submitError.value = result.error || 'Có lỗi xảy ra trong quá trình bác bỏ đề xuất.';
+  }
 }
 
 async function handleConfirm() {
@@ -100,6 +146,11 @@ async function handleConfirm() {
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
+      </div>
+
+      <!-- Auditor / Read-Only Notice Banner -->
+      <div v-if="authStore.isAuditor || authStore.isReadOnly" class="auditor-banner">
+        👁️ <strong>[HỒ SƠ KIỂM TOÁN CHỈ ĐỌC]</strong> — Bạn đang xem xét giao dịch với quyền Kiểm toán viên. Chế độ chỉ đọc, không có quyền lập đề xuất hoặc phê duyệt đối soát.
       </div>
 
       <!-- Single-Use Token UUID Banner -->
@@ -204,7 +255,8 @@ async function handleConfirm() {
             <input
               v-model="makerId"
               type="text"
-              class="role-input font-mono"
+              readonly
+              class="role-input font-mono readonly-input"
               placeholder="Nhập ID/Tên kế toán viên..."
             />
           </div>
@@ -218,7 +270,8 @@ async function handleConfirm() {
             <input
               v-model="checkerId"
               type="text"
-              class="role-input font-mono"
+              readonly
+              class="role-input font-mono readonly-input"
               placeholder="Nhập ID/Tên kế toán trưởng..."
             />
           </div>
@@ -271,17 +324,45 @@ async function handleConfirm() {
 
       <!-- Footer / Two-Phase Confirmation Buttons -->
       <div class="modal-footer">
-        <button class="btn btn-secondary" @click="emit('close')">
-          Hủy Bỏ
-        </button>
-        <button
-          class="btn btn-confirm"
-          :disabled="isSubmitting || isSelfApprovalViolation"
-          @click="handleConfirm"
-        >
-          <span v-if="isSubmitting">Đang ghi sổ an toàn & ký số SHA-256...</span>
-          <span v-else>Xác Nhận Phê Duyệt (Ký Số Phase 2)</span>
-        </button>
+        <template v-if="authStore.isAuditor || authStore.isReadOnly || authStore.isAdmin">
+          <span class="auditor-pill">[HỒ SƠ KIỂM TOÁN CHỈ ĐỌC]</span>
+          <button class="btn btn-secondary" @click="emit('close')">
+            Đóng
+          </button>
+        </template>
+        <template v-else-if="authStore.isChecker || authStore.isCfo">
+          <button class="btn btn-secondary" @click="emit('close')">
+            Hủy Bỏ
+          </button>
+          <button
+            class="btn btn-reject"
+            :disabled="isSubmitting || isSelfApprovalViolation"
+            @click="handleReject"
+          >
+            Bác Bỏ Đề Xuất (Reject)
+          </button>
+          <button
+            class="btn btn-confirm btn-approve"
+            :disabled="isSubmitting || isSelfApprovalViolation"
+            @click="handleConfirm"
+          >
+            <span v-if="isSubmitting">Đang ghi sổ an toàn & ký số SHA-256...</span>
+            <span v-else>Xác Nhận Phê Duyệt (Ký Số Phase 2)</span>
+          </button>
+        </template>
+        <template v-else>
+          <button class="btn btn-secondary" @click="emit('close')">
+            Hủy Bỏ
+          </button>
+          <button
+            class="btn btn-confirm btn-propose"
+            :disabled="isSubmitting || isSelfApprovalViolation"
+            @click="handleConfirm"
+          >
+            <span v-if="isSubmitting">Đang ghi sổ đề xuất...</span>
+            <span v-else>Lập Đề Xuất Đối Soát (Phase 1)</span>
+          </button>
+        </template>
       </div>
     </div>
   </div>
@@ -720,5 +801,46 @@ async function handleConfirm() {
   background: #94a3b8;
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.btn-reject {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.btn-reject:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+.btn-reject:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.readonly-input {
+  background: #f1f5f9;
+  cursor: default;
+  color: #475569;
+}
+
+.auditor-banner {
+  background: #eff6ff;
+  border-left: 4px solid #0284c7;
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: #0369a1;
+}
+
+.auditor-pill {
+  font-size: 11px;
+  font-weight: 700;
+  color: #0284c7;
+  background: #e0f2fe;
+  padding: 6px 12px;
+  border-radius: 4px;
+  align-self: center;
 }
 </style>

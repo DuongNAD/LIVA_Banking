@@ -1,0 +1,217 @@
+metadata:
+  name: "LIVA Default Vietnamese Banking Posting Rules"
+  version: "2.0.0"
+  standard: "circular200_2014"
+  description: "Dynamic posting rules covering VCB, TCB, BIDV, CTG transactions, fee unbundling, and statutory tax routing"
+
+defaults:
+  bank_default_account: "1121"
+  fee_expense_account: "6427"
+  fee_tax_account: "6425"
+  input_vat_account: "1331"
+  customer_default_account: "131"
+  vendor_default_account: "331"
+  standard_vat_rate_bps: 1000  # 10.00%
+
+rules:
+  # RULE 1: Standalone Bank Service Fee with 10% VAT unbundling (Digibank, SMS, Monthly Maintenance)
+  - id: "RULE_BANK_FEE_SERVICE_UNBUNDLE"
+    name: "Phí dịch vụ ngân hàng bóc tách thuế GTGT 10%"
+    priority: 100
+    enabled: true
+    when:
+      direction: "debit"
+      narration_patterns:
+        - "(?i)(?:phi\\s+duy\\s+tri|phi\\s+ql\\s+tk|phi\\s+sms|phi\\s+digibank|phi\\s+dich\\s+vu|phi\\s+thuong\\s+nien)"
+        - "(?i)(?:bs\\s+phi|phi\\s+token|phi\\s+ib|phi\\s+internet\\s+banking)"
+    then:
+      description_template: "Phí dịch vụ ngân hàng {{bank}} - {{narration}}"
+      lines:
+        - account_expr: "{{fee_expense_account}}"
+          posting_type: "debit"
+          amount_expr:
+            type: "net_exclusive"
+            vat_rate_bps: 1000
+          line_description: "Chi phí dịch vụ mua ngoài (phí ngân hàng)"
+        - account_expr: "{{input_vat_account}}"
+          posting_type: "debit"
+          amount_expr:
+            type: "vat_portion"
+            vat_rate_bps: 1000
+          line_description: "Thuế GTGT đầu vào được khấu trừ (10%)"
+        - account_expr: "{{bank_account}}"
+          posting_type: "credit"
+          amount_expr:
+            type: "full_amount"
+          line_description: "Trích tiền gửi ngân hàng thanh toán phí"
+
+  # RULE 2: Wire Transfer Fees (Napas / Citad / Interbank)
+  - id: "RULE_BANK_FEE_WIRE"
+    name: "Phí chuyển tiền liên ngân hàng / Napas / Citad bóc tách VAT"
+    priority: 95
+    enabled: true
+    when:
+      direction: "debit"
+      narration_patterns:
+        - "(?i)(?:phi\\s+chuyen\\s+tien|phi\\s+giao\\s+dich|phi\\s+napas|phi\\s+citad|phi\\s+lenh\\s+chuyen)"
+    then:
+      description_template: "Phí chuyển khoản {{bank}} - {{ref}}"
+      lines:
+        - account_expr: "{{fee_expense_account}}"
+          posting_type: "debit"
+          amount_expr:
+            type: "net_exclusive"
+            vat_rate_bps: 1000
+          line_description: "Phí chuyển tiền"
+        - account_expr: "{{input_vat_account}}"
+          posting_type: "debit"
+          amount_expr:
+            type: "vat_portion"
+            vat_rate_bps: 1000
+          line_description: "Thuế GTGT phí chuyển tiền (10%)"
+        - account_expr: "{{bank_account}}"
+          posting_type: "credit"
+          amount_expr:
+            type: "full_amount"
+          line_description: "Trích tiền gửi thanh toán phí chuyển tiền"
+
+  # RULE 3: Financing, Guarantee, and L/C Fees (routed to 635)
+  - id: "RULE_BANK_FINANCIAL_FEE"
+    name: "Phí bảo lãnh, L/C, cam kết tín dụng (Chi phí tài chính 635)"
+    priority: 90
+    enabled: true
+    when:
+      direction: "debit"
+      narration_patterns:
+        - "(?i)(?:bao\\s+lanh|phi.*bao\\s+lanh|phi\\s+cam\\s+ket|phi\\s+tin\\s+dung|phi\\s+l/?c|phi\\s+mo\\s+lc)"
+    then:
+      description_template: "Chi phí tài chính ngân hàng {{bank}} - {{narration}}"
+      lines:
+        - account_expr: "635"
+          posting_type: "debit"
+          amount_expr:
+            type: "net_exclusive"
+            vat_rate_bps: 1000
+          line_description: "Chi phí tài chính (bảo lãnh, L/C)"
+        - account_expr: "{{input_vat_account}}"
+          posting_type: "debit"
+          amount_expr:
+            type: "vat_portion"
+            vat_rate_bps: 1000
+          line_description: "Thuế GTGT phí tài chính (10%)"
+        - account_expr: "{{bank_account}}"
+          posting_type: "credit"
+          amount_expr:
+            type: "full_amount"
+          line_description: "Trích tiền gửi thanh toán phí tài chính"
+
+  # RULE 4: Bank Interest Earned (Credit to 515)
+  - id: "RULE_INTEREST_EARNED"
+    name: "Lãi tiền gửi ngân hàng ghi nhận doanh thu tài chính"
+    priority: 85
+    enabled: true
+    when:
+      direction: "credit"
+      narration_patterns:
+        - "(?i)(?:tra\\s+lai|lai\\s+tien\\s+gui|lai\\s+nhap\\s+goc|lai\\s+thang|lai\\s+tk\\s+tg)"
+    then:
+      description_template: "Thu lãi tiền gửi ngân hàng {{bank}} - {{ref}}"
+      lines:
+        - account_expr: "{{bank_account}}"
+          posting_type: "debit"
+          amount_expr:
+            type: "full_amount"
+          line_description: "Thu lãi vào tiền gửi ngân hàng"
+        - account_expr: "515"
+          posting_type: "credit"
+          amount_expr:
+            type: "full_amount"
+          line_description: "Doanh thu hoạt động tài chính (lãi tiền gửi)"
+
+  # RULE 5: Statutory Tax Payment (Outbound to State Treasury / Kho bạc)
+  - id: "RULE_TAX_PAYMENT"
+    name: "Nộp thuế vào Kho bạc Nhà nước"
+    priority: 80
+    enabled: true
+    when:
+      direction: "debit"
+      narration_patterns:
+        - "(?i)(?:nop\\s+thue|kho\\s+bac|kbnm|thue\\s+gtgt|thue\\s+tndn|thue\\s+tncn|nop\\s+nsnn)"
+    then:
+      description_template: "Nộp thuế NSNN qua {{bank}} - {{narration}}"
+      lines:
+        - account_expr: "3331"
+          posting_type: "debit"
+          amount_expr:
+            type: "full_amount"
+          line_description: "Nộp thuế Nhà nước"
+        - account_expr: "{{bank_account}}"
+          posting_type: "credit"
+          amount_expr:
+            type: "full_amount"
+          line_description: "Trích tiền gửi ngân hàng nộp thuế"
+
+  # RULE 6: Salary and Payroll Disbursement (Outbound to 334)
+  - id: "RULE_PAYROLL_DISBURSEMENT"
+    name: "Chi trả lương nhân viên"
+    priority: 75
+    enabled: true
+    when:
+      direction: "debit"
+      narration_patterns:
+        - "(?i)(?:thanh\\s+toan\\s+luong|chi\\s+luong|tam\\s+ung\\s+luong|luong\\s+t[0-9]{1,2})"
+    then:
+      description_template: "Chi lương nhân viên qua {{bank}} - {{narration}}"
+      lines:
+        - account_expr: "334"
+          posting_type: "debit"
+          amount_expr:
+            type: "full_amount"
+          line_description: "Thanh toán lương cho người lao động"
+        - account_expr: "{{bank_account}}"
+          posting_type: "credit"
+          amount_expr:
+            type: "full_amount"
+          line_description: "Trích tiền gửi ngân hàng chi trả lương"
+
+  # RULE 7: Customer Receipt (Default Inbound matching)
+  - id: "RULE_CUSTOMER_RECEIPT_DEFAULT"
+    name: "Khách hàng thanh toán tiền hàng (Nợ 1121 / Có 131)"
+    priority: 10
+    enabled: true
+    when:
+      direction: "credit"
+    then:
+      description_template: "Thu tiền khách hàng {{partner}} - {{ref}}"
+      lines:
+        - account_expr: "{{bank_account}}"
+          posting_type: "debit"
+          amount_expr:
+            type: "full_amount"
+          line_description: "Thu tiền gửi ngân hàng từ khách hàng"
+        - account_expr: "{{partner_account}}"
+          posting_type: "credit"
+          amount_expr:
+            type: "full_amount"
+          line_description: "Giảm công nợ phải thu khách hàng"
+
+  # RULE 8: Vendor Payment (Default Outbound matching)
+  - id: "RULE_VENDOR_PAYMENT_DEFAULT"
+    name: "Thanh toán cho nhà cung cấp (Nợ 331 / Có 1121)"
+    priority: 10
+    enabled: true
+    when:
+      direction: "debit"
+    then:
+      description_template: "Thanh toán nhà cung cấp {{partner}} - {{ref}}"
+      lines:
+        - account_expr: "{{partner_account}}"
+          posting_type: "debit"
+          amount_expr:
+            type: "full_amount"
+          line_description: "Giảm công nợ phải trả nhà cung cấp"
+        - account_expr: "{{bank_account}}"
+          posting_type: "credit"
+          amount_expr:
+            type: "full_amount"
+          line_description: "Trích tiền gửi ngân hàng thanh toán cho nhà cung cấp"

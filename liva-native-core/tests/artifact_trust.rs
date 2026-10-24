@@ -71,6 +71,10 @@ fn tu_choi_duong_dan_tuyet_doi_ngoai_root_va_hash_sai() {
 #[test]
 fn embedded_manifest_la_trust_anchor_cho_model_va_vec0() {
     assert_eq!(
+        embedded_model_hash("Qwen_Qwen3-14B-Q5_K_M.gguf").unwrap(),
+        "bf19bf5c77c530762012f71215b62aa8f0bae08111ee0d537b8496479e17cfa3"
+    );
+    assert_eq!(
         embedded_model_hash("Qwen3-VL-2B-Instruct-GGUF/Qwen3-VL-2B-Instruct-Q4_K_M.gguf").unwrap(),
         "858fcf2a39dc73b26dd86592cb0a5f949b59d1edb365d1dea98e46b02e955e56"
     );

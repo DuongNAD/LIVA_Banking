@@ -13,6 +13,17 @@ use thiserror::Error;
 pub mod erp_posting;
 pub use erp_posting::{ErpTarget, ReconciliationCertificate, ReconciliationVoucherProposal, VoucherStatus};
 
+pub mod dsl;
+pub use dsl::{
+    load_default_coa_circular133, load_default_coa_circular200, load_default_posting_engine,
+    load_default_posting_rules, route_and_unbundle_fee, unbundle_gross_fee, voucher_to_journal_entry,
+    AccountCategory, AccountDefinition, AccountNature, AccountStandard, AmountFormula,
+    ChartOfAccounts, CoaError, CoaMetadata, CompiledCoaTree, DeclarativePostingEngine,
+    PostingAction, PostingCondition, PostingContext, PostingEventType, PostingGlobalDefaults,
+    PostingLineTemplate, PostingRule, PostingRuleConfig, PostingRuleMetadata, RuleEngineError,
+    UnbundledFeeResult, VasStandard, BPS_DIVISOR, VAT_EXEMPT_RATE_BPS,
+};
+
 pub mod financial_risk;
 pub use financial_risk::{
     classify_debt_group, compute_solvency_ratios, evaluate_credit_underwriting, run_stress_test,
@@ -74,16 +85,22 @@ pub enum LedgerError {
 
 /// Standard accounting account classification according to Vietnam Circular 200/2014/TT-BTC.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AccountType {
     /// Loại 1 & 2: Tài sản (Asset) — Số dư bình thường bên NỢ
+    #[serde(alias = "Asset", alias = "ASSET")]
     Asset,
     /// Loại 3: Nợ phải trả (Liability) — Số dư bình thường bên CÓ
+    #[serde(alias = "Liability", alias = "LIABILITY")]
     Liability,
     /// Loại 4: Vốn chủ sở hữu (Equity) — Số dư bình thường bên CÓ
+    #[serde(alias = "Equity", alias = "EQUITY")]
     Equity,
     /// Loại 5 & 7: Doanh thu & Thu nhập khác (Revenue) — Số dư bình thường bên CÓ
+    #[serde(alias = "Revenue", alias = "REVENUE")]
     Revenue,
     /// Loại 6 & 8: Chi phí & Chi phí khác (Expense) — Số dư bình thường bên NỢ
+    #[serde(alias = "Expense", alias = "EXPENSE")]
     Expense,
 }
 
@@ -104,10 +121,13 @@ impl AccountType {
 
 /// Posting type for a journal line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PostingType {
     /// Ghi Nợ (Debit)
+    #[serde(alias = "Debit", alias = "DEBIT")]
     Debit,
     /// Ghi Có (Credit)
+    #[serde(alias = "Credit", alias = "CREDIT")]
     Credit,
 }
 
@@ -311,13 +331,16 @@ impl Ledger {
         lines: Vec<JournalLine>,
         timestamp: i64,
     ) -> Result<u64, LedgerError> {
-        let entry = JournalEntry {
+        self.post_entry(JournalEntry {
             id: self.next_entry_id,
             timestamp,
             description: description.into(),
             lines,
-        };
+        })
+    }
 
+    /// Atomically posts an existing JournalEntry into the ledger and updates balances.
+    pub fn post_entry(&mut self, mut entry: JournalEntry) -> Result<u64, LedgerError> {
         // 1. Verify internal double-entry equality (Debit == Credit)
         entry.verify_balance()?;
 
@@ -343,6 +366,7 @@ impl Ledger {
         }
 
         // 4. Append to append-only event store
+        entry.id = self.next_entry_id;
         let id = entry.id;
         self.entries.push(entry);
         self.next_entry_id += 1;

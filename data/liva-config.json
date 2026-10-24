@@ -3,7 +3,7 @@
     "cloudApiKey": "",
     "cloudBaseUrl": "",
     "cloudModel": "",
-    "expertModel": "gemma-4-12B-it-qat-UD-Q4_K_XL.gguf",
+    "expertModel": "Qwen_Qwen3-14B-Q5_K_M.gguf",
     "localModelsDir": "E:\\AI_Models",
     "maxTokens": 2048,
     "mmprojModel": "gemma-4-E4B-it-qat-GGUF/mmproj-F16.gguf",

@@ -115,9 +115,12 @@ onUnmounted(() => {
           </div>
           <div class="user-meta-column">
             <span class="user-name">{{ userName || authStore.currentUser.fullName }}</span>
-            <span class="user-role-tag" :class="`tag-${authStore.currentUser.role.toLowerCase()}`">
-              {{ authStore.currentUser.role }}
-            </span>
+            <div class="user-role-row">
+              <span class="user-role-tag" :class="`tag-${authStore.currentUser.role.toLowerCase()}`">
+                {{ authStore.currentUser.role }}
+              </span>
+              <span v-if="authStore.isReadOnly" class="readonly-pill">[CHỈ ĐỌC]</span>
+            </div>
           </div>
           <svg
             class="chevron-icon"
@@ -388,6 +391,24 @@ onUnmounted(() => {
   color: #0f172a;
 }
 
+.user-role-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.readonly-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 800;
+  background: rgba(2, 132, 199, 0.15);
+  color: #0284c7;
+  border: 1px solid rgba(2, 132, 199, 0.3);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
 .user-role-tag {
   font-size: 9px;
   font-weight: 700;
@@ -395,7 +416,6 @@ onUnmounted(() => {
   letter-spacing: 0.4px;
   padding: 1px 4px;
   border-radius: 3px;
-  margin-top: 2px;
 }
 
 .tag-maker { background: #dbeafe; color: #1e40af; }

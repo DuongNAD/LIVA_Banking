@@ -11,8 +11,10 @@
  */
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useWorkbenchStore } from '../../../stores/workbenchStore';
+import { useAuthStore } from '../../../stores/authStore';
 
 const store = useWorkbenchStore();
+const authStore = useAuthStore();
 
 // Form states
 const proposedAccount = ref('6425');
@@ -30,9 +32,16 @@ const activeItem = computed(() => store.activeQuarantineItem);
 // Segregation of Duties (SoD) Check
 const isSodViolation = computed(() => {
   if (!activeItem.value || !activeItem.value.makerId) return false;
+  const currentId = (authStore.currentUser?.username || store.currentOperatorId).toLowerCase();
+  const currentProfileId = (authStore.currentUser?.id || '').toLowerCase();
+  const maker = activeItem.value.makerId.toLowerCase();
   return (
-    store.currentOperatorRole === 'CHECKER' &&
-    activeItem.value.makerId === store.currentOperatorId
+    (store.currentOperatorRole === 'CHECKER' || authStore.isChecker) &&
+    (maker === currentId ||
+      maker === currentProfileId ||
+      (maker === 'usr-maker-ketoan-01' && currentId === 'usr-maker-ketoan-01') ||
+      (maker === 'usr-checker-ktt-01' && currentId === 'usr-checker-ktt-01') ||
+      maker === store.currentOperatorId.toLowerCase())
   );
 });
 
@@ -302,8 +311,16 @@ function handleCheckerReject() {
 
         <!-- Dynamic Action Form based on Role -->
 
+        <!-- CASE C: AUDITOR / READ-ONLY WORKSPACE -->
+        <div v-if="authStore.isReadOnly" class="role-workspace auditor-workspace">
+          <div class="auditor-readonly-notice">
+            <span class="info-icon">🔍</span>
+            <span>Hồ sơ cách ly đang được mở ở chế độ <strong>[CHỈ ĐỌC / READ-ONLY]</strong> cho Kiểm toán viên. Toàn bộ thao tác lập đề xuất hoặc duyệt/bác bỏ bị vô hiệu hóa.</span>
+          </div>
+        </div>
+
         <!-- CASE A: MAKER WORKSPACE -->
-        <div v-if="store.currentOperatorRole === 'MAKER'" class="role-workspace">
+        <div v-else-if="store.currentOperatorRole === 'MAKER'" class="role-workspace">
           <div v-if="activeItem.status === 'PENDING_MAKER'" class="maker-form">
             <div class="form-title">Lập Đề Xuất Xử Lý Cách Ly</div>
 
@@ -346,7 +363,7 @@ function handleCheckerReject() {
         </div>
 
         <!-- CASE B: CHECKER WORKSPACE -->
-        <div v-if="store.currentOperatorRole === 'CHECKER'" class="role-workspace">
+        <div v-else-if="store.currentOperatorRole === 'CHECKER'" class="role-workspace">
           <div v-if="activeItem.status === 'SUBMITTED_TO_CHECKER'" class="checker-form">
             <div class="form-title">Thẩm Quyền Ký Duyệt Của Kế Toán Trưởng</div>
 
@@ -984,5 +1001,18 @@ function handleCheckerReject() {
   padding: 12px;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 6px;
+}
+
+.auditor-readonly-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: #fbbf24;
+  padding: 14px 16px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 8px;
+  line-height: 1.5;
 }
 </style>

@@ -7,11 +7,13 @@ import { ref } from 'vue';
 import { useReconciliationStore, type BankTransaction } from '../../stores/reconciliationStore';
 import { useStatementStore } from '../../stores/statementStore';
 import { useBankingStore } from '../../stores/bankingStore';
+import { useAuthStore } from '../../stores/authStore';
 import HitlResolutionModal from './HitlResolutionModal.vue';
 
 const reconcileStore = useReconciliationStore();
 const statementStore = useStatementStore();
 const bankingStore = useBankingStore();
+const authStore = useAuthStore();
 
 const isDragging = ref(false);
 const fileInputRef = ref<HTMLInputElement | null>(null);
@@ -124,6 +126,7 @@ function submitPastedData() {
 
     <!-- Integrated Multi-Format Statement Dropzone Bar -->
     <div
+      v-if="!authStore.isReadOnly && !authStore.isAdmin"
       class="statement-dropzone"
       :class="{ 'is-dragging': isDragging }"
       @dragover="onDragOver"
@@ -219,6 +222,7 @@ function submitPastedData() {
 
       <div class="table-actions-right">
         <button
+          v-if="!authStore.isReadOnly && !authStore.isAdmin"
           class="paste-btn"
           title="Dán dữ liệu sao chép từ Google Sheets, Docs, Excel"
           @click="isPasteModalOpen = true"
@@ -227,6 +231,7 @@ function submitPastedData() {
         </button>
 
         <button
+          v-if="!authStore.isReadOnly && !authStore.isAdmin"
           class="reset-btn"
           title="Xóa toàn bộ số liệu về 0 VND để tự nạp lại từ đầu"
           @click="handleResetAll"
@@ -235,6 +240,7 @@ function submitPastedData() {
         </button>
 
         <button
+          v-if="!authStore.isReadOnly && !authStore.isAdmin"
           class="run-reconcile-btn"
           :disabled="reconcileStore.isReconciling"
           @click="reconcileStore.runReconciliation()"

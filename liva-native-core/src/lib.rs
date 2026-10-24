@@ -1,7 +1,7 @@
 pub mod active_recall;
 pub mod agent;
 mod artifact_trust;
-mod authorization;
+pub mod authorization;
 pub mod banking;
 pub mod boot;
 pub mod cognitive;
@@ -44,17 +44,21 @@ pub use artifact_trust::{
     embedded_file_hash, embedded_model_hash, embedded_runtime_artifact_hash, verify_model_artifact,
     verify_trusted_file,
 };
-pub use authorization::{CommandPrincipal, authorize_command};
+pub use authorization::{
+    CommandPrincipal, Permission, UserRole, authorize_command, check_command_role_permission,
+    check_user_permission, get_role_permissions,
+};
 pub use crypto::EncryptionEngine;
 pub use db::DatabasePool;
 pub use llm::LlamaRouterManager;
 pub(crate) use paths::update_config_file_at;
 pub use paths::{
     APP_DATA_DIR_NAME, DEFAULT_EXPERT_MODEL, DEFAULT_MODELS_DIR, DEFAULT_ROUTER_MODEL,
-    config_file_path, configured_expert_model_path, configured_mmproj_path, configured_models_dir,
-    configured_router_model_path, data_dir, default_vault_path, exe_dir, models_dir_fallback,
-    resolve_resource_path, resource_candidate_paths, resource_write_root, stray_database_paths,
-    user_home_dir, validate_model_path,
+    LEGACY_DEV_MODELS_DIR, config_file_path, configured_expert_model_path, configured_mmproj_path,
+    configured_models_dir, configured_router_model_path, data_dir, default_vault_path, exe_dir,
+    is_path_accessible, models_dir_fallback, resolve_models_dir_from_config, resolve_resource_path,
+    resource_candidate_paths, resource_write_root, stray_database_paths, user_home_dir,
+    validate_model_path,
 };
 use std::sync::Arc;
 pub use stt::SttManager;
@@ -358,13 +362,12 @@ pub fn db_error_hint(err: &str) -> &'static str {
     }
 }
 
-/// Origin được phép nối vào WebSocket gateway.
-pub const DEFAULT_WS_ALLOWED_ORIGINS: [&str; 5] = [
+/// Origin được phép nối vào WebSocket gateway mặc định (các origin cục bộ an toàn).
+pub const DEFAULT_WS_ALLOWED_ORIGINS: [&str; 4] = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "tauri://localhost",
     "https://tauri.localhost",
-    "https://rd_3JHcwHJK1iUTdwx1D22XRMeUA5K.ngrok-free.app",
 ];
 
 /// Kiểm tra header `Origin` của một handshake WebSocket có được phép không.
@@ -382,7 +385,8 @@ pub const DEFAULT_WS_ALLOWED_ORIGINS: [&str; 5] = [
 /// công dễ hơn nhiều. Hàng rào này nhắm vào **trang web**, nơi kẻ tấn công
 /// không đặt được `Origin`.
 ///
-/// Mở rộng bằng `LIVA_WS_ALLOWED_ORIGINS` (ngăn cách bằng dấu phẩy).
+/// Hợp nhất allow-list mặc định (`DEFAULT_WS_ALLOWED_ORIGINS`) với cấu hình động
+/// từ biến môi trường `LIVA_WS_ALLOWED_ORIGINS` (hỗ trợ cả định dạng CSV và JSON list).
 pub fn origin_allowed(origin: Option<&str>) -> bool {
     let Some(raw) = origin else {
         return true;
@@ -395,11 +399,50 @@ pub fn origin_allowed(origin: Option<&str>) -> bool {
     if DEFAULT_WS_ALLOWED_ORIGINS.contains(&origin) {
         return true;
     }
-    std::env::var("LIVA_WS_ALLOWED_ORIGINS")
-        .unwrap_or_default()
+    check_custom_allowed_origins(origin)
+}
+
+fn check_custom_allowed_origins(origin: &str) -> bool {
+    let Ok(raw_env) = std::env::var("LIVA_WS_ALLOWED_ORIGINS") else {
+        return false;
+    };
+    let trimmed = raw_env.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    // Hỗ trợ JSON Array: ["https://domain1.com", "https://domain2.com"]
+    if trimmed.starts_with('[') && trimmed.ends_with(']') {
+        if let Ok(json_list) = serde_json::from_str::<Vec<String>>(trimmed) {
+            return json_list
+                .iter()
+                .any(|entry| origin_matches_pattern(origin, entry.trim()));
+        }
+    }
+
+    // Mặc định: Phân tách bằng dấu phẩy (CSV)
+    trimmed
         .split(',')
         .map(str::trim)
-        .any(|allowed| !allowed.is_empty() && allowed == origin)
+        .any(|entry| !entry.is_empty() && origin_matches_pattern(origin, entry))
+}
+
+fn origin_matches_pattern(origin: &str, allowed: &str) -> bool {
+    if allowed.is_empty() {
+        return false;
+    }
+    if allowed == origin {
+        return true;
+    }
+    // Nếu cấu hình domain không kèm scheme (ví dụ: my-tunnel.ngrok-free.app)
+    if !allowed.contains("://") {
+        if let Some((scheme, host_port)) = origin.split_once("://") {
+            if matches!(scheme, "http" | "https" | "ws" | "wss") && host_port == allowed {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// Load the configured router model into the LLM engine. `force=false` only

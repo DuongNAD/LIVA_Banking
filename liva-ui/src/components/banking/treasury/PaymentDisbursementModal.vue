@@ -6,7 +6,8 @@
  * maker_user_id != checker_user_id on corporate fund disbursement orders.
  */
 import { ref, computed } from 'vue';
-import { useTreasuryStore } from '../../../stores/treasuryStore';
+import { useTreasuryStore, HIGH_LIMIT_THRESHOLD_VND } from '../../../stores/treasuryStore';
+import { useAuthStore } from '../../../stores/authStore';
 import type { PaymentOrder, PaymentPriority } from '../../../stores/treasuryStore';
 
 const props = defineProps<{
@@ -18,6 +19,16 @@ const emit = defineEmits<{
 }>();
 
 const store = useTreasuryStore();
+const authStore = useAuthStore();
+
+// Role and Permission checks
+const isMaker = computed(() => authStore.isMaker);
+const isChecker = computed(() => authStore.isChecker);
+const isCfo = computed(() => authStore.isCfo);
+const isAuditor = computed(() => authStore.isAuditor || authStore.isReadOnly);
+const isReadOnly = computed(() => authStore.isReadOnly);
+const canReviewOrders = computed(() => (isChecker.value || isCfo.value) && !isAuditor.value);
+const canDisburse = computed(() => (isChecker.value || isCfo.value) && !isAuditor.value);
 
 // Form states for new payment order
 const isCreatingNew = ref(false);
@@ -36,6 +47,34 @@ const actionError = ref('');
 const actionSuccess = ref('');
 
 const selectedOrder = computed(() => store.activePaymentOrder);
+
+// SoD Self-Approval Check
+const isSelfApproval = computed(() => {
+  if (!selectedOrder.value) return false;
+  const currentId = (authStore.currentUser?.username || '').toLowerCase();
+  const currentProfileId = (authStore.currentUser?.id || '').toLowerCase();
+  const currentOpId = store.currentOperatorId.toLowerCase();
+  const maker = (selectedOrder.value.makerId || '').toLowerCase();
+  return (
+    maker === currentId ||
+    maker === currentProfileId ||
+    maker === currentOpId ||
+    (maker === 'usr-treasury-maker-01' && currentId === 'maker_nam') ||
+    (maker === 'usr-cfo-checker-01' && (currentId === 'checker_tri' || currentId === 'cfo_huong'))
+  );
+});
+
+// High-limit check (>= 500M VND)
+const isHighLimitOrder = computed(() => {
+  if (!selectedOrder.value) return false;
+  return selectedOrder.value.amount >= HIGH_LIMIT_THRESHOLD_VND;
+});
+
+const canApproveSelected = computed(() => {
+  if (!canReviewOrders.value || isSelfApproval.value) return false;
+  if (isHighLimitOrder.value && !isCfo.value) return false;
+  return true;
+});
 
 function formatVnd(val: number): string {
   return `${val.toLocaleString('vi-VN')} ₫`;
@@ -114,23 +153,11 @@ function handleExecute(order: PaymentOrder) {
         </div>
 
         <div class="header-right">
-          <!-- Role Toggle for Testing -->
-          <div class="role-toggle-group">
-            <span class="role-lbl">Vai trò:</span>
-            <button
-              class="role-pill-btn maker"
-              :class="{ active: store.currentOperatorRole === 'MAKER' }"
-              @click="store.switchOperatorRole('MAKER')"
-            >
-              R02 Thủ quỹ (Maker)
-            </button>
-            <button
-              class="role-pill-btn checker"
-              :class="{ active: store.currentOperatorRole === 'CHECKER' }"
-              @click="store.switchOperatorRole('CHECKER')"
-            >
-              R03/R04 KTT/CFO (Checker)
-            </button>
+          <!-- Session Identity Badge (Read-Only) -->
+          <div class="session-identity-badge" :class="authStore.currentUser.role.toLowerCase()">
+            <span class="session-role-pill">{{ authStore.currentUser.role }}</span>
+            <span class="session-user-name">{{ authStore.currentUser.fullName }} ({{ authStore.currentUser.username }})</span>
+            <span v-if="isAuditor" class="session-readonly-tag">[CHỈ ĐỌC]</span>
           </div>
 
           <button class="btn-close" @click="emit('close')">✕</button>
@@ -152,7 +179,7 @@ function handleExecute(order: PaymentOrder) {
           <div class="list-title-row">
             <span class="title-text">Danh Sách Lệnh Chi ({{ store.paymentOrders.length }})</span>
             <button
-              v-if="store.currentOperatorRole === 'MAKER'"
+              v-if="isMaker"
               class="btn-new-order"
               @click="isCreatingNew = true; store.selectPaymentOrder(null)"
             >
@@ -185,8 +212,13 @@ function handleExecute(order: PaymentOrder) {
 
         <!-- Right Column: Create Form or Investigation / Approval Details -->
         <div class="order-detail-col">
+          <!-- Auditor Read-Only Banner -->
+          <div v-if="isAuditor || isReadOnly" class="auditor-notice-box">
+            👁️ [CHỈ ĐỌC] Hồ sơ chi quỹ kiểm toán — không thể tạo mới, phê duyệt hoặc giải ngân.
+          </div>
+
           <!-- VIEW 1: Form to Create New Order (When Maker clicks + Tạo Lệnh Chi) -->
-          <div v-if="isCreatingNew" class="create-form-pane">
+          <div v-if="isCreatingNew && isMaker" class="create-form-pane">
             <h3 class="pane-headline">Lập Lệnh Chi Tiền Điện Tử Mới (Maker)</h3>
 
             <div class="form-grid">
@@ -288,15 +320,25 @@ function handleExecute(order: PaymentOrder) {
 
             <!-- Segregation of Duties Check Banner -->
             <div
-              v-if="store.currentOperatorRole === 'CHECKER' && selectedOrder.makerId === store.currentOperatorId"
+              v-if="canReviewOrders && isSelfApproval"
               class="sod-warning-box"
             >
-              🚫 Vi phạm nguyên tắc 4 mắt: Bạn là người đã lập lệnh này. Không thể tự phê duyệt!
+              🚫 Vi phạm nguyên tắc 4 mắt (Circular 09/2020/TT-NHNN): Bạn là người đã lập lệnh này ({{ selectedOrder.makerId }}). Không thể tự thẩm tra hoặc phê duyệt!
+            </div>
+
+            <!-- High-Limit Warning Box -->
+            <div
+              v-if="canReviewOrders && isHighLimitOrder && !isCfo && !isSelfApproval"
+              class="high-limit-warning-box"
+            >
+              ⚠️ Lệnh chi giá trị lớn (≥ 500.000.000 VND). Vượt hạn mức phê duyệt của Kế toán trưởng — Cần Giám đốc tài chính (CFO) phê duyệt.
             </div>
 
             <!-- Checker Review Box -->
-            <div v-if="store.currentOperatorRole === 'CHECKER' && selectedOrder.status === 'SUBMITTED_TO_CHECKER'" class="checker-decision-box">
-              <label class="d-lbl">Ý kiến thẩm tra của Kế toán trưởng / CFO:</label>
+            <div v-if="canReviewOrders && selectedOrder.status === 'SUBMITTED_TO_CHECKER'" class="checker-decision-box">
+              <label class="d-lbl">
+                Ý kiến thẩm tra của {{ isCfo ? 'Giám đốc tài chính (CFO)' : 'Kế toán trưởng (Checker)' }}:
+              </label>
               <textarea
                 v-model="checkerDecisionNote"
                 rows="2"
@@ -306,14 +348,15 @@ function handleExecute(order: PaymentOrder) {
               <div class="decision-btn-row">
                 <button
                   class="btn btn-approve"
-                  :disabled="selectedOrder.makerId === store.currentOperatorId"
+                  :disabled="!canApproveSelected"
+                  :title="!canApproveSelected ? (isSelfApproval ? 'Vi phạm SoD: không thể tự phê duyệt' : 'Hạn mức ≥ 500M yêu cầu CFO phê duyệt') : undefined"
                   @click="handleApprove(selectedOrder)"
                 >
                   ✓ Phê Duyệt Lệnh Chi
                 </button>
                 <button
                   class="btn btn-reject"
-                  :disabled="selectedOrder.makerId === store.currentOperatorId"
+                  :disabled="isSelfApproval"
                   @click="handleReject(selectedOrder)"
                 >
                   ✕ Bác Bỏ
@@ -324,11 +367,19 @@ function handleExecute(order: PaymentOrder) {
             <!-- Execution Box (When Approved) -->
             <div v-if="selectedOrder.status === 'APPROVED'" class="disbursement-action-box">
               <div class="disburse-info">
-                <span>🛡️ Lệnh chi đã được Kế toán trưởng ký duyệt. Sẵn sàng phát lệnh Core Banking.</span>
+                <span>🛡️ Lệnh chi đã được Kế toán trưởng/CFO ký duyệt. Sẵn sàng phát lệnh Core Banking.</span>
               </div>
-              <button class="btn btn-disburse" @click="handleExecute(selectedOrder)">
+              <button
+                v-if="canDisburse"
+                class="btn btn-disburse"
+                :disabled="isSelfApproval"
+                @click="handleExecute(selectedOrder)"
+              >
                 🚀 Thực Hiện Giải Ngân (Disburse)
               </button>
+              <div v-else-if="!isAuditor" class="text-muted-disburse">
+                (Chỉ Checker hoặc CFO được quyền kích hoạt giải ngân Core Banking)
+              </div>
             </div>
 
             <!-- Executed Stamp -->
@@ -414,40 +465,57 @@ function handleExecute(order: PaymentOrder) {
   gap: 14px;
 }
 
-.role-toggle-group {
+.session-identity-badge {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   background: #0f172a;
-  padding: 2px 6px;
+  padding: 4px 10px;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 11px;
 }
 
-.role-lbl {
-  font-size: 11px;
-  color: #64748b;
-}
-
-.role-pill-btn {
-  background: transparent;
-  border: none;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 8px;
+.session-role-pill {
+  font-weight: 800;
+  padding: 2px 6px;
   border-radius: 4px;
-  cursor: pointer;
-  color: #94a3b8;
+  font-size: 10px;
+  letter-spacing: 0.5px;
 }
 
-.role-pill-btn.maker.active {
+.session-identity-badge.maker .session-role-pill {
   background: rgba(245, 158, 11, 0.2);
   color: #fbbf24;
 }
 
-.role-pill-btn.checker.active {
+.session-identity-badge.checker .session-role-pill {
   background: rgba(16, 185, 129, 0.2);
   color: #34d399;
+}
+
+.session-identity-badge.cfo .session-role-pill {
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+}
+
+.session-identity-badge.auditor .session-role-pill {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+}
+
+.session-user-name {
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+.session-readonly-tag {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10px;
 }
 
 .btn-close {
@@ -799,6 +867,28 @@ function handleExecute(order: PaymentOrder) {
   font-size: 12px;
 }
 
+.high-limit-warning-box {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid #f59e0b;
+  border-radius: 6px;
+  padding: 10px;
+  color: #fde68a;
+  font-size: 12px;
+}
+
+.auditor-notice-box {
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 6px;
+  padding: 10px 14px;
+  color: #7dd3fc;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .checker-decision-box {
   background: #0f172a;
   border-radius: 8px;
@@ -828,6 +918,12 @@ function handleExecute(order: PaymentOrder) {
 .disburse-info {
   font-size: 12px;
   color: #38bdf8;
+}
+
+.text-muted-disburse {
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
 }
 
 .executed-stamp-box {

@@ -151,7 +151,7 @@ export async function apiRequest<T = any>(
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      const isEndpointMissing = res.status === 404 || res.status === 502 || res.status === 503;
+      const isEndpointMissing = [404, 405, 501, 502, 503, 504].includes(res.status);
       return {
         success: false,
         error: errData.error || `HTTP error ${res.status}`,

@@ -1,0 +1,149 @@
+# LIVA Banking — Declarative AML Surveillance Policy Configuration
+# Statutory Compliance with Law No. 14/2022/QH15, Decision 11/2023/QĐ-TTg, and Circular 09/2023/TT-NHNN
+
+metadata:
+  name: "Standard Vietnamese AML Surveillance Policy"
+  version: "1.0.0"
+  jurisdiction: "VN"
+  statutory_references:
+    - "Luật Phòng, chống rửa tiền số 14/2022/QH15"
+    - "Quyết định 11/2023/QĐ-TTg quy định mức giao dịch có giá trị lớn phải báo cáo"
+    - "Thông tư 09/2023/TT-NHNN hướng dẫn thi hành một số điều của Luật PCRT"
+    - "Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân"
+
+high_value:
+  enabled: true
+  statutory_threshold_vnd: 400000000     # 400M VND Decision 11/2023
+  critical_threshold_vnd: 1000000000     # 1 Billion VND
+  statutory_reference: "Điều 25 Luật PCRT 2022 & Quyết định 11/2023/QĐ-TTg"
+
+structuring:
+  enabled: true
+  window_seconds: 86400                  # Rolling 24 hours (86,400 seconds)
+  min_tx_count: 3                        # >= 3 transactions
+  min_candidate_amount_vnd: 50000000     # >= 50M VND
+  max_candidate_amount_vnd: 400000000    # < 400M VND
+  aggregate_threshold_vnd: 400000000     # Total >= 400M VND
+  group_by:
+    - "account"
+    - "counterparty_account"
+  statutory_reference: "Khoản 2 Điều 26 Luật PCRT 2022 (Dấu hiệu giao dịch đáng ngờ)"
+
+transit_mule:
+  enabled: true
+  min_inflow_vnd: 100000000              # Inflow >= 100M VND
+  max_transit_window_seconds: 900        # Within 15 minutes (900s)
+  min_outflow_ratio_bps: 9500            # >= 95.00% disbursed
+  statutory_reference: "Khoản 5 Điều 26 Luật PCRT 2022 & Thông tư 09/2023/TT-NHNN"
+
+night_velocity:
+  enabled: true
+  night_start_hour: 23                   # 23:00
+  night_end_hour: 5                      # 05:00
+  timezone_offset_hours: 7               # GMT+7 (Vietnam)
+  min_amount_vnd: 50000000               # >= 50M VND
+  count_threshold: 3                     # >= 3 transactions in night window
+  aggregate_threshold_vnd: 200000000     # Total >= 200M VND
+  statutory_reference: "Điều 26 Luật PCRT 2022 (Giao dịch có đặc điểm bất thường)"
+
+watchlist:
+  enabled: true
+  narration_keywords:
+    - "GAMBLING"
+    - "CA DO"
+    - "TIEN AO"
+    - "CRYPTO"
+    - "USDT"
+    - "BINANCE"
+    - "TAI XIU"
+    - "RUA TIEN"
+    - "BAO KE"
+    - "LUA DAO"
+  blacklisted_accounts:
+    - "007100987654"
+    - "19034567890123"
+  sanctioned_names:
+    - "NGUYEN VAN TOAN"
+    - "TRAN VAN CAM"
+  name_similarity_threshold_bps: 9000    # 90.00% Integer Jaro-Winkler
+  statutory_reference: "Điều 19 & Điều 26 Luật PCRT 2022 (Danh sách đen và cảnh báo rủi ro)"
+
+reporting:
+  reporting_entity_name: "LIVA Commercial Banking Operations Center"
+  risk_score_threshold_file_sbv: 70
+  risk_score_threshold_compliance_hold: 40
+  critical_alert_weight: 40
+  high_alert_weight: 20
+  medium_alert_weight: 10
+
+anomaly_detection:
+  enabled: true
+  temporal_velocity:
+    enabled: true
+    window_seconds: 3600
+    max_tx_count_per_window: 5
+    velocity_surge_threshold_bps: 30000
+    off_hours_volume_threshold_vnd: 200000000
+    burst_interval_min_seconds: 60
+  amount_distribution:
+    enabled: true
+    smurfing_band_lower_vnd: 380000000
+    smurfing_band_upper_vnd: 399999999
+    modified_zscore_threshold_bps: 35000
+    min_sample_size: 5
+  semantic_narration:
+    enabled: true
+    similarity_threshold_bps: 8200
+    suspicious_clusters:
+      - category: "crypto_otc"
+        weight_bps: 2500
+        keywords:
+          - "USDT"
+          - "BINANCE"
+          - "P2P"
+          - "CRYPTO"
+          - "TIEN AO"
+          - "COIN"
+          - "OKX"
+          - "BYBIT"
+          - "MUA USDT"
+          - "BAN USDT"
+      - category: "underground_remittance"
+        weight_bps: 2500
+        keywords:
+          - "CHUYEN HO"
+          - "DOI NGOAI TE"
+          - "DOI NGOAI TE CHUI"
+          - "DAY TIEN HO"
+          - "CHUYEN TIEN TAY BA"
+          - "TIEN CAMPUCHIA"
+          - "TIEN TRUNG QUOC"
+          - "RUT TIEN HO"
+      - category: "kickbacks"
+        weight_bps: 2000
+        keywords:
+          - "HOA HONG DU AN"
+          - "HOA HONG KIN"
+          - "TIEN CAM ON"
+          - "CAM ON SEP"
+          - "CHI NGOAI SO"
+          - "LOT TAY"
+          - "BOI TRON"
+          - "PHAN TRAM DU AN"
+      - category: "money_mule"
+        weight_bps: 2500
+        keywords:
+          - "DON DEP TAI KHOAN"
+          - "CHUYEN GAP"
+          - "KHONG GHI NOI DUNG"
+          - "TAI KHOAN MUON"
+          - "KEO TIEN VE"
+          - "CHUYEN TIEP NGAY"
+          - "RUT NGAY"
+          - "BAN NGAY"
+  slm_explanation:
+    enabled: true
+    model_id: "Qwen_Qwen3-14B-Q5_K_M"
+    max_tokens: 128
+    score_threshold_bps: 4000
+

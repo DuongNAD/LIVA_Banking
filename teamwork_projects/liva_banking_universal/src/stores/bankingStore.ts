@@ -5,6 +5,7 @@
 
 import { defineStore } from 'pinia';
 import type { BankCode, LiquidityChannelProfile } from '../types/banking';
+import { apiRequest } from '../services/apiClient';
 
 export type { LiquidityChannelProfile, BankAccountProfile } from '../types/banking';
 
@@ -106,30 +107,27 @@ export const useBankingStore = defineStore('banking', {
         cutoffTime: '23:00 (Theo giờ chuẩn GMT)',
       },
     ] as LiquidityChannelAccount[],
-    dailyAverageBurnVnd: 85_000_000, // For 30-45 day runway computation
-    rebalanceLogs: [
-      {
-        id: 'REBAL-INIT-01',
-        timestamp: '2026-08-30T16:45:00.000Z',
-        epochSeconds: 1788108300,
-        fromChannel: 'CITAD',
-        toChannel: 'NAPAS',
-        amountVnd: 200_000_000,
-        purpose: 'Bổ sung hạn mức thanh toán bù trừ đa phương cuối ngày NAPAS 24/7',
-        status: 'COMPLETED',
-        executedBy: 'CB-CHECKER-01',
-        note: 'Đã hoàn tất quyết toán điện tử',
-      },
-    ] as LiquidityRebalanceLog[],
+    syncedDailyBurnVnd: 0 as number,
+    rebalanceLogs: [] as LiquidityRebalanceLog[],
   }),
 
   getters: {
     totalLiquidVnd: (state) =>
       state.accounts.reduce((sum, acc) => sum + acc.balanceVnd, 0),
 
-    liquidityRunwayDays: (state) => {
+    dailyAverageBurnVnd: (state): number => {
+      if (state.syncedDailyBurnVnd > 0) return state.syncedDailyBurnVnd;
+      const totalOutflow = state.accounts.reduce((sum, acc) => sum + (acc.outflowMonthVnd || 0), 0);
+      return totalOutflow > 0 ? Math.round(totalOutflow / 30) : 0;
+    },
+
+    liquidityRunwayDays: (state): number => {
       const total = state.accounts.reduce((sum, acc) => sum + acc.balanceVnd, 0);
-      return Math.round(total / (state.dailyAverageBurnVnd || 1));
+      const burn = state.syncedDailyBurnVnd > 0
+        ? state.syncedDailyBurnVnd
+        : Math.round(state.accounts.reduce((sum, acc) => sum + (acc.outflowMonthVnd || 0), 0) / 30);
+      if (burn <= 0) return total > 0 ? 999 : 0;
+      return Math.round(total / burn);
     },
 
     totalInflowMonthVnd: (state) =>
@@ -283,6 +281,85 @@ export const useBankingStore = defineStore('banking', {
         logId,
         message: `Đã điều chuyển thành công ${amountVnd.toLocaleString('vi-VN')} VND từ ${fromChannel} sang ${toChannel}.`,
       };
+    },
+
+    applyAccountUpdated(payload: {
+      accountId?: string;
+      channelCode?: string;
+      bankCode?: BankCode;
+      balanceVnd?: number;
+      balance?: number;
+      availableBalanceVnd?: number;
+      inflowMonthVnd?: number;
+      outflowMonthVnd?: number;
+      lastUpdated?: string;
+    }) {
+      const target = payload.channelCode || payload.bankCode || payload.accountId;
+      const acc = this.accounts.find(
+        (a) =>
+          (payload.channelCode && (a.channelCode === payload.channelCode || a.bankCode === payload.channelCode)) ||
+          (payload.bankCode && (a.bankCode === payload.bankCode || a.channelCode === payload.bankCode)) ||
+          (payload.bankCode === 'VCB' && (a.channelCode === 'CITAD' || a.bankCode === 'CITAD')) ||
+          (payload.bankCode === 'TCB' && (a.channelCode === 'NAPAS' || a.bankCode === 'NAPAS')) ||
+          (payload.bankCode === 'BIDV' && (a.channelCode === 'BILATERAL' || a.bankCode === 'BILATERAL')) ||
+          (payload.accountId && a.accountNumber && a.accountNumber.includes(payload.accountId)) ||
+          (target && (a.channelCode === target || a.bankCode === target || a.accountNumber === target))
+      );
+      if (acc) {
+        const bal = payload.balanceVnd !== undefined ? payload.balanceVnd : payload.balance;
+        if (bal !== undefined) {
+          acc.balanceVnd = bal;
+          acc.availableBalanceVnd = payload.availableBalanceVnd ?? bal;
+        }
+        if (payload.inflowMonthVnd !== undefined) acc.inflowMonthVnd = payload.inflowMonthVnd;
+        if (payload.outflowMonthVnd !== undefined) acc.outflowMonthVnd = payload.outflowMonthVnd;
+        if (payload.lastUpdated) acc.lastReconciledDate = payload.lastUpdated.split('T')[0];
+      }
+    },
+
+    applyStateSnapshot(snapshot: { accounts?: any[]; dailyBurnVnd?: number; dailyAverageBurnVnd?: number }) {
+      if (snapshot.accounts && Array.isArray(snapshot.accounts) && snapshot.accounts.length > 0) {
+        for (const snapAcc of snapshot.accounts) {
+          const local = this.accounts.find(
+            (a) =>
+              (snapAcc.channelCode && (a.channelCode === snapAcc.channelCode || a.bankCode === snapAcc.channelCode)) ||
+              (snapAcc.bankCode && (a.bankCode === snapAcc.bankCode || a.channelCode === snapAcc.bankCode)) ||
+              (snapAcc.bankCode === 'VCB' && a.channelCode === 'CITAD') ||
+              (snapAcc.bankCode === 'TCB' && a.channelCode === 'NAPAS') ||
+              (snapAcc.bankCode === 'BIDV' && a.channelCode === 'BILATERAL') ||
+              (snapAcc.accountNumber && a.accountNumber === snapAcc.accountNumber)
+          );
+          const bal = snapAcc.balanceVnd !== undefined ? snapAcc.balanceVnd : snapAcc.balance;
+          if (local && bal !== undefined) {
+            local.balanceVnd = bal;
+            local.availableBalanceVnd = snapAcc.availableBalanceVnd ?? bal;
+            if (snapAcc.inflowMonthVnd !== undefined || snapAcc.inflows !== undefined) {
+              local.inflowMonthVnd = snapAcc.inflowMonthVnd ?? snapAcc.inflows;
+            }
+            if (snapAcc.outflowMonthVnd !== undefined || snapAcc.outflows !== undefined) {
+              local.outflowMonthVnd = snapAcc.outflowMonthVnd ?? snapAcc.outflows;
+            }
+            if (snapAcc.status) local.status = snapAcc.status;
+          }
+        }
+      }
+      const burn = snapshot.dailyAverageBurnVnd !== undefined ? snapshot.dailyAverageBurnVnd : snapshot.dailyBurnVnd;
+      if (burn !== undefined && burn > 0) {
+        this.syncedDailyBurnVnd = burn;
+      }
+    },
+
+    async fetchAccountsFromServer(): Promise<boolean> {
+      try {
+        const res = await apiRequest<{ accounts: any[]; dailyAverageBurnVnd?: number }>('/banking/accounts');
+        if (res.success && res.data?.accounts) {
+          this.applyStateSnapshot(res.data);
+          return true;
+        }
+        return false;
+      } catch {
+        return false;
+      }
     },
   },
 });

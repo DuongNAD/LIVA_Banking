@@ -96,6 +96,30 @@ export const DEMO_ACCOUNTS: UserProfile[] = [
   },
 ];
 
+export const CFO_HUONG_ACCOUNT: UserProfile = {
+  id: 'CFO_DO_LAN_HUONG',
+  username: 'cfo_huong',
+  fullName: 'Đỗ Lan Hương',
+  role: 'CFO',
+  roleTitle: 'Giám đốc Tài chính (CFO)',
+  department: 'Ban Điều hành C-Suite',
+  description: 'Phê duyệt hạn mức lớn, giám sát ngân quỹ & dòng tiền 30/90 ngày',
+  avatarInitials: 'LH',
+  avatarColor: '#7c3aed',
+};
+
+export const ALIAS_ACCOUNTS: Record<string, UserProfile> = {
+  cfo_huong: CFO_HUONG_ACCOUNT,
+};
+
+export const ROLE_PERMITTED_ROUTES: Record<UserRole, string[]> = {
+  MAKER: ['overview', 'workbench', 'quarantine', 'ledger', 'reconcile', 'transactions', 'cashflow', 'treasury'],
+  CHECKER: ['overview', 'quarantine', 'ledger', 'treasury', 'compliance', 'risk', 'reports'],
+  CFO: ['overview', 'treasury', 'cashflow', 'quarantine', 'risk', 'reports'],
+  AUDITOR: ['overview', 'compliance', 'ledger', 'transactions', 'reports'],
+  ADMIN: ['overview', 'settings'],
+};
+
 const STORAGE_KEY = 'liva_banking_active_user';
 
 const DEV_FALLBACK_PASSWORDS: Record<string, string> = {
@@ -104,6 +128,7 @@ const DEV_FALLBACK_PASSWORDS: Record<string, string> = {
   checker_tri: 'LivaChecker@2026',
   checker_huong: 'LivaChecker@2026',
   cfo_hoang: 'LivaCfo@2026',
+  cfo_huong: 'LivaCfo@2026',
   auditor_lan: 'LivaAudit@2026',
   admin_sys: 'LivaAdmin@2026',
 };
@@ -131,14 +156,26 @@ export function mapRawUser(raw: any): UserProfile {
 export const useAuthStore = defineStore('auth', () => {
   const accounts = ref<UserProfile[]>([...DEMO_ACCOUNTS]);
 
+  function findAccount(username: string): UserProfile | undefined {
+    const trimmed = username.trim().toLowerCase();
+    const direct = accounts.value.find((u) => u.username.toLowerCase() === trimmed);
+    if (direct) return direct;
+    return ALIAS_ACCOUNTS[trimmed];
+  }
+
+  let restored = false;
   // Try restore from localStorage or fallback to checker_tri
   const initialUser = (() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
         const savedUsername = window.localStorage.getItem(STORAGE_KEY);
         if (savedUsername) {
-          const match = DEMO_ACCOUNTS.find((u) => u.username === savedUsername);
-          if (match) return match;
+          const trimmed = savedUsername.trim().toLowerCase();
+          const match = DEMO_ACCOUNTS.find((u) => u.username.toLowerCase() === trimmed) || ALIAS_ACCOUNTS[trimmed];
+          if (match) {
+            restored = true;
+            return match;
+          }
         }
       } catch {
         // Ignore localStorage access errors
@@ -149,6 +186,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const currentUser = ref<UserProfile>(initialUser);
   const isAuthenticated = ref<boolean>(true);
+  const hasActiveSession = ref<boolean>(restored);
   const isLoginModalOpen = ref<boolean>(false);
   const isSyncing = ref<boolean>(false);
 
@@ -157,10 +195,22 @@ export const useAuthStore = defineStore('auth', () => {
   const isCfo = computed(() => currentUser.value.role === 'CFO');
   const isAuditor = computed(() => currentUser.value.role === 'AUDITOR');
   const isAdmin = computed(() => currentUser.value.role === 'ADMIN');
+  const isReadOnly = computed(() => currentUser.value.role === 'AUDITOR');
+
+  const permittedRoutes = computed<string[]>(() => {
+    return ROLE_PERMITTED_ROUTES[currentUser.value.role] || ['overview'];
+  });
+
+  function canAccessRoute(routeId: string): boolean {
+    if (!routeId) return false;
+    const permitted = ROLE_PERMITTED_ROUTES[currentUser.value.role];
+    return Array.isArray(permitted) && permitted.includes(routeId);
+  }
 
   function saveSession(user: UserProfile) {
     currentUser.value = user;
     isAuthenticated.value = true;
+    hasActiveSession.value = true;
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
         window.localStorage.setItem(STORAGE_KEY, user.username);
@@ -216,7 +266,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   function login(username: string, password?: string, quickLogin?: boolean): LoginResult {
     const trimmedUser = username.trim().toLowerCase();
-    const found = accounts.value.find((u) => u.username.toLowerCase() === trimmedUser);
+    const found = findAccount(trimmedUser);
 
     if (!found) {
       return { success: false, error: 'Tên đăng nhập không tồn tại trong hệ thống.' };
@@ -243,6 +293,12 @@ export const useAuthStore = defineStore('auth', () => {
     quickLogin?: boolean
   ): Promise<LoginResult> {
     const trimmedUser = username.trim().toLowerCase();
+
+    // Directly resolve local alias accounts (e.g. cfo_huong)
+    if (ALIAS_ACCOUNTS[trimmedUser]) {
+      return login(username, password, quickLogin);
+    }
+
     try {
       let backendRes: any = null;
       try {
@@ -284,7 +340,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   function switchUser(username: string): boolean {
     const trimmed = username.trim().toLowerCase();
-    const found = accounts.value.find((u) => u.username.toLowerCase() === trimmed);
+    const found = findAccount(trimmed);
     if (!found) return false;
     saveSession(found);
     return true;
@@ -292,7 +348,15 @@ export const useAuthStore = defineStore('auth', () => {
 
   function logout() {
     isAuthenticated.value = false;
+    hasActiveSession.value = false;
     isLoginModalOpen.value = true;
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        window.localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        // Ignore
+      }
+    }
   }
 
   function openLoginModal() {
@@ -310,6 +374,7 @@ export const useAuthStore = defineStore('auth', () => {
     accounts,
     currentUser,
     isAuthenticated,
+    hasActiveSession,
     isLoginModalOpen,
     isSyncing,
     isMaker,
@@ -317,6 +382,9 @@ export const useAuthStore = defineStore('auth', () => {
     isCfo,
     isAuditor,
     isAdmin,
+    isReadOnly,
+    permittedRoutes,
+    canAccessRoute,
     fetchAccounts,
     login,
     loginAsync,

@@ -4,7 +4,7 @@
 //! so it validates exactly what ships, not a hand-written harness.
 //!
 //! Run:  cargo run --release --bin qwen3vl_probe [image.png]   (no arg → screen)
-//! Env:  LIVA_QWENVL_DIR (default E:\AI_Models\Qwen3-VL-2B-Instruct-GGUF),
+//! Env:  LIVA_QWENVL_DIR (default <models_dir>/Qwen3-VL-2B-Instruct-GGUF),
 //!       LIVA_QWENVL_LM, LIVA_QWENVL_MMPROJ, LIVA_QWENVL_NGL (default 0 = CPU),
 //!       LIVA_QWENVL_NCTX (default 8192), LIVA_QWENVL_SKIP_VISION=1.
 
@@ -24,13 +24,16 @@ fn stream_print(piece: &str) -> bool {
 #[tokio::main]
 async fn main() {
     let dir = std::env::var("LIVA_QWENVL_DIR")
-        .unwrap_or_else(|_| "E:\\AI_Models\\Qwen3-VL-2B-Instruct-GGUF".to_string());
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            liva_native_core::configured_models_dir().join("Qwen3-VL-2B-Instruct-GGUF")
+        });
     let lm = std::env::var("LIVA_QWENVL_LM")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(&dir).join("Qwen3-VL-2B-Instruct-Q4_K_M.gguf"));
+        .unwrap_or_else(|_| dir.join("Qwen3-VL-2B-Instruct-Q4_K_M.gguf"));
     let mmproj = std::env::var("LIVA_QWENVL_MMPROJ")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(&dir).join("mmproj-F16.gguf"));
+        .unwrap_or_else(|_| dir.join("mmproj-F16.gguf"));
     let ngl: u32 = std::env::var("LIVA_QWENVL_NGL")
         .ok()
         .and_then(|s| s.parse().ok())

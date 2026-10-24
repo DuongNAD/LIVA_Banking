@@ -66,33 +66,28 @@ describe('2D Banking & Treasury UI Dashboard Suite', () => {
       expect(wrapper.find('.brand-sub').text()).toBe('Reconciliation');
 
       const items = wrapper.findAll('.nav-item');
-      expect(items).toHaveLength(12);
+      expect(items).toHaveLength(7);
 
       const labels = items.map(i => i.find('.nav-item-label').text());
       expect(labels).toEqual([
         'TỔNG QUAN',
-        'P42 WORKBENCH',
-        'P44 CÁCH LY',
+        'P44 PHÊ DUYỆT 4-EYES',
         'P50 SỔ CÁI ERP',
-        'ĐỐI SOÁT',
-        'GIAO DỊCH',
-        'THU CHI',
-        'NGÂN QUỸ',
+        'KÝ DUYỆT LỆNH CHI',
         'P70 RỦI RO',
         'P80 TUÂN THỦ',
         'BÁO CÁO',
-        'CÀI ĐẶT',
       ]);
 
       // Verify active class on first item by default
       expect(items[0].classes()).toContain('active');
 
-      // Verify green active status dot on 'P42 WORKBENCH'
-      const workbenchItem = items[1];
-      expect(workbenchItem.find('.status-dot').exists()).toBe(true);
+      // Verify green active status dot on 'P44 PHÊ DUYỆT 4-EYES'
+      const quarantineItem = items[1];
+      expect(quarantineItem.find('.status-dot').exists()).toBe(true);
 
       // Trigger navigation event on ledger
-      await items[3].trigger('click');
+      await items[2].trigger('click');
       expect(wrapper.emitted('navigate')).toBeTruthy();
       expect(wrapper.emitted('navigate')?.[0]).toEqual(['ledger']);
     });
@@ -328,6 +323,9 @@ describe('2D Banking & Treasury UI Dashboard Suite', () => {
       await input.setValue('Vị thế tiền mặt VCB hôm nay');
       const sendBtn = wrapper.find('.send-btn');
       await sendBtn.trigger('click');
+
+      expect(wrapper.find('.status-mode-text').text()).toBe('Đang nghĩ....');
+      expect(wrapper.text()).toContain('Đang nghĩ....');
 
       const messages = wrapper.findAll('.message-bubble-wrapper');
       expect(messages.length).toBeGreaterThanOrEqual(3);

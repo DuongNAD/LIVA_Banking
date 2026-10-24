@@ -1,0 +1,19 @@
+[package]
+name = "synthgen"
+version = "0.1.0"
+edition = "2021"
+authors = ["LIVA Banking Core Team"]
+description = "Deterministic Vietnamese synthetic banking statement & invoice generator"
+license = "Proprietary"
+publish = false
+
+[[bin]]
+name = "synthgen"
+path = "src/main.rs"
+
+[dependencies]
+liva-money = { path = "../../crates/liva-money" }
+liva-ledger = { path = "../../crates/liva-ledger" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+fastrand = "2.4"

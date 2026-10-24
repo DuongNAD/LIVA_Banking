@@ -473,6 +473,12 @@ pub fn solve_exact_subset_sum_bnb(
         return None;
     }
 
+    // Fast early pruning: sum of all valid candidates cannot reach target
+    let total_sum: u64 = valid.iter().map(|&(_, a)| a).fold(0u64, |acc, x| acc.saturating_add(x));
+    if total_sum < target {
+        return None;
+    }
+
     // Sort ascending by amount for optimal bounding and pruning
     valid.sort_by_key(|c| c.1);
 
@@ -480,11 +486,6 @@ pub fn solve_exact_subset_sum_bnb(
     let mut suffix_sums = vec![0u64; n + 1];
     for i in (0..n).rev() {
         suffix_sums[i] = suffix_sums[i + 1].saturating_add(valid[i].1);
-    }
-
-    // Bound check: sum of all candidates cannot reach target
-    if suffix_sums[0] < target {
-        return None;
     }
 
     let mut selected = Vec::with_capacity(max_depth);

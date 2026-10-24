@@ -873,14 +873,20 @@ async fn get_reconciliation_matrix(state: Arc<AppState>, payload: Value) -> Resu
 async fn resolve_hitl(state: Arc<AppState>, payload: Value) -> Result<Value, String> {
     let match_id = payload
         .get("match_id")
+        .or_else(|| payload.get("matchId"))
         .and_then(|v| v.as_str())
-        .ok_or_else(|| "Missing 'match_id'".to_string())?
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| "Missing required 'match_id' parameter".to_string())?
         .to_string();
 
     let hitl_token = payload
         .get("hitl_token")
+        .or_else(|| payload.get("hitlToken"))
         .and_then(|v| v.as_str())
-        .ok_or_else(|| "Missing 'hitl_token' for Two-Phase Confirmation".to_string())?
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| "Missing required 'hitl_token' for Two-Phase Confirmation".to_string())?
         .to_string();
 
     let decision = payload
@@ -896,26 +902,23 @@ async fn resolve_hitl(state: Arc<AppState>, payload: Value) -> Result<Value, Str
 
     let maker_id = payload
         .get("maker_id")
+        .or_else(|| payload.get("makerId"))
+        .or_else(|| payload.get("maker_user_id"))
         .and_then(|v| v.as_str())
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .unwrap_or("accountant_maker")
+        .ok_or_else(|| "Missing required 'maker_id' parameter for dual-control authorization".to_string())?
         .to_string();
 
     let checker_id = payload
         .get("checker_id")
+        .or_else(|| payload.get("checkerId"))
+        .or_else(|| payload.get("checker_user_id"))
         .and_then(|v| v.as_str())
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .unwrap_or("chief_checker")
+        .ok_or_else(|| "Missing required 'checker_id' parameter for dual-control authorization".to_string())?
         .to_string();
-
-    if maker_id.eq_ignore_ascii_case(&checker_id) {
-        return Err(format!(
-            "Circular 09/2020/TT-NHNN violation: Maker cannot self-approve as Checker ('{}' == '{}'). Dual control required.",
-            maker_id, checker_id
-        ));
-    }
 
     tokio::task::spawn_blocking(move || {
         let conn = state
@@ -924,7 +927,27 @@ async fn resolve_hitl(state: Arc<AppState>, payload: Value) -> Result<Value, Str
             .get()
             .map_err(|e| format!("Write lock error: {e}"))?;
 
-        // 1. Verify match_id and hitl_token
+        // 1. Enforce Circular 09 Dual Control: maker_id != checker_id (case-insensitive)
+        if maker_id.eq_ignore_ascii_case(&checker_id) {
+            let audit_key = get_audit_key(&state);
+            let violation_payload = format!(
+                "SOD_SELF_APPROVAL_BLOCKED|match_id={}|decision={}|maker_id={}|checker_id={}",
+                match_id, decision, maker_id, checker_id
+            );
+            let _ = AuditLedger::append(
+                &conn,
+                &audit_key,
+                AuditLedger::EVENT_SOD_SELF_APPROVAL_BLOCKED,
+                &checker_id,
+                &violation_payload,
+            );
+            return Err(format!(
+                "Circular 09/2020/TT-NHNN violation: Maker cannot self-approve as Checker ('{}' == '{}'). Dual control required.",
+                maker_id, checker_id
+            ));
+        }
+
+        // 2. Verify match_id and hitl_token
         let stored_token: Option<String> = conn
             .query_row(
                 "SELECT hitl_token FROM reconciliation_matches WHERE id = ?1",

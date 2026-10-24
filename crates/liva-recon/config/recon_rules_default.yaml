@@ -1,0 +1,94 @@
+# LIVA Banking — Declarative Reconciliation Rules Configuration
+# Standard Vietnamese Commercial Banking Configuration (VCB, TCB, BIDV, CTG)
+# Compliant with Circular 09/2020/TT-NHNN, Circular 09/2023/TT-NHNN, and Decree 13/2023/NĐ-CP
+
+metadata:
+  name: "Standard Vietnamese Banking Reconciliation"
+  version: "2.0.0"
+  description: "Standard declarative reconciliation rules for multi-bank statements under Decree 13 and Circular 09"
+
+tier1:
+  enabled: true
+  timestamp_tolerance_seconds: 86400  # ±24 hours booking window
+  confidence_score_bps: 10000        # 100.00%
+  reference_matching:
+    extract_from_narration: true
+    extraction_patterns:
+      - "(?i)(?:INV|HD|REF|DH|BILL)[-_]?[0-9A-Z]+(?:[-_][0-9A-Z]+)*"
+      - "(?i)REF2026[0-9]{8}"
+      - "(?i)FT[0-9A-Z]{8,}"
+    strip_punctuation: true
+    case_sensitive: false
+
+tier2:
+  enabled: true
+  timestamp_tolerance_seconds: 259200  # ±72 hours (weekend / interbank delay window)
+  similarity_threshold_bps: 8500       # 85.00% Integer Jaro-Winkler threshold
+  token_containment_threshold_bps: 8000 # 80.00%
+  enable_semantic_recon: true          # Hybrid semantic reconciliation gate
+  uncertainty_lower_bound_bps: 5000    # 50.00% uncertainty band lower bound
+  semantic_elevation_threshold_bps: 8200 # 82.00% Gate 2 elevation threshold
+  jw_weight: 40                        # 40% weight for Jaro-Winkler
+  semantic_weight: 60                  # 60% weight for Semantic Similarity
+  fee_schedules:
+    - type: "discrete"
+      name: "Standard Interbank Wire Fees"
+      fees_vnd: [1100, 1650, 2200, 3300, 5500, 7700, 8800, 11000, 22000]
+    - type: "range"
+      name: "Napas / Fast Transfer Fee Tolerance Band"
+      min_vnd: 1000
+      max_vnd: 25000
+  legal_phrases:
+    - "TRACH NHIEM HUU HAN"
+    - "THUONG MAI DICH VU"
+    - "MOT THANH VIEN"
+    - "BAT DONG SAN"
+    - "DOANH NGHIEP TU NHAN"
+    - "XUAT NHAP KHAU"
+  legal_tokens:
+    - "CONG"
+    - "TY"
+    - "CP"
+    - "CO"
+    - "PHAN"
+    - "TNHH"
+    - "MTV"
+    - "TAP"
+    - "DOAN"
+    - "TONG"
+    - "CHI"
+    - "NHANH"
+    - "CTY"
+  bank_narration_phrases:
+    - "NAPAS VIETQR TT"
+    - "NAPAS247"
+    - "VIETQR"
+    - "CHUYEN KHOAN"
+    - "THANH TOAN"
+    - "IBFT"
+    - "CK"
+    - "TT"
+  confidence:
+    exact_match_bps: 9200   # 92.00%
+    fee_deducted_bps: 8800  # 88.00%
+
+tier3:
+  enabled: true
+  max_depth: 8
+  max_iterations: 100000
+  timeout_ms: 100
+  require_zero_delta: true
+  base_confidence_bps: 9500 # 95.00%
+  item_penalty_bps: 200     # 2.00% penalty per additional constituent item
+
+hitl_quarantine:
+  token_ttl_seconds: 900    # 15 minutes TTL for single-use approval token
+  enforce_maker_checker_sod: true
+  risk_rules:
+    - risk_tier: "CRITICAL"
+      min_amount_vnd: 400000000  # >= 400M VND Decision 11/2023/QĐ-TTg
+      fee_exceeded: false
+      statutory_reference: "Quyết định 11/2023/QĐ-TTg & Thông tư 09/2023/TT-NHNN"
+    - risk_tier: "MEDIUM"
+      fee_exceeded: true
+      statutory_reference: "Quy trình kiểm soát chênh lệch phí ngân hàng"

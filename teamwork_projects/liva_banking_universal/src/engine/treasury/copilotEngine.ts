@@ -19,6 +19,7 @@
 
 import type { CopilotResponse, GuidedTourState, TourStep } from '../../types/treasury';
 import { removeVietnameseAccents } from '../intelligence/vietnameseNlp';
+import { localAiClient } from '../../services/LocalAiClient';
 
 /**
  * Standard 5-Step Presentation Tour Steps (DEMO_PLAYBOOK_BANKING.md)
@@ -105,11 +106,14 @@ export function queryFinancialCopilot(query: string, context: Record<string, any
     /tỷ lệ đối soát|reconciliation rate|khớp|tỷ lệ khớp|đối chiếu/i.test(lower) ||
     /ty le doi soat|khop|ty le khop|doi chieu/i.test(norm)
   ) {
-    const rate = context.matchRate !== undefined ? context.matchRate : 99.8;
+    const rate = context.matchRate !== undefined ? context.matchRate : 0;
+    const answer = rate > 0
+      ? `Tỷ lệ tự động khớp đối soát đạt ${rate}% (vượt ngưỡng cam kết 99.8%).`
+      : 'Chưa thực hiện đối soát trong phiên này (Tỷ lệ khớp hiện tại: 0.0%).';
     return {
       query: raw,
       intent: 'RECONCILIATION_RATE',
-      answer: `Tỷ lệ tự động khớp đối soát đạt ${rate}% (vượt ngưỡng cam kết 99.8%).`,
+      answer,
       metrics: { matchRate: rate },
     };
   }
@@ -164,6 +168,76 @@ export function queryFinancialCopilot(query: string, context: Record<string, any
     answer: 'LIVA Financial Copilot đã sẵn sàng hỗ trợ tra cứu số dư, đối soát và phê duyệt lệnh chi.',
     metrics: {},
   };
+}
+
+/**
+ * Asynchronous Financial Copilot that connects directly to local AI (Qwen 14B)
+ * when the local daemon is online, and falls back to deterministic rule/context classification when offline.
+ */
+export async function queryFinancialCopilotAsync(
+  query: string,
+  context: Record<string, any> = {}
+): Promise<CopilotResponse> {
+  const fallback = queryFinancialCopilot(query, context);
+
+  // If query is empty or punctuation, fallback directly
+  if (!query || !query.trim() || /^[?!.,\s]+$/.test(query)) {
+    return fallback;
+  }
+
+  // Check if local AI is online
+  const isOnline = localAiClient.getStatus() === 'connected' || (await localAiClient.checkHealth());
+  if (!isOnline) {
+    return fallback;
+  }
+
+  try {
+    const balance = context.closingBalance ?? context.liquidVnd ?? 1_380_600_000;
+    const runwayDays = context.runwayDays ?? (context.dailyBurn ? Math.floor(balance / context.dailyBurn) : 73);
+    const matchRate = context.matchRate ?? 0;
+    const alertCount = context.alertCount ?? 3;
+    const pendingCount = context.pendingCount ?? 1;
+
+    const systemPrompt = `BẠN LÀ LIVA COMMERCIAL BANK FINANCIAL COPILOT (CHẠY CỤC BỘ QWEN 14B).
+QUY TẮC BẢO MẬT: Zero Cloud Egress (Nghị định 13/2023/NĐ-CP), Thông tư 09/2020/TT-NHNN, Thông tư 09/2023/TT-NHNN.
+DỮ LIỆU SỔ CÁI HIỆN TẠI (REAL-TIME SNAPSHOT):
+- Tổng thanh khoản khả dụng: ${Number(balance).toLocaleString('vi-VN')} VND
+- Độ dài an toàn dòng tiền (Runway): ${runwayDays} ngày
+- Tỷ lệ khớp đối soát 3 tầng: ${matchRate}%
+- Cảnh báo AML đáng ngờ: ${alertCount} giao dịch
+- Lệnh chi liên ngân hàng chờ duyệt: ${pendingCount} lệnh chi
+YÊU CẦU: Phản hồi tự nhiên, chuẩn xác, súc tích bằng tiếng Việt chuyên ngành tài chính ngân hàng dựa trên số liệu thực tế ở trên.`;
+
+    const aiAnswer = await localAiClient.chatCompletion(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: query },
+      ],
+      { temperature: 0.2, maxTokens: 256, timeoutMs: 15000 }
+    );
+
+    if (aiAnswer && aiAnswer.trim()) {
+      const telemetry = localAiClient.getLastTelemetry();
+      return {
+        query,
+        intent: fallback.intent !== 'GENERAL_ASSISTANCE' ? fallback.intent : 'LOCAL_AI_QWEN_14B',
+        answer: aiAnswer.trim(),
+        metrics: {
+          ...fallback.metrics,
+          localAiGenerated: true,
+          ttftMs: telemetry ? (telemetry.visibleTtftMs || telemetry.rawTtftMs) : 0,
+          tokensPerSec: telemetry?.tokensPerSec ?? 0,
+          promptTokens: telemetry?.promptTokensEstimated ?? 0,
+          budgetStatus: telemetry?.promptBudgetStatus ?? 'OPTIMAL',
+          telemetry: telemetry ?? undefined,
+        },
+      };
+    }
+  } catch {
+    // Graceful offline fallback
+  }
+
+  return fallback;
 }
 
 /**

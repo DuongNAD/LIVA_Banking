@@ -62,10 +62,10 @@ const CAU_HOI: &[(&str, &str, &str)] = &[
     ),
 ];
 
-fn env_path(ten: &str, mac_dinh: &str) -> PathBuf {
+fn env_path(ten: &str, mac_dinh: PathBuf) -> PathBuf {
     std::env::var(ten)
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(mac_dinh))
+        .unwrap_or(mac_dinh)
 }
 
 fn ten_template() -> &'static str {
@@ -124,13 +124,16 @@ async fn chay(lm: &std::path::Path, ngl: u32, n_ctx: usize) -> Vec<(String, usiz
 
 #[tokio::main]
 async fn main() {
+    let models_dir = liva_native_core::configured_models_dir();
     let a = env_path(
         "LIVA_CMP_A",
-        "E:\\AI_Models\\Qwen3-VL-2B-Instruct-GGUF\\Qwen3-VL-2B-Instruct-Q4_K_M.gguf",
+        models_dir
+            .join("Qwen3-VL-2B-Instruct-GGUF")
+            .join("Qwen3-VL-2B-Instruct-Q4_K_M.gguf"),
     );
     let b = env_path(
         "LIVA_CMP_B",
-        "E:\\AI_Models\\gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf",
+        models_dir.join("gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf"),
     );
     let ngl: u32 = std::env::var("LIVA_CMP_NGL")
         .ok()

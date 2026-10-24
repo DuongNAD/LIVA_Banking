@@ -1,0 +1,12 @@
+[package]
+name = "liva-netguard"
+version = "0.1.0"
+edition = "2021"
+authors = ["LIVA Banking Core Team"]
+description = "On-premise zero-egress network isolation, nftables profiles, and socket enforcement"
+license = "Proprietary"
+publish = false
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "1.0"

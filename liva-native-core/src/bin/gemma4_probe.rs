@@ -37,21 +37,24 @@ fn stream_print(piece: &str) -> bool {
     true
 }
 
-fn env_path(ten: &str, mac_dinh: &str) -> PathBuf {
+fn env_path(ten: &str, mac_dinh: PathBuf) -> PathBuf {
     std::env::var(ten)
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(mac_dinh))
+        .unwrap_or(mac_dinh)
 }
 
 #[tokio::main]
 async fn main() {
+    let models_dir = liva_native_core::configured_models_dir();
     let lm = env_path(
         "LIVA_GEMMA4_LM",
-        "E:\\AI_Models\\gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf",
+        models_dir.join("gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf"),
     );
     let mmproj = env_path(
         "LIVA_GEMMA4_MMPROJ",
-        "E:\\AI_Models\\gemma-4-E4B-it-GGUF\\mmproj-F16.gguf",
+        models_dir
+            .join("gemma-4-E4B-it-GGUF")
+            .join("mmproj-F16.gguf"),
     );
     let ngl: u32 = std::env::var("LIVA_GEMMA4_NGL")
         .ok()

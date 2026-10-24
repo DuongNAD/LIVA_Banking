@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { logger } from '../utils/logger';
+import { useAuthStore, type UserRole } from './authStore';
+
+export const HIGH_LIMIT_THRESHOLD_VND = 500_000_000;
 
 export type BankPartner = 'VCB' | 'TCB' | 'BIDV' | 'MBB';
 export type PaymentStatus = 'DRAFT' | 'SUBMITTED_TO_CHECKER' | 'APPROVED' | 'EXECUTED' | 'REJECTED';
@@ -100,10 +103,31 @@ export const useTreasuryStore = defineStore('treasury', () => {
     },
   ]);
 
-  // Operator ID & Role state for Treasury
-  const currentOperatorRole = ref<'MAKER' | 'CHECKER'>('MAKER');
-  const currentOperatorId = computed(() =>
-    currentOperatorRole.value === 'MAKER' ? 'USR-TREASURY-MAKER-01' : 'USR-CFO-CHECKER-01'
+  // Operator ID & Role state for Treasury — derived from authStore
+  const authStore = useAuthStore();
+  const manualRoleOverride = ref<UserRole | 'MAKER' | 'CHECKER' | null>('MAKER');
+
+  const currentOperatorRole = computed<UserRole | 'MAKER' | 'CHECKER'>(() => {
+    if (manualRoleOverride.value) return manualRoleOverride.value;
+    return authStore.currentUser?.role || 'MAKER';
+  });
+
+  const currentOperatorId = computed(() => {
+    if (manualRoleOverride.value === 'MAKER') return 'USR-TREASURY-MAKER-01';
+    if (manualRoleOverride.value === 'CHECKER') return 'USR-CFO-CHECKER-01';
+    return authStore.currentUser?.username || authStore.currentUser?.id || 'maker_nam';
+  });
+
+  watch(
+    () => authStore.currentUser?.role,
+    (newRole) => {
+      if (newRole) {
+        if (newRole === 'CHECKER') manualRoleOverride.value = 'CHECKER';
+        else if (newRole === 'MAKER') manualRoleOverride.value = 'MAKER';
+        else manualRoleOverride.value = newRole;
+      }
+    },
+    { immediate: true }
   );
 
   // 2. Rolling Cashflow Horizon (P61)
@@ -271,8 +295,36 @@ export const useTreasuryStore = defineStore('treasury', () => {
 
   // --- Actions ---
 
-  function switchOperatorRole(role: 'MAKER' | 'CHECKER') {
-    currentOperatorRole.value = role;
+  function isSelfApproval(makerId?: string, currentId?: string): boolean {
+    const normMaker = (makerId || '').trim().toLowerCase();
+    const normCurrent = (currentId || '').trim().toLowerCase();
+    if (!normMaker || !normCurrent) return false;
+    if (normMaker === normCurrent) return true;
+    if (
+      (normMaker === 'usr-treasury-maker-01' && (normCurrent === 'maker_nam' || normCurrent === 'usr-treasury-maker-01')) ||
+      (normMaker === 'usr-cfo-checker-01' && (normCurrent === 'checker_tri' || normCurrent === 'cfo_huong' || normCurrent === 'usr-cfo-checker-01'))
+    ) {
+      return true;
+    }
+    const sessionUser = (authStore.currentUser?.username || '').toLowerCase();
+    const sessionProfileId = (authStore.currentUser?.id || '').toLowerCase();
+    if (normMaker === sessionUser || normMaker === sessionProfileId) {
+      return true;
+    }
+    return false;
+  }
+
+  function switchOperatorRole(role: UserRole | 'MAKER' | 'CHECKER') {
+    manualRoleOverride.value = role;
+    const roleUserMap: Record<string, string> = {
+      MAKER: 'maker_nam',
+      CHECKER: 'checker_tri',
+      CFO: 'cfo_huong',
+      AUDITOR: 'auditor_lan',
+      ADMIN: 'admin_sys',
+    };
+    const username = roleUserMap[role] || 'maker_nam';
+    authStore.switchUser(username);
     logger.info(`Treasury Operator chuyển sang: ${role} (${currentOperatorId.value})`);
   }
 
@@ -293,6 +345,9 @@ export const useTreasuryStore = defineStore('treasury', () => {
     priority: PaymentPriority;
     makerNote?: string;
   }): PaymentOrder {
+    if (authStore.isReadOnly || currentOperatorRole.value === 'AUDITOR') {
+      throw new Error('Kiểm toán viên ở chế độ Chỉ đọc, không được lập lệnh chi');
+    }
     if (currentOperatorRole.value !== 'MAKER') {
       throw new Error('Chỉ người có vai trò Thủ quỹ / Thanh toán (Maker) mới được lập lệnh chi tiền');
     }
@@ -333,13 +388,31 @@ export const useTreasuryStore = defineStore('treasury', () => {
     const order = paymentOrders.value.find((p) => p.id === orderId);
     if (!order) throw new Error(`Không tìm thấy lệnh chi ${orderId}`);
 
-    if (currentOperatorRole.value !== 'CHECKER') {
+    if (authStore.isReadOnly || currentOperatorRole.value === 'AUDITOR') {
+      throw new Error('Kiểm toán viên ở chế độ Chỉ đọc, không có quyền duyệt lệnh chi');
+    }
+
+    if (authStore.isAdmin || currentOperatorRole.value === 'ADMIN') {
+      throw new Error('Quản trị viên (Admin) không có thẩm quyền duyệt lệnh tài chính');
+    }
+
+    if (
+      currentOperatorRole.value !== 'CHECKER' &&
+      currentOperatorRole.value !== 'CFO' &&
+      !authStore.isChecker &&
+      !authStore.isCfo
+    ) {
       throw new Error('Chỉ Kế toán trưởng hoặc Giám đốc tài chính (Checker) mới có quyền duyệt lệnh chi');
     }
 
     // Circular 09 Strict Segregation of Duties Invariant
-    if (order.makerId === currentOperatorId.value) {
+    if (isSelfApproval(order.makerId, currentOperatorId.value)) {
       throw new Error(`Vi phạm nguyên tắc 4 mắt (SoD): Người duyệt (${currentOperatorId.value}) không được trùng người lập lệnh (${order.makerId})!`);
+    }
+
+    // High limit escalation check (>= 500M VND requires CFO)
+    if (order.amount >= HIGH_LIMIT_THRESHOLD_VND && currentOperatorRole.value !== 'CFO' && !authStore.isCfo) {
+      throw new Error(`Lệnh chi vượt hạn mức 500.000.000 ₫ yêu cầu Giám đốc tài chính (CFO) phê duyệt!`);
     }
 
     if (!checkerNote || checkerNote.trim().length < 5) {
@@ -360,11 +433,24 @@ export const useTreasuryStore = defineStore('treasury', () => {
     const order = paymentOrders.value.find((p) => p.id === orderId);
     if (!order) throw new Error(`Không tìm thấy lệnh chi ${orderId}`);
 
-    if (currentOperatorRole.value !== 'CHECKER') {
+    if (authStore.isReadOnly || currentOperatorRole.value === 'AUDITOR') {
+      throw new Error('Kiểm toán viên ở chế độ Chỉ đọc, không có quyền từ chối lệnh chi');
+    }
+
+    if (authStore.isAdmin || currentOperatorRole.value === 'ADMIN') {
+      throw new Error('Quản trị viên (Admin) không có thẩm quyền thao tác lệnh tài chính');
+    }
+
+    if (
+      currentOperatorRole.value !== 'CHECKER' &&
+      currentOperatorRole.value !== 'CFO' &&
+      !authStore.isChecker &&
+      !authStore.isCfo
+    ) {
       throw new Error('Chỉ Kế toán trưởng hoặc Giám đốc tài chính (Checker) mới có quyền từ chối lệnh chi');
     }
 
-    if (order.makerId === currentOperatorId.value) {
+    if (isSelfApproval(order.makerId, currentOperatorId.value)) {
       throw new Error(`Vi phạm nguyên tắc 4 mắt (SoD): Người từ chối không được trùng người lập lệnh!`);
     }
 
@@ -383,6 +469,18 @@ export const useTreasuryStore = defineStore('treasury', () => {
 
     if (order.status !== 'APPROVED') {
       throw new Error('Chỉ lệnh chi đã được phê duyệt mới được giải ngân');
+    }
+
+    if (authStore.isReadOnly || currentOperatorRole.value === 'AUDITOR') {
+      throw new Error('Kiểm toán viên ở chế độ Chỉ đọc, không được phép phát lệnh giải ngân');
+    }
+
+    if (authStore.isAdmin || currentOperatorRole.value === 'ADMIN') {
+      throw new Error('Quản trị viên (Admin) không có thẩm quyền giải ngân tài chính');
+    }
+
+    if (authStore.isMaker && currentOperatorRole.value === 'MAKER') {
+      throw new Error('Kế toán viên (Maker) không được phép phát lệnh giải ngân');
     }
 
     const sourceAcc = accounts.value.find((a) => a.id === order.sourceAccountId);
@@ -404,6 +502,18 @@ export const useTreasuryStore = defineStore('treasury', () => {
    * P60: Kích hoạt điều chuyển tập trung vốn (Physical Sweeping)
    */
   function executeCashSweeping(sourceId: string, targetId: string, amount: number) {
+    if (authStore.isReadOnly || currentOperatorRole.value === 'AUDITOR') {
+      throw new Error('Kiểm toán viên ở chế độ Chỉ đọc, không được phép thực hiện quét vốn');
+    }
+
+    if (authStore.isAdmin || currentOperatorRole.value === 'ADMIN') {
+      throw new Error('Quản trị viên (Admin) không có thẩm quyền điều chuyển vốn');
+    }
+
+    if (currentOperatorRole.value === 'MAKER' && authStore.isMaker) {
+      throw new Error('Kế toán viên (Maker) không được phép thực hiện điều chuyển vốn trực tiếp');
+    }
+
     const src = accounts.value.find((a) => a.id === sourceId);
     const tgt = accounts.value.find((a) => a.id === targetId);
 
